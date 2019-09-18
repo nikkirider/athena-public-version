@@ -114,8 +114,9 @@ Real GetMeanDensity(Coordinates *pcoord, Hydro *phydro) {
 class Potential {
   public:
     Potential(const int iprob, const int itemp, const Real T0, const Real n0, 
-              const Real vx0, const Real ramp, const Real x1len,
-              const Real zmin, const Real zmax, const int nx2, const Real gam);
+              const Real vx0, const Real rhos0, const Real ramp, const Real x1len,
+              const Real zmin, const Real zmax, const Real awarp, const int kwarp,
+              const int nx2, const Real gam);
 
     // wrapper for StaticGravPotFunc
     Real gravpot(const Real x1, const Real x2, const Real x3, const Real time);
@@ -152,8 +153,11 @@ class Potential {
     Real _dx2;
     Real _zmin;
     Real _zmax;
+    Real _awarp;
     Real _gam;
     Real _rgc;
+    Real _rhos0;
+    int  _kwarp;
     const Real conv_pc   = 8.87652670e+00;
     const Real conv_kmsc = 9.11836593e-02;
     static const int  _nord     = 3;
@@ -161,7 +165,6 @@ class Potential {
     const Real _H0       = 180.0/conv_pc;
     const Real _r0       = 3e3/conv_pc;
     const Real _rs       = 3e3/conv_pc;
-    const Real _rhos0    = 1.0;
     const Real _sa       = sin(20*PI/180.0);
     const Real _ta       = tan(20*PI/180.0);
     const Real _Cn[_nord]= {8.0/(3.0*PI),0.5,8.0/(15.0*PI)};
@@ -173,8 +176,8 @@ class Potential {
     const Real _a3       = 12e3/conv_pc;
     const Real _C3       = 0.325; // no units!!
     const Real _vc2      = SQR(2.25e2/conv_kmsc);
-    const Real _Tco1[3]  = {log10(2e4)-log10(1e2),5e1/conv_pc,2.5e1/conv_pc};
-    const Real _Tco2[3]  = {log10(2e6)-log10(2e4),5e2/conv_pc,5e2/conv_pc};
+    const Real _Tco1[3]  = {log10(1e4)-log10(1e2),5e1/conv_pc,2.5e1/conv_pc};
+    const Real _Tco2[3]  = {log10(2e6)-log10(1e4),5e2/conv_pc,5e2/conv_pc};
 
     // These are the hydrostatic profile arrays, defined over half the z-extent
     AthenaArray<Real> _dens;
@@ -192,8 +195,9 @@ class Potential {
 // Constructor. Initializes the potential variables and calculates hydrostat 
 // equilibrium to be used for initialization and boundary conditions.
 Potential::Potential(const int iprob, const int itemp, const Real T0, const Real n0, 
-                     const Real vx0, const Real ramp, const Real x1len,
-                     const Real zmin, const Real zmax, const int nx2, const Real gam) {
+                     const Real vx0, const Real rhos0, const Real ramp, const Real x1len,
+                     const Real zmin, const Real zmax, const Real awarp, const int kwarp,
+                     const int nx2, const Real gam) {
   if (itemp > 2) {
     std::stringstream msg;
     msg << "### FATAL ERROR in spiralarm.cpp ProblemGenerator" << std::endl
@@ -212,9 +216,12 @@ Potential::Potential(const int iprob, const int itemp, const Real T0, const Real
   _x2len = zmax-zmin;
   _zmin  = 0.0;
   _zmax  = zmax;
+  _awarp = awarp;
+  _kwarp = kwarp;
   _nx2   = nx2;
   _gam   = gam;
   _rgc   = 0.5*x1len/PI; // specify the circumference and assume periodic boundaries
+  _rhos0 = rhos0;
 
   _zhaf.NewAthenaArray(_nx2);
   _dens.NewAthenaArray(_nx2); // _nx2 is of global length nz/2+1
@@ -231,22 +238,23 @@ Potential::Potential(const int iprob, const int itemp, const Real T0, const Real
 Real Potential::gravpot(const Real x1, const Real x2, const Real x3, const Real time) {
   // spiral arm contribution (Cox & Gomez 2002)
   Real gamma = ((Real)_narm) * x1/_rgc; // spiral arm in domain center if -L,L
+  Real xx2   = _awarp*sin(2.0*PI*((Real)_kwarp)*x1/_x1len);
   Real sumc  = 0.0;
   for (int n=0; n<_nord; n++) {
     int n1  = n+1;
     Real Kn = ((Real)(n1*_narm)) / (_rgc*_sa);
     Real bn = Kn*_H0*(1.0+0.4*Kn*_H0);
     Real Dn = (1.0+Kn*_H0+0.3*SQR(Kn*_H0))/(1.0+0.3*Kn*_H0);
-    sumc   += (_Cn[n]/(Kn*Dn))*cos(n1*gamma)/pow(cosh(Kn*x2/bn),bn);
+    sumc   += (_Cn[n]/(Kn*Dn))*cos(n1*gamma)/pow(cosh(Kn*xx2/bn),bn);
   }
   Real phis = -4.0*_H0*_rhos0*exp(-(_rgc-_r0)/_rs)*sumc;
-  Real x22  = SQR(x2);
+  Real x22  = SQR(xx2);
   // disk/halo contribution (Wolfire et al. 1995)
   Real rgc2 = SQR(_rgc);
   Real phi1 = -_C1*_vc2/sqrt(rgc2+SQR(_a1+sqrt(x22+SQR(_b1))));
   Real phi2 = -_C2*_vc2/(_a2+sqrt(x22+rgc2));
   Real phi3 = -_C3*_vc2*log(SQR(_a3)+rgc2+x22);
-  Real gfrac = std::min(_ramp*time*_vx0/_x1len,1.0);
+  Real gfrac = 1.0;//std::min(_ramp*time*_vx0/_x1len,1.0);
 
   return phi1+phi2+phi3+gfrac*phis;
 };
@@ -530,9 +538,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     T0          = pin->GetReal("problem","T0"); // Temperature at midplane. For itemp==1, 0.01*Thalo
   n0            = pin->GetReal("problem","n0"); // midplane density
   Real ramp     = pin->GetReal("problem","ramp"); // ramping time in crossing times for spiral arm contribution to potential 
-  Real vx0      = pin->GetReal("problem","vx0"); // velocity in ISM units
+  Real vx0      = pin->GetReal("problem","vx0"); // velocity in ISM units (somewhere around 200)
+  Real rhos0    = pin->GetReal("problem","rhos0"); // stellar mass density (in ISM units) Somehwere around 1...10
+  Real awarp    = pin->GetReal("problem","awarp"); // amplitude (in pc) of periodic warp 
+  Real kwarp    = pin->GetInteger("problem","kwarp"); // wavenumber of periodic warp
 
-  pot           = new Potential(iprob, itemp, T0, n0, vx0, ramp, x1len, zmin, zmax, nz/2+1,gamma);
+  pot           = new Potential(iprob, itemp, T0, n0, vx0, rhos0, ramp, x1len, zmin, zmax, awarp, kwarp, nz/2+1,gamma);
   odeint        = new OdeIntegrator(pot, 1e-7);
   odeint->odeint();
   pot->temperature();
