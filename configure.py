@@ -149,6 +149,12 @@ parser.add_argument('-shear',
                     action='store_true',
                     default=False,
                     help='enable shearing box')
+# -com argument
+parser.add_argument('-com',
+    		    default=False,
+    		    action='store_true',
+    		    help='Move with a given frame'
+)
 
 # -de argument
 parser.add_argument('-de',
@@ -259,6 +265,8 @@ parser.add_argument(
           'times')
 )
 
+
+
 # Parse command-line inputs
 args = vars(parser.parse_args())
 
@@ -357,6 +365,14 @@ else:
     definitions['NCLESS_VARIABLES'] = '0' 
     definitions['NWAVE_CLESS'] = '0'
     definitions['CLESS_ONLY_MODE'] = '0'
+
+#Set Comoving Frame
+if args['com']:
+    definitions['COMOVING'] = '1'
+else:
+    definitions['COMOVING'] = '0'
+
+
 
 # --flux=[name] argument
 definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
@@ -710,6 +726,7 @@ print('  Self Gravity:            ' + ('OFF' if args['grav'] == 'none' else args
 print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Collisionless solver:    ' + ('ON' if args['cl'] else 'OFF'))
 print('  COllisionless only mode: ' + ('ON' if args['clo'] else 'OFF'))
+print('  Comoving Frame:          ' + ('ON' if args['com'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
