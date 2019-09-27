@@ -41,6 +41,7 @@
 #include "outputs/outputs.hpp"
 #include "parameter_input.hpp"
 #include "utils/utils.hpp"
+#include "comoving/comoving.hpp"
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -265,6 +266,20 @@ int main(int argc, char *argv[]) {
 #endif
     return(0);
   }
+  Comoving *cm;
+  try{
+    if (COMOVING==1) {
+      cm = new Comoving(pmesh,pinput); //Normal Comoving Construction 
+    } else {
+      cm = new Comoving(pmesh,pinput,0); //Null comoving construction
+    }
+  }
+  catch(std::exception const& ex){
+    std::cout << "### FATAL ERROR in main" << std::endl
+	      << "Creation of Comoving Class Failed: " << std::endl
+	      << ex.what() << std::endl;
+  }
+
 
   // With current mesh time possibly read from restart file, correct next_time for outputs
   if (iarg_flag == 1 && res_flag == 1) {
@@ -390,6 +405,11 @@ int main(int argc, char *argv[]) {
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
       ptlist->DoTaskListOneStage(pmesh, stage);
+      if (COMOVING == 1){
+	//std::cout << "update  Grid after stage" << stage;
+	//std::cout << cm->ShockPos << std::endl;
+	}
+	
     }
 
     pmesh->ncycle++;
