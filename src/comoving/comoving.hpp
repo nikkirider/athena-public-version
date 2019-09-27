@@ -19,13 +19,24 @@ class Coordinates;
 
 class Comoving {
 public:
-  Real ShockPos;
-  Real ShockVel;
+  //Constructors and Destructor
   Comoving(Mesh* pm, ParameterInput* pin);
   Comoving(Mesh* pm, ParameterInput* pin, Real null_flag);
   ~Comoving();
+  
+  //Scalar location and velocity
+  Real LockPos;
+  Real LockVel;
+  int  GridStage;
+  int  CoordSystem;
+  AthenaArray<Real> Zeta;
+  
+  void UpdateLockedData(Mesh *pm, int SCALAR);
+  void UpdateGrid(Mesh *pm);
+  void ComovingSrcTerms(Hydro *phydro, ParameterInput *pin);
+
 private:
-  void ShockDetector(Mesh *pm);
+  AthenaArray<Real> ShockDetector(Mesh *pm);
 
 };
 

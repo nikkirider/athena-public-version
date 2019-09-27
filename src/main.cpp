@@ -408,7 +408,9 @@ int main(int argc, char *argv[]) {
       if (COMOVING == 1){
 	//std::cout << "update  Grid after stage" << stage;
 	//std::cout << cm->ShockPos << std::endl;
-	}
+	//Detect change, and adjust Grid
+	
+        }
 	
     }
 
