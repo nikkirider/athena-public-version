@@ -46,14 +46,14 @@ Comoving::~Comoving(){
 }
 
 //
-void Comoving::UpdateLockedData(Mesh *pm, int SCALAR){
+void Comoving::UpdateLockedData(Mesh *pm, int SCALAR, int stage){
 
 
 }
 
 
 
-void Comoving::UpdateGrid(Mesh *pm){
+void Comoving::UpdateGrid(Mesh *pm, int stage){
   //Edit Region data in Mesh
   //Edit all MeshBlock Data
   //Edit coord object
@@ -61,7 +61,8 @@ void Comoving::UpdateGrid(Mesh *pm){
 }
 
 
-void Comoving::ComovingSrcTerms(Hydro *phydro,ParameterInput *pin){
+void Comoving::ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
+  const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons){
 
 
 }

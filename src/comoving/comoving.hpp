@@ -12,6 +12,7 @@
 #include "../athena_arrays.hpp"
 
 class Mesh;
+class MeshBlock;
 class ParameterInput;
 class Hydro;
 class Coordinates;
@@ -31,10 +32,12 @@ public:
   int  CoordSystem;
   AthenaArray<Real> Zeta;
   
-  void UpdateLockedData(Mesh *pm, int SCALAR);
-  void UpdateGrid(Mesh *pm);
-  void ComovingSrcTerms(Hydro *phydro, ParameterInput *pin);
-
+  void UpdateLockedData(Mesh *pm, int SCALAR, int stage);
+  void UpdateGrid(Mesh *pm, int stage);
+  //void ComovingSrcTerms(Hydro *phydro, ParameterInput *pin, int stage);
+  void ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
+  const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
+  
 private:
   AthenaArray<Real> ShockDetector(Mesh *pm);
 

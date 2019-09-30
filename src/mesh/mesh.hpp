@@ -44,6 +44,8 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
+class Comoving;
+
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
@@ -160,6 +162,7 @@ class Mesh {
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
+  friend class Comoving;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
@@ -186,6 +189,8 @@ public:
   int turb_flag; // turbulence flag
 
   MeshBlock *pblock;
+
+  Comoving *pcm;
 
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
@@ -229,6 +234,7 @@ private:
   // functions
   MeshGenFunc_t MeshGenerator_[3];
   SrcTermFunc_t UserSourceTerm_;
+  CMSrcTermFunc_t CMSourceTerm_;
   StaticGravPotFunc_t StaticGravPot_;
   BValFunc_t BoundaryFunction_[6];
 	BValFuncCL_t BoundaryFunctionCL_[6]; 
@@ -240,6 +246,7 @@ private:
   ConductionCoeff_t ConductionCoeff_;
   FieldDiffusionCoeff_t FieldDiffusivity_;
   MGBoundaryFunc_t MGBoundaryFunction_[6];
+  CMSrcTermFunc_t CMSrcTermFunc_;
 
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);

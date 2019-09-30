@@ -266,6 +266,8 @@ int main(int argc, char *argv[]) {
 #endif
     return(0);
   }
+
+  //Create instance of comoving object
   Comoving *cm;
   try{
     if (COMOVING==1) {
@@ -409,7 +411,9 @@ int main(int argc, char *argv[]) {
 	//std::cout << "update  Grid after stage" << stage;
 	//std::cout << cm->ShockPos << std::endl;
 	//Detect change, and adjust Grid
-	
+ 	cm->UpdateLockedData(pmesh, 0, stage);
+        cm->UpdateGrid(pmesh,stage);	
+        
         }
 	
     }

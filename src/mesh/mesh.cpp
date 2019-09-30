@@ -48,6 +48,7 @@
 #include "mesh.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
+#include "../comoving/comoving.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -64,7 +65,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   enum BoundaryFlag block_bcs[6];
   int64_t nbmax;
   int dim, ilog;
-
+  
   // mesh test
   if (mesh_test>0) Globals::nranks=mesh_test;
 
@@ -253,7 +254,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   MGBoundaryFunction_[OUTER_X2]=MGPeriodicOuterX2;
   MGBoundaryFunction_[INNER_X3]=MGPeriodicInnerX3;
   MGBoundaryFunction_[OUTER_X3]=MGPeriodicOuterX3;
-
+  
 
   // calculate the logical root level and maximum level
   for (root_level=0; (1<<root_level)<nbmax; root_level++);
@@ -443,7 +444,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
     } else { // test
       std::cout << "### Warning in Mesh constructor" << std::endl
           << "Too few mesh blocks: nbtotal ("<< nbtotal <<") < nranks ("
-          << Globals::nranks << ")" << std::endl;
+          <hGenFunc_t Globals::nranks << ")" << std::endl;
     }
   }
 #endif
@@ -510,6 +511,10 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
+
+
+
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -847,6 +852,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
+
+ 
 }
 
 //----------------------------------------------------------------------------------------
