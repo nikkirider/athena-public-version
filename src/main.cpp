@@ -268,13 +268,16 @@ int main(int argc, char *argv[]) {
   }
 
   //Create instance of comoving object
-  Comoving *cm;
+  Comoving *pcomoving;
   try{
     if (COMOVING==1) {
-      cm = new Comoving(pmesh,pinput); //Normal Comoving Construction 
+      pcomoving = new Comoving(pmesh,pinput); //Normal Comoving Construction
+      pmesh->pcm = pcomoving; 
     } else {
-      cm = new Comoving(pmesh,pinput,0); //Null comoving construction
+      pcomoving = NULL; //Null comoving construction
+      pmesh->pcm = NULL;
     }
+    //std::cout << "The total number of scalar variables is" << NSCALARS << std::endl;
   }
   catch(std::exception const& ex){
     std::cout << "### FATAL ERROR in main" << std::endl
@@ -387,6 +390,8 @@ int main(int argc, char *argv[]) {
   double omp_start_time = omp_get_wtime();
 #endif
 
+  pmesh->pcm = pcomoving;
+
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
 
@@ -411,8 +416,8 @@ int main(int argc, char *argv[]) {
 	//std::cout << "update  Grid after stage" << stage;
 	//std::cout << cm->ShockPos << std::endl;
 	//Detect change, and adjust Grid
- 	cm->UpdateLockedData(pmesh, 0, stage);
-        cm->UpdateGrid(pmesh,stage);	
+ 	pcomoving->UpdateComovingLock(pmesh, stage);
+        pcomoving->UpdateGrid(pmesh,stage);	
         
         }
 	

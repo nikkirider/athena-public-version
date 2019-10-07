@@ -50,7 +50,7 @@ class ParameterInput;
 struct RegionSize;
 class HydroDiffusion;
 class FieldDiffusion;
-
+class Mesh;
 
 //--------------------------------------------------------------------------------------
 //! \struct LogicalLocation
@@ -165,8 +165,8 @@ typedef void (*BValFuncCL_t)(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real>
    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke); // cless-BC 
 typedef int (*AMRFlagFunc_t)(MeshBlock *pmb);
 typedef Real (*MeshGenFunc_t)(Real x, RegionSize rs);
-typedef void (*CMSrcTermFunc_t)(MeshBlock *pmb, const Real time, const Real dt,
-  const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
+//typedef void (*CMSrcTermFunc_t)(MeshBlock *pmb, const Real time, const Real dt,
+  //const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
 typedef void (*SrcTermFunc_t)(MeshBlock *pmb, const Real time, const Real dt,
   const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
 typedef Real (*StaticGravPotFunc_t)(const Real x1, const Real x2, const Real x3, const Real time);
@@ -191,5 +191,9 @@ typedef void (*FieldDiffusionCoeff_t)(FieldDiffusion *pfdif, MeshBlock *pmb,
                                       const AthenaArray<Real> &w,
                                       const AthenaArray<Real> &bmag,
                                       int is, int ie, int js, int je, int ks, int ke);
+
+typedef void (*LockingFunction_t)(Mesh *pm, AthenaArray<Real> &vx1f, AthenaArray<Real> &vx2f,
+                                  AthenaArray<Real> &vx3f);
+
 
 #endif // ATHENA_HPP_

@@ -248,6 +248,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   ViscosityCoeff_=NULL;
   ConductionCoeff_=NULL;
   FieldDiffusivity_=NULL;
+  CMLocking = NULL;
   MGBoundaryFunction_[INNER_X1]=MGPeriodicInnerX1;
   MGBoundaryFunction_[OUTER_X1]=MGPeriodicOuterX1;
   MGBoundaryFunction_[INNER_X2]=MGPeriodicInnerX2;
@@ -653,6 +654,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   StaticGravPot_=NULL;
   UserTimeStep_=NULL;
   ViscosityCoeff_=NULL;
+  CMLocking = NULL;
   ConductionCoeff_=NULL;
   FieldDiffusivity_=NULL;
   MGBoundaryFunction_[INNER_X1]=MGPeriodicInnerX1;
@@ -2375,3 +2377,15 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 unsigned int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
   return (lid<<8) | (ox1<<7)| (ox2<<6) | (ox3<<5) | TAG_AMR;
 }
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void EnrollComovingLockingFunction(LockingFunction_t myfunc)
+//  \brief Takes function defined in pgen describing movement of coordinate grid
+//  	   and uses it to define Comoving's CMLocking function
+// 
+void Mesh::EnrollComovingLockingFunction(LockingFunction_t my_func){
+  CMLocking = my_func;
+   
+}
+

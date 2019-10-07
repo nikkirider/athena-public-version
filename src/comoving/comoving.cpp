@@ -20,8 +20,8 @@
 
 //Constructor for comoving object which will actually make changes
 Comoving::Comoving(Mesh *pm, ParameterInput *pin) {
-  LockPos = pin->GetReal("problem","r0"); //Get initial scalar position
-  LockVel = pin->GetReal("problem","v0"); //Get initial scalar velocity
+  LockPos = pin->GetOrAddReal("mesh","cmR0",0.0); //Get initial scalar position
+  LockVel = pin->GetOrAddReal("mesh","cmV0",0.0); //Get initial scalar velocity
   if (COORDINATE_SYSTEM == "cartesian") {
     CoordSystem = 1;
   } else if (COORDINATE_SYSTEM == "cylindrical") {
@@ -32,12 +32,9 @@ Comoving::Comoving(Mesh *pm, ParameterInput *pin) {
     CoordSystem = 0;  
   }
   
+  //CMLocking = NULL; 
 }
 
-//Null Comoving object which does not do anything.
-Comoving::Comoving(Mesh *pm, ParameterInput *pin, Real null_flag){
-  LockPos = 0.0;
-}
 
 //destructor
 Comoving::~Comoving(){
@@ -45,11 +42,15 @@ Comoving::~Comoving(){
 
 }
 
-//
-void Comoving::UpdateLockedData(Mesh *pm, int SCALAR, int stage){
-
-
+void Comoving::UpdateComovingLock(Mesh *pm, int stage){
+  if (pm->CMLocking != NULL) {
+    pm->CMLocking(pm,gvx1f,gvx2f,gvx3f);    
+  }
 }
+
+
+
+
 
 
 
@@ -57,7 +58,7 @@ void Comoving::UpdateGrid(Mesh *pm, int stage){
   //Edit Region data in Mesh
   //Edit all MeshBlock Data
   //Edit coord object
-
+  std::cout << stage << std::endl;
 }
 
 
@@ -69,8 +70,8 @@ void Comoving::ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
 
 
 
-AthenaArray<Real> Comoving::ShockDetector(Mesh *pm){
+//AthenaArray<Real> Comoving::ShockDetector(Mesh *pm){
 
 
-}
+//}
 

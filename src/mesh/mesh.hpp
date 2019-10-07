@@ -234,7 +234,7 @@ private:
   // functions
   MeshGenFunc_t MeshGenerator_[3];
   SrcTermFunc_t UserSourceTerm_;
-  CMSrcTermFunc_t CMSourceTerm_;
+  
   StaticGravPotFunc_t StaticGravPot_;
   BValFunc_t BoundaryFunction_[6];
 	BValFuncCL_t BoundaryFunctionCL_[6]; 
@@ -244,9 +244,9 @@ private:
   MetricFunc_t UserMetric_;
   ViscosityCoeff_t ViscosityCoeff_;
   ConductionCoeff_t ConductionCoeff_;
+  LockingFunction_t CMLocking;
   FieldDiffusionCoeff_t FieldDiffusivity_;
   MGBoundaryFunc_t MGBoundaryFunction_[6];
-  CMSrcTermFunc_t CMSrcTermFunc_;
 
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);
@@ -272,6 +272,8 @@ private:
   void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
   void SetGravityThreshold(Real eps) { grav_eps_=eps; }
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
+
+  void EnrollComovingLockingFunction(LockingFunction_t my_func);
 };
 
 
