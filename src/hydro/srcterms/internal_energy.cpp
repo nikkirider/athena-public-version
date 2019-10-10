@@ -34,6 +34,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
     x1v.InitWithShallowCopy(pmb->pcoord->x1v); //fh++
     x1f.InitWithShallowCopy(pmb->pcoord->x1f); //fh++
 
+    // This is correct. Needs to be of nx1-length, bc inner loop is over i.
     if (pmb->block_size.nx2 > 1) {
       dx2m1.InitWithShallowCopy(pmb->pcoord->dx1v);
       dx2p1.InitWithShallowCopy(pmb->pcoord->dx1v);
@@ -52,7 +53,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
         pmb->pcoord->Face1Pos(k, j, pmb->is-1,pmb->ie+1,x1f); //fh++
 #pragma omp simd
         for (int i=pmb->is; i<=pmb->ie; ++i) {
-          Pc               = prim(IIE,k,j,i)*gm1;
+          Pc               = prim(IGE,k,j,i)*prim(IDN,k,j,i)*gm1; // IGE is T/(gamma-1)
           Real vim         = prim(IVX,k,j,i-1);
           Real vi          = prim(IVX,k,j,i  );
           Real vip         = prim(IVX,k,j,i+1);
@@ -81,7 +82,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             Real dtodx2 = dt/((dx2p1(i) + dx2m1(i))); 
             // cell-centered pressure
-            Pc	= cons(IIE,k,j,i)*gm1;
+            Pc	= prim(IGE,k,j,i)*prim(IDN,k,j,i)*gm1;
             // vr, vl
             vr  = prim(IVY,k,j+1,i);
             vl  = prim(IVY,k,j-1,i); 
@@ -97,7 +98,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             Real dtodx3 = dt/(dx3p1(i) + dx3m1(i)); 
             // cell-centered pressure
-            Pc = cons(IIE,k,j,i)*gm1;
+            Pc = prim(IGE,k,j,i)*prim(IDN,k,j,i)*gm1;
             // vr, vl
             vr  = prim(IVZ,k+1,j,i);
             vl  = prim(IVZ,k-1,j,i); 

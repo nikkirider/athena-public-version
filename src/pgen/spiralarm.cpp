@@ -31,15 +31,16 @@
 //====================================================================================
 // local functions
 Real gravpot_spirarm(const Real x1, const Real x2, const Real x3, const Real time);
-void SpiralInflowInnerX1(MeshBlock *pmb, Coordinates *pco,
-                         AthenaArray<Real> &a,
-                         FaceField &b, Real time, Real dt,
-                         int is, int ie, int js, int je, int ks, int ke, int ngh);
-void SpiralOutflowOuterX1(MeshBlock *pmb, Coordinates *pco,
+void SpiralInfallOuterX2(MeshBlock *pmb, Coordinates *pco,
                          AthenaArray<Real> &a,
                          FaceField &b, Real time, Real dt,
                          int is, int ie, int js, int je, int ks, int ke, int ngh);
 Real GetMeanDensity(Coordinates *pcoord, Hydro *phydro);
+Real GetL(const Real dens, const Real temp); // heating and cooling
+Real BracketRoot(const Real dens, const Real temp0);
+Real FindRoot(const Real dens, const Real temp0, const Real temp1);
+void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<Real> &prim,
+                         const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
 
 static void stop_this();
 
@@ -49,13 +50,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   // vertical external gravitational potential
   EnrollStaticGravPotFunction(gravpot_spirarm); // Cox & Gomez
 
-  // enroll user-defined boundary conditions
-  if (mesh_bcs[INNER_X1] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(INNER_X1, SpiralInflowInnerX1);
-  }
-  //if (mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
-  //  EnrollUserBoundaryFunction(OUTER_X1, SpiralOutflowOuterX1);
-  //}
+  // enroll user-defined upper y-boundary for infall
+  int infall = pin->GetOrAddInteger("problem","infall",0);
+  if (infall == 1)
+    EnrollUserBoundaryFunction(OUTER_X2, SpiralInfallOuterX2);
+
+  // enroll user-defined cooling function
+  int icool = pin->GetOrAddInteger("problem","icool",0);
+  if (icool == 1)
+    EnrollUserExplicitSourceFunction(HeatCool);
 
   Real four_pi_G = 48.0*std::atan(1.0); // unit system (n,T) with G=1
   Real eps = 0.0;
@@ -71,6 +74,52 @@ static void stop_this() {
   std::stringstream msg;
   msg << "stop" << std::endl;
   throw std::runtime_error(msg.str().c_str());
+}
+
+//====================================================================================
+// Real GetL(const Real dens, const Real temp)
+//   cooling function assuming existence of thermal equilibrium
+//   returns de/dt [erg/s] in code units assuming ISM units with n0=T0=1.
+Real GetL(const Real dens, const Real temp) {
+  const Real fac = 2.1756879947982705e+29;
+  Real gain = 5e-27+(7e-24-5e-27)*0.5*(1.0+std::tanh((std::log10(temp)-4.5)/0.10));
+  Real loss = 2e-19*std::exp(-1.8e5/(temp)) + 2.8e-27*sqrt(temp)*std::exp(-1e3/temp);
+  return (gain-dens*loss)*fac;
+}
+
+//====================================================================================
+// Real BracketRoot(const Real temp0)
+Real BracketRoot(const Real dens, const Real temp0) {
+  Real lam   = GetL(dens,temp0); 
+  Real sig   = (Real) ((lam > 0) - (lam < 0));
+  Real fac   = 1.0 + sig*0.1;
+  Real temp1 = temp0;
+  while (lam*GetL(dens,temp1) > 0) 
+    temp1 *= fac;
+  return temp1;
+}
+
+//====================================================================================
+// Real FindRoot(const Real dens, const Real temp0, const Real temp1)
+Real FindRoot(const Real dens, const Real temp0, const Real temp1) {
+  if (temp0 == temp1) return temp0;
+  Real tt0=temp0,tt1=temp1;
+  if (tt0 > tt1) std::swap(tt0, tt1);
+  const Real tol = 1e-6;
+  int nit = (int) (log((tt1-tt0)/tol)/log(2.0));
+  Real T[2], L[2];
+  T[0]         = tt0;
+  T[1]         = 0.5*(tt0+tt1);
+  L[0]         = GetL(dens,T[0]);
+  L[1]         = GetL(dens,T[1]);
+  for (int i=0; i<nit; i++) {
+    int w = (L[0]*L[1] < 0); // 0 if >0, 1 if <= 0
+    T[w]  = T[1];
+    L[w]  = L[1];
+    T[1]  = 0.5*(T[0]+T[1]);
+    L[1]  = GetL(dens,T[1]);
+  }
+  return T[1];
 }
 
 //====================================================================================
@@ -198,9 +247,9 @@ Potential::Potential(const int iprob, const int itemp, const Real T0, const Real
                      const Real vx0, const Real rhos0, const Real ramp, const Real x1len,
                      const Real zmin, const Real zmax, const Real awarp, const int kwarp,
                      const int nx2, const Real gam) {
-  if (itemp > 2) {
+  if (itemp > 1) {
     std::stringstream msg;
-    msg << "### FATAL ERROR in spiralarm.cpp ProblemGenerator" << std::endl
+    msg << "### FATAL ERROR in spiralarm.cpp" << std::endl
          << "   class Potential: invalid itemp " << itemp << std::endl;
     throw std::runtime_error(msg.str().c_str());
   }
@@ -238,23 +287,23 @@ Potential::Potential(const int iprob, const int itemp, const Real T0, const Real
 Real Potential::gravpot(const Real x1, const Real x2, const Real x3, const Real time) {
   // spiral arm contribution (Cox & Gomez 2002)
   Real gamma = ((Real)_narm) * x1/_rgc; // spiral arm in domain center if -L,L
-  Real xx2   = _awarp*sin(2.0*PI*((Real)_kwarp)*x1/_x1len);
+  //Real x2   = _awarp*sin(2.0*PI*((Real)_kwarp)*x1/_x1len);
   Real sumc  = 0.0;
   for (int n=0; n<_nord; n++) {
     int n1  = n+1;
     Real Kn = ((Real)(n1*_narm)) / (_rgc*_sa);
     Real bn = Kn*_H0*(1.0+0.4*Kn*_H0);
     Real Dn = (1.0+Kn*_H0+0.3*SQR(Kn*_H0))/(1.0+0.3*Kn*_H0);
-    sumc   += (_Cn[n]/(Kn*Dn))*cos(n1*gamma)/pow(cosh(Kn*xx2/bn),bn);
+    sumc   += (_Cn[n]/(Kn*Dn))*cos(n1*gamma)/pow(cosh(Kn*x2/bn),bn);
   }
   Real phis = -4.0*_H0*_rhos0*exp(-(_rgc-_r0)/_rs)*sumc;
-  Real x22  = SQR(xx2);
+  Real x22  = SQR(x2);
   // disk/halo contribution (Wolfire et al. 1995)
   Real rgc2 = SQR(_rgc);
   Real phi1 = -_C1*_vc2/sqrt(rgc2+SQR(_a1+sqrt(x22+SQR(_b1))));
   Real phi2 = -_C2*_vc2/(_a2+sqrt(x22+rgc2));
   Real phi3 = -_C3*_vc2*log(SQR(_a3)+rgc2+x22);
-  Real gfrac = 1.0;//std::min(_ramp*time*_vx0/_x1len,1.0);
+  Real gfrac= 1.0;//std::min(_ramp*time*_vx0/_x1len,1.0);
 
   return phi1+phi2+phi3+gfrac*phis;
 };
@@ -352,7 +401,6 @@ OdeIntegrator::OdeIntegrator(Potential* par, const Real eps) {
   _dx     = (_x1-_x0) / ((Real) _nx-1);
   _y0     = _par->y0();
   _eps    = eps;
-  std::cout << "OdeIntegrator: " << _x0 << " " << _x1 << " " << _nx << " " << _dx << " " << _eps << std::endl;
   // parameters for rk45 stepsize control
   _pshrink= -0.25;
   _pgrow  = -0.2;
@@ -397,10 +445,12 @@ void OdeIntegrator::odeint() {
   _par->y(0) = _y0;
   for (int k=1; k<_nx; k++) {
     _par->y(k) = rk45(_dx*((Real)(k-1)),_par->y(k-1),_dx);
-    std::cout << "[OdeIntegrator::odeint()]: k=" << std::setw(5) << k
-              << " x="   << std::scientific << std::setprecision(5) << _dx*((Real)k)
-              << " y="   << std::scientific << std::setprecision(5) << _par->y(k)
-              << std::endl;
+    if (Globals::my_rank == 0) {
+      std::cout << "[OdeIntegrator::odeint()]: k=" << std::setw(5) << k
+                << " x="   << std::scientific << std::setprecision(5) << _dx*((Real)k)
+                << " y="   << std::scientific << std::setprecision(5) << _par->y(k)
+                << std::endl;
+    }
   }
   return;
 };
@@ -477,6 +527,7 @@ Real OdeIntegrator::rk45(const Real x0, const Real y0, const Real dx) {
 // Global variables for boundaries and gravity
 AthenaArray<Real> dprofloc, tprofloc;
 Real gm1;
+Real tinfall,rinfall,ninfall,pinfall,xinfall,yinfall,vxinfall,vyinfall,x1leninfall; // variables for cloud infall
 Potential *pot;
 
 //========================================================================================
@@ -534,8 +585,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   int iprob     = pin->GetInteger("problem","iprob");
   int itemp     = pin->GetInteger("problem","itemp"); // 0: constant, 1: tanh(z), 2: thermal equilibrium
+  int infall    = pin->GetOrAddInteger("problem","infall",0) ; // 0: no infall, 1: infall
   if (itemp < 2) 
     T0          = pin->GetReal("problem","T0"); // Temperature at midplane. For itemp==1, 0.01*Thalo
+  if (infall == 1) {
+    tinfall     = pin->GetReal("problem","tinfall"); // time at which infall starts
+    vxinfall    = pin->GetReal("problem","vxinfall"); // infall velocity (vertical)
+    vyinfall    = pin->GetReal("problem","vyinfall"); // infall velocity (horizontal, relative to vx0)
+    ninfall     = pin->GetReal("problem","ninfall"); // infall (cloud) density
+    rinfall     = pin->GetReal("problem","rinfall"); // infall (cloud) radius
+    x1leninfall = x1len;
+    xinfall     = x1min+0.5*(x1max-x1min) - vxinfall*tinfall;
+    yinfall     = x2max+vyinfall*tinfall;
+  }
   n0            = pin->GetReal("problem","n0"); // midplane density
   Real ramp     = pin->GetReal("problem","ramp"); // ramping time in crossing times for spiral arm contribution to potential 
   Real vx0      = pin->GetReal("problem","vx0"); // velocity in ISM units (somewhere around 200)
@@ -562,11 +624,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   for (iz=0; iz<nzloc; iz++) {
     dprofloc(iz) = 0.5*(dprofcmp(iz+izloc)+dprofcmp(iz+izloc+1));
     tprofloc(iz) = 0.5*(tprofcmp(iz+izloc)+tprofcmp(iz+izloc+1));
-    std::cout << "[Problem]: iz=" << std::setw(5) <<iz 
-              << " dprofloc=" << std::scientific << std::setprecision(5) << dprofloc(iz)
-              << " tprofloc=" << std::scientific << std::setprecision(5) << tprofloc(iz)
-              << std::endl;
-
+    if (Globals::my_rank == 0) {
+      std::cout << "[Problem]: iz=" << std::setw(5) <<iz 
+                << " dprofloc=" << std::scientific << std::setprecision(5) << dprofloc(iz)
+                << " tprofloc=" << std::scientific << std::setprecision(5) << tprofloc(iz)
+                << std::endl;
+    }
+  }
+  // for infall, we need the last density and temperature information
+  if (infall == 1) {
+    pinfall  = pot->dens(nz/2)*pot->temp(nz/2);
   }
   // now fill the main grid
   for (int k=ks; k<=ke; k++) {
@@ -670,89 +737,41 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 }
 
 //========================================================================================
-//! \fn void SpiralInnerX1(...)
-//  \brief Inner (inflow) X1 boundary conditions for spiral arm
+//! \fn void heatcool(...)
+//  \brief Heating and cooling for user-defined cooling function
 //========================================================================================
 
-void SpiralInflowInnerX1(MeshBlock *pmb, Coordinates *pco,
-    AthenaArray<Real> &prim, FaceField &b,
-    Real time, Real dt, int is, int ie, int js,
-    int je, int ks, int ke, int ngh) {
-
-  int iz,izs,IY,IZ;
-  int nx3 = ke-ks+1;
-  if (nx3 > 1) {
-    izs = ks;
-    IY  = IM2;
-    IZ  = IM3;
-  } else {
-    izs = js;
-    IY  = IM3;
-    IZ  = IM2;
-  }
-
-  // Assign fields 
-  if (MAGNETIC_FIELDS_ENABLED) {
-    for (int k=ks; k<=ke; k++) {
-      for (int j=js; j<=je; j++) {
-        for (int i=0; i<ngh; i++) {
-          b.x1f(k,j,i) = 0.0;//bx0_bc;
-        }
-      }
-    }
-    for (int k=ks; k<=ke; k++) {
-      for (int j=js; j<=je+1; j++) {
-        for (int i=0; i<ngh; i++) {
-          if (nx3 > 1) {
-            iz = k;
-            b.x2f(k,j,i) = 0.0;//by0_bc*sqrt(csound_bc*csound_bc*n00_bc*beta0_bc)*pow(dprofloc(iz-izs)/n00_bc,bpow_bc);
-          } else {
-            iz = j;
-            b.x2f(k,j,i) = 0.0;//by0_bc;
-          }
-        }
-      }
-    }
-    for (int k=ks; k<=ke+1; k++) {
-      for (int j=js; j<=je; j++) {
-        for (int i=0; i<ngh; i++) {
-          if (nx3 > 1) {
-            iz = k;
-            b.x3f(k,j,i) = 0.0;//bz0_bc;
-          } else {
-            iz = j;
-            b.x3f(k,j,i) = 0.0;//bz0_bc*sqrt(csound_bc*csound_bc*n00_bc*beta0_bc)*pow(dprofloc(iz-izs)/n00_bc,bpow_bc);
-          }
-        }
-      }
-    }
-  }
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=0; i<ngh; i++) {
-        if (nx3 > 1) {
-          iz = k;
+void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<Real> &prim,
+                 const AthenaArray<Real> &bcc, AthenaArray<Real> &cons)
+{
+  Real g = pmb->peos->GetGamma();
+  Real tau = 0.01;
+  for (int k=pmb->ks; k<=pmb->ke; ++k) {
+    for (int j=pmb->js; j<=pmb->je; ++j) {
+      for (int i=pmb->is; i<=pmb->ie; ++i) {
+        Real dens  = prim(IDN,k,j,i);
+        Real temp0 = 0.0;
+        if (DUAL_ENERGY) {
+          temp0 = prim(IGE,k,j,i)*(g-1.0); // This should have gam-1, bc it's the internal energy
         } else {
-          iz = j;
+          temp0 = prim(IPR,k,j,i)/dens; // This should not have gam-1, bc it's the pressure.
         }
-        pmb->phydro->u(IDN,k,j,i) = dprofloc(iz-izs);
-        pmb->phydro->u(IM1,k,j,i) = dprofloc(iz-izs)*pot->vx0();
-        pmb->phydro->u(IY ,k,j,i) = 0.0;
-        pmb->phydro->u(IZ ,k,j,i) = 0.0;
-        if (NON_BAROTROPIC_EOS) {
-          pmb->phydro->u(IEN,k,j,i) =  tprofloc(iz-izs)*dprofloc(iz-izs)/gm1 
-                                     + 0.5*( SQR(pmb->phydro->u(IM1,k,j,i))
-                                            +SQR(pmb->phydro->u(IM2,k,j,i))
-                                            +SQR(pmb->phydro->u(IM3,k,j,i)))
-                                          /dprofloc(iz-izs);
+        Real temp1 = BracketRoot(dens,temp0);
+        Real temp2 = FindRoot(dens,temp0,temp1);
+        Real dtemp = temp2 - temp0;
+        cons(IEN,k,j,i) += dens*dtemp/(g-1.0);
+        if (i == pmb->is) {
+          std::cout << "HeatCool: j  =" << std::setw(5)    << j  
+                    <<       " dens  =" << std::scientific << std::setw(13) << std::setprecision(5) << dens 
+                    <<       " temp0 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
+                    <<       " temp1 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp1
+                    <<       " temp2 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp2
+                    <<       " dE    =" << std::scientific << std::setw(13) << std::setprecision(5) << dens*dtemp/(g-1.0)
+                    <<       " Etot  =" << std::scientific << std::setw(13) << std::setprecision(5) << cons(IEN,k,j,i)
+                    << std::endl;
         }
         if (DUAL_ENERGY) {
-          pmb->phydro->u(IIE,k,j,i) = tprofloc(iz-izs)*dprofloc(iz-izs)/gm1;
-        }
-        if (MAGNETIC_FIELDS_ENABLED) {
-          pmb->phydro->u(IEN,k,j,i) += 0.5*( SQR(b.x1f(k,j,i))
-                                            +SQR(b.x2f(k,j,i))
-                                            +SQR(b.x3f(k,j,i)));
+          cons(IIE,k,j,i) += dens*dtemp/(g-1.0);
         }
       }
     }
@@ -760,46 +779,135 @@ void SpiralInflowInnerX1(MeshBlock *pmb, Coordinates *pco,
   return;
 }
 
-//========================================================================================
-//! \fn void SpiralOutflowOuterX1(...)
-//  \brief Outer (outflow) X1 boundary conditions for spiral arm
-//========================================================================================
+//----------------------------------------------------------------------------------------
+//! \fn void SpiralInfallOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+//                          FaceField &b, const Real time, const Real dt,
+//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//  \brief combination of infall and REFLECTING boundary conditions, outer x2 boundary
+//----------------------------------------------------------------------------------------
 
-void SpiralOutflowOuterX1(MeshBlock *pmb, Coordinates *pco,
-    AthenaArray<Real> &prim, FaceField &b,
-    Real time, Real dt, int is, int ie, int js,
-    int je, int ks, int ke, int ngh) {
+void SpiralInfallOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+                    FaceField &b, Real time, Real dt,
+                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+  // copy hydro variables into ghost zones, reflecting v2
+  for (int n=0; n<(NHYDRO); ++n) {
+    if (n==(IVY)) {
+      for (int k=ks; k<=ke; ++k) {
+      for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          prim(IVY,k,je+j,i) = -prim(IVY,k,je-j+1,i);  // reflect 2-velocity
+        }
+      }}
+    } else {
+      for (int k=ks; k<=ke; ++k) {
+      for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          prim(n,k,je+j,i) = prim(n,k,je-j+1,i);
+        }
+      }}
+    }
+  }
+
+  // set infall quantities. Split up into individual variables
+  // Pressure is kept the same, which means that IGE for dual energy changes.
+  Real xoff = -(xinfall+vxinfall*time);
+  Real yoff = -(yinfall-vyinfall*time); 
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        prim(IDN,k,je+j,i) =   prim(IDN,k,je+j,i) 
+                             + 0.5*(ninfall-prim(IDN,k,je+j,i))
+                                  *(1.0-std::tanh((sqrt( SQR(fmod(pco->x1v(i)+xoff,x1leninfall))
+                                                        +SQR(pco->x2v(j)+yoff))
+                                                  /rinfall-1.0)/0.1));
+      }
+    }
+  }
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        prim(IVX,k,je+j,i) =   prim(IVX,k,je+j,i)
+                             + 0.5*(vxinfall-prim(IVX,k,je+j,i))
+                                  *(1.0-std::tanh((sqrt( SQR(fmod(pco->x1v(i)+xoff,x1leninfall))
+                                                        +SQR(pco->x2v(j)+yoff))
+                                                  /rinfall-1.0)/0.1));
+      }
+    }
+  }
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        prim(IVY,k,je+j,i) =   prim(IVY,k,je+j,i)
+                             + 0.5*(vyinfall-prim(IVY,k,je+j,i))
+                                  *(1.0-std::tanh((sqrt( SQR(fmod(pco->x1v(i)+xoff,x1leninfall))
+                                                        +SQR(pco->x2v(j)+yoff))
+                                                  /rinfall-1.0)/0.1));
+      }
+    }
+  }
+  if (DUAL_ENERGY) {
+    for (int k=ks; k<=ke; ++k) {
+      for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          // IGE = Temp/(g-1), and we use the cloud density and ambient pressure to get the desired temperature.
+          prim(IGE,k,je+j,i) =   prim(IGE,k,je+j,i)
+                               + 0.5*((prim(IPR,k,je+j,i)/ninfall)/gm1-prim(IGE,k,je+j,i))
+                                    *(1.0-std::tanh((sqrt( SQR(fmod(pco->x1v(i)+xoff,x1leninfall))
+                                                          +SQR(pco->x2v(j)+yoff))
+                                                    /rinfall-1.0)/0.1));
+        }
+      }
+    }
+  }
+  if (NSCALARS == 1) {
+    for (int k=ks; k<=ke; ++k) {
+      for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          prim(IS0,k,je+j,i) =   prim(IS0,k,je+j,i)
+                               + 0.5*(ninfall-prim(IS0,k,je+j,i))
+                                    *(1.0-std::tanh((sqrt( SQR(fmod(pco->x1v(i)+xoff,x1leninfall))
+                                                          +SQR(pco->x2v(j)+yoff))
+                                                    /rinfall-1.0)/0.1));
+        }
+      }
+    }
+  }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-    for (int k=ks; k<=ke; k++) {
-      for (int j=js; j<=je; j++) {
-        for (int i=1; i<=ngh; i++) {
-          b.x1f(k,j,ie+i) = b.x1f(k,j,ie);
-        }
+    for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie+1; ++i) {
+        b.x1f(k,(je+j  ),i) =  b.x1f(k,(je-j+1),i);
       }
-    }
-    for (int k=ks; k<=ke; k++) {
-      for (int j=js; j<=je+1; j++) {
-        for (int i=1; i<=ngh; i++) {
-          b.x2f(k,j,ie+i) = b.x2f(k,j,ie);
-        }
+    }}
+
+    for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        b.x2f(k,(je+j+1),i) = -b.x2f(k,(je-j+1),i);  // reflect 2-field
       }
-    }     
-    for (int k=ks; k<=ke+1; k++) {
-      for (int j=js; j<=je; j++) {
-        for (int i=1; i<=ngh; i++) {
-          b.x3f(k,j,ie+i) = b.x3f(k,j,ie);
-        }        
+    }}
+
+    for (int k=ks; k<=ke+1; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        b.x3f(k,(je+j  ),i) =  b.x3f(k,(je-j+1),i);
       }
-    }
+    }}
   }
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=1; i<=ngh; i++) {
-      }
-    }
-  }
+
   return;
 }
+
 
 
