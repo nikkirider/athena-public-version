@@ -172,7 +172,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   block_size.x2rat = mesh_size.x2rat = pin->GetOrAddReal("mesh","x2rat",1.0);
   block_size.x3rat = mesh_size.x3rat = pin->GetOrAddReal("mesh","x3rat",1.0);
 
-
+  int nLockData = pin->GetOrAddReal("problem","NumberOfCMLockDataPts",0);
+  CMLockData.NewAthenaArray((nLockData+1));
+  
   // read BC flags for each of the 6 boundaries in turn.
   mesh_bcs[INNER_X1] = GetBoundaryFlag(pin->GetOrAddString("mesh","ix1_bc","none"));
   mesh_bcs[OUTER_X1] = GetBoundaryFlag(pin->GetOrAddString("mesh","ox1_bc","none"));
@@ -248,7 +250,8 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   ViscosityCoeff_=NULL;
   ConductionCoeff_=NULL;
   FieldDiffusivity_=NULL;
-  CMLocking = NULL;
+  CMLocking_ = NULL;
+  CMNewCoord_ = NULL;
   MGBoundaryFunction_[INNER_X1]=MGPeriodicInnerX1;
   MGBoundaryFunction_[OUTER_X1]=MGPeriodicOuterX1;
   MGBoundaryFunction_[INNER_X2]=MGPeriodicInnerX2;
@@ -616,12 +619,18 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   block_size.nx1 = pin->GetOrAddInteger("meshblock","nx1",mesh_size.nx1);
   block_size.nx2 = pin->GetOrAddInteger("meshblock","nx2",mesh_size.nx2);
   block_size.nx3 = pin->GetOrAddInteger("meshblock","nx3",mesh_size.nx3);
-
+  
+  
+  
   // calculate the number of the blocks
   nrbx1=mesh_size.nx1/block_size.nx1;
   nrbx2=mesh_size.nx2/block_size.nx2;
   nrbx3=mesh_size.nx3/block_size.nx3;
-
+  
+  //Setup Blank array for CM Locking data to be passed into the meshblocks
+  int nLockData = pin->GetOrAddReal("problem","NumberOfCMLockDataPts",0);
+  CMLockData.NewAthenaArray(nLockData+1);
+  
   // initialize user-enrollable functions
   if (mesh_size.x1rat!=1.0) {
     use_uniform_meshgen_fn_[X1DIR]=false;
@@ -654,7 +663,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   StaticGravPot_=NULL;
   UserTimeStep_=NULL;
   ViscosityCoeff_=NULL;
-  CMLocking = NULL;
+  CMLocking_ = NULL;
+  CMNewCoord_ = NULL;
   ConductionCoeff_=NULL;
   FieldDiffusivity_=NULL;
   MGBoundaryFunction_[INNER_X1]=MGPeriodicInnerX1;
@@ -1410,12 +1420,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                       il, iu, jl, ju, kl, ku);
       pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                      time, 0.0);
-			if (CLESS_ENABLED) {
-				pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
-																	pcless->w, pmb->pcoord, 
-																	il, iu, jl, ju, kl, ku);
-				pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-			}
+      if (CLESS_ENABLED) {
+	pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, pcless->w, pmb->pcoord, il, iu, jl, ju, kl, ku);
+	pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+      }
     }
 
     // Calc initial diffusion coefficients
@@ -2385,7 +2393,38 @@ unsigned int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
 //  	   and uses it to define Comoving's CMLocking function
 // 
 void Mesh::EnrollComovingLockingFunction(LockingFunction_t my_func){
-  CMLocking = my_func;
+  CMLocking_ = my_func;
    
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn void EnrollFaceCoordFunction(EditFaceCoord_t myfunc)
+//  \brief \Enrolls function defined in pgen that takes in a grid point face coordinate
+//         and uses it to provide the new coordinate for that grid point
+// 
+void Mesh::EnrollFaceCoordFunction(EditFaceCoord_t my_func){
+  CMNewCoord_ = my_func;
+
+  }
+
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void EditGrid(AthenaArray<Real> dx1f, AthenaArray<Real> dx2f, AthenaArray<Real> dx3f);
+//  \brief Moves through grid and adjusts coordinate frame based on change in frame
+
+void Mesh::EditGrid(AthenaArray<Real> LockData){
+  
+  //Edit every MeshBlock
+  MeshBlock *pmb = pblock;
+  AthenaArray<Real> *Data;
+  Data = &LockData; 
+  int i = 0;
+  while (pmb!= NULL) {
+    
+    pmb->EditMBCoord(Data);
+    pmb = pmb->next;
+    i++;
+  } 
+
+}

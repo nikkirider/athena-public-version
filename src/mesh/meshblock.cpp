@@ -37,6 +37,8 @@
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "mesh.hpp"
+#include "../comoving/comoving.hpp"
+
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -235,7 +237,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   peos = new EquationOfState(this, pin);
   InitUserMeshBlockData(pin);
   InitOTFOutput(pin);
-
+  if (COMOVING==1) {
+    pcm = new Comoving(this,pin);
+  } else {
+    pcm = NULL;
+  }
   int os=0;
   // load hydro and field data
   memcpy(phydro->u.data(), &(mbdata[os]), phydro->u.GetSizeInBytes());
@@ -425,3 +431,21 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
 
   return size;
 }
+
+
+//----------------------------------------------------------------------------------------
+//! \fn size_t MeshBlock:: EditMBCoord(AthenaArray<Real> MBdx1f[i], AthenaArray<Real> MBdx2f[i], AthenaArray<Real> MBdx3f);
+//  \brief Edit Coordinate object for comoving grid
+
+void MeshBlock::EditMBCoord(AthenaArray<Real> *LockData){
+
+  //Edit MeshBlock attributes
+  //block_size  
+  //Edit Coord object
+  //pcoord->EditCoord(delx1f,deldx2f,deldx3f);
+
+}
+
+
+
+

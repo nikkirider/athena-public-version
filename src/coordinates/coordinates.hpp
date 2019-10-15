@@ -31,6 +31,8 @@ class ParameterInput;
 class Coordinates {
 public:
   friend class HydroSourceTerms;
+  friend class Comoving;
+
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
   virtual ~Coordinates();
 
@@ -167,6 +169,11 @@ public:
       int i, Real *pa0, Real *pa1, Real *pa2, Real *pa3) {}
   virtual void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
       Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) {}
+  
+  // Edit coordinate values to create comoving frame
+  virtual void EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f);
+
+
 
 protected:
   bool coarse_flag;  // true if this coordinate object is parent (coarse) mesh in AMR
@@ -267,10 +274,12 @@ protected:
 
 class Cartesian : public Coordinates {
   friend class HydroSourceTerms;
-
+  //friend class Comoving;
 public:
   Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag);
   ~Cartesian();
+  
+  void EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f);
 };
 
 //----------------------------------------------------------------------------------------
@@ -280,7 +289,7 @@ public:
 
 class Cylindrical : public Coordinates {
   friend class HydroSourceTerms;
-
+  //friend class Comoving;
 public:
   Cylindrical(MeshBlock *pmb, ParameterInput *pin, bool flag);
   ~Cylindrical();
@@ -330,7 +339,7 @@ public:
 
 class SphericalPolar : public Coordinates {
   friend class HydroSourceTerms;
-
+  //friend class Comoving;
 public:
   SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag);
   ~SphericalPolar();

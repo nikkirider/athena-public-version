@@ -117,7 +117,7 @@ void HydroSourceTerms::AddHydroSourceTerms(const Real time, const Real dt,
   // Comoving grid source term
   if (COMOVING ==1) {
    //std::cout << "Adding Comoving Source Terms!" << std::endl;
-   pmb->pmy_mesh->pcm->ComovingSrcTerms(pmb,time,dt,prim,bcc,cons);
+   pmb->pcm->ComovingSrcTerms(pmb,time,dt,prim,bcc,cons);
   }
   return;
 }

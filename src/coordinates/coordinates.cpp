@@ -696,3 +696,35 @@ void Coordinates::Metric(Real x1, Real x2, Real x3, ParameterInput *pin,
   pmy_block->pmy_mesh->UserMetric_(x1, x2, x3, pin, g, g_inv, dg_dx1, dg_dx2, dg_dx3);
   return;
 }
+
+
+void Coordinates::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f){
+  MeshBlock *pmb = pmy_block; 
+  //coarse_flag=flag;
+  int is, ie, js, je, ks, ke, ng;
+  if (coarse_flag==true) {
+    is = pmb->cis; js = pmb->cjs; ks = pmb->cks;
+    ie = pmb->cie; je = pmb->cje; ke = pmb->cke;
+    ng=pmb->cnghost;
+  } else {
+    is = pmb->is; js = pmb->js; ks = pmb->ks;
+    ie = pmb->ie; je = pmb->je; ke = pmb->ke;
+    ng=NGHOST;
+  }
+   
+
+  for(int i=ie-ng; i<=ie+ng; i++){
+    x1f(i) = x1f(i)+delx1f(i);    
+  }
+  
+  for(int i=ie-ng; i<=ie+ng-1; i++){
+    x1v(i) = 0.5*(x1f(i+1)+x1f(i));
+    dx1f(i) = x1f(i+1)-x1f(i);    
+  }
+  
+  for(int i=ie-ng;i<=ie+ng-2;i++){
+    dx1v(i) = x1v(i+1)-x1v(i);
+  }
+
+}
+  

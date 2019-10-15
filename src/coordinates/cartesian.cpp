@@ -186,3 +186,20 @@ Cartesian::~Cartesian() {
     x3s2.DeleteAthenaArray();
   }
 }
+
+void Cartesian::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f){
+  //for(i=il-ng; i<=il+ng; i++){
+  //  x1f(i) = x1f(i)+delx1f(i);    
+  //}
+  
+  //for(i=il-ng; i<=il+ng-1; i++){
+  //  x1v(i) = 0.5*(x1f(i+1)+x1f(i));
+  //  dx1f(i) = x1f(i+1)-x1f(i);    
+  //}
+  
+  //for(i=il-ng;i<=il+ng-2;i++){
+    //dx1v(i) = x1v(i+1)-x1v(i);
+  //}
+
+
+}

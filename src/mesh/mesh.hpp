@@ -109,7 +109,7 @@ public:
   Field *pfield;
   Gravity *pgrav;
   EquationOfState *peos;
-
+  Comoving *pcm;
   MeshBlock *prev, *next;
 
   // functions
@@ -120,6 +120,8 @@ public:
   void UserWorkBeforeOutput(ParameterInput *pin);  // in ../pgen
   void InitOTFOutput(ParameterInput *pin);         // in ../pgen
   void OTFWorkBeforeOutput(ParameterInput *pin);   // in ../pgen
+  
+  void EditMBCoord(AthenaArray<Real> *ComovingLockData);
 
 private:
   // data
@@ -190,7 +192,11 @@ public:
 
   MeshBlock *pblock;
 
-  Comoving *pcm;
+  AthenaArray<Real> CMLockData; //Always atleast a scalar (Gridstage) to check if entire mesh is ready for shifting
+  //Comoving *pcm;
+  void EditGrid(AthenaArray<Real> LockData);
+  LockingFunction_t CMLocking_;
+  EditFaceCoord_t CMNewCoord_;
 
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
@@ -237,14 +243,14 @@ private:
   
   StaticGravPotFunc_t StaticGravPot_;
   BValFunc_t BoundaryFunction_[6];
-	BValFuncCL_t BoundaryFunctionCL_[6]; 
+  BValFuncCL_t BoundaryFunctionCL_[6]; 
   AMRFlagFunc_t AMRFlag_;
   TimeStepFunc_t UserTimeStep_;
   HistoryOutputFunc_t *user_history_func_;
   MetricFunc_t UserMetric_;
   ViscosityCoeff_t ViscosityCoeff_;
   ConductionCoeff_t ConductionCoeff_;
-  LockingFunction_t CMLocking;
+  //LockingFunction_t CMLocking;
   FieldDiffusionCoeff_t FieldDiffusivity_;
   MGBoundaryFunc_t MGBoundaryFunction_[6];
 
@@ -274,6 +280,8 @@ private:
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
 
   void EnrollComovingLockingFunction(LockingFunction_t my_func);
+  void EnrollFaceCoordFunction(EditFaceCoord_t my_func);
+
 };
 
 

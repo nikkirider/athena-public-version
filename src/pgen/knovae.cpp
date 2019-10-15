@@ -49,8 +49,7 @@ Real LogMeshSpacingX1(Real x, RegionSize rs);
 void ReflectInnerX1_nonuniform(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
-void CMLockToShock(Mesh *pm, AthenaArray<Real> &vx1f, AthenaArray<Real> &vx2f,
-                                  AthenaArray<Real> &vx3f);
+void CMLockToShock(Mesh *pm, AthenaArray<Real> LockingData);//, AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f);
 
 //====================================================================================
 // Enroll user-specific functions
@@ -83,7 +82,7 @@ Real LogMeshSpacingX1(Real x, RegionSize rs) {
 
 //========================================================================================
 // Take mesh data, locate shock and get velocity.
-void CMLockToShock(Mesh *pm, AthenaArray<Real> &vx1f, AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f){
+void CMLockToShock(Mesh *pm, AthenaArray<Real> LockingData){ //AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f){
   RegionSize meshDim = pm->mesh_size;
   MeshBlock *pmb = pm->pblock;
   

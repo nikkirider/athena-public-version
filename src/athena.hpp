@@ -192,8 +192,10 @@ typedef void (*FieldDiffusionCoeff_t)(FieldDiffusion *pfdif, MeshBlock *pmb,
                                       const AthenaArray<Real> &bmag,
                                       int is, int ie, int js, int je, int ks, int ke);
 
-typedef void (*LockingFunction_t)(Mesh *pm, AthenaArray<Real> &vx1f, AthenaArray<Real> &vx2f,
-                                  AthenaArray<Real> &vx3f);
+typedef void (*LockingFunction_t)(Mesh *pm, AthenaArray<Real> LockData);
+
+typedef void (*EditFaceCoord_t)(const AthenaArray<Real> *LockData, AthenaArray<Real> *xf);
+
 
 
 #endif // ATHENA_HPP_

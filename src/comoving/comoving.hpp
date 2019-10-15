@@ -20,37 +20,33 @@ class Coordinates;
 
 class Comoving {
 public:
-  friend class Mesh;
+  //friend class Mesh;
+  friend class Coordinates;
+
   //Constructors and Destructor
-  Comoving(Mesh* pm, ParameterInput* pin);
+  Comoving(MeshBlock* pmb, ParameterInput *pin);
   //Comoving(Mesh* pm, ParameterInput* pin, Real null_flag);
   ~Comoving();
   
   //Scalar location and velocity
-  Real LockPos;
-  Real LockVel;
+  //Real InitGridPos;
   int  GridStage;
   int  CoordSystem;
-  AthenaArray<Real> delx1f; //Difference from old grid to new grid in each coordinate direction
-  AthenaArray<Real> delx2f;
-  AthenaArray<Real> delx3f;
-  AthenaArray<Real> gvx1f; //Velocity of each cell wall
-  AthenaArray<Real> gvx2f;
-  AthenaArray<Real> gvx3f;
-  AthenaArray<Real> gridVel;
-
+  int  nstages;
+  AthenaArray<Real> delx1f, delx2f, delx3f; //Difference from old grid to new grid in each coordinate direction
+  AthenaArray<Real> a1f, a2f, a3f; //Velocity of each cell wall
 
   //LockingFunction_t CMLocking;  
-  void UpdateComovingLock(Mesh *pm, int stage);
+  //void UpdateComovingLock(Mesh *pm, int stage);
   //void EnrollComovingLockingFunction(LockingFunction_t myfunc);
-  void UpdateGrid(Mesh *pm, int stage);
+  //void UpdateGrid(Mesh *pm, int stage);
   //void ComovingSrcTerms(Hydro *phydro, ParameterInput *pin, int stage);
   void ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
   const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
   
 private:
   //AthenaArray<Real> ShockDetector(Mesh *pm);
-
+  AthenaArray<Real> x1fi, x2fi, x3fi;
 };
 
 

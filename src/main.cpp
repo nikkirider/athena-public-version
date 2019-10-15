@@ -268,22 +268,22 @@ int main(int argc, char *argv[]) {
   }
 
   //Create instance of comoving object
-  Comoving *pcomoving;
-  try{
-    if (COMOVING==1) {
-      pcomoving = new Comoving(pmesh,pinput); //Normal Comoving Construction
-      pmesh->pcm = pcomoving; 
-    } else {
-      pcomoving = NULL; //Null comoving construction
-      pmesh->pcm = NULL;
-    }
+  //Comoving *pcomoving;
+  //try{
+  //  if (COMOVING==1) {
+  //    pcomoving = new Comoving(pmesh,pinput); //Normal Comoving Construction
+  //    pmesh->pcm = pcomoving; 
+  //  } else {
+  //    pcomoving = NULL; //Null comoving construction
+  //    pmesh->pcm = NULL;
+  //  }
     //std::cout << "The total number of scalar variables is" << NSCALARS << std::endl;
-  }
-  catch(std::exception const& ex){
-    std::cout << "### FATAL ERROR in main" << std::endl
-	      << "Creation of Comoving Class Failed: " << std::endl
-	      << ex.what() << std::endl;
-  }
+  //}
+  //catch(std::exception const& ex){
+  //  std::cout << "### FATAL ERROR in main" << std::endl
+  //	      << "Creation of Comoving Class Failed: " << std::endl
+  //	      << ex.what() << std::endl;
+  //}
 
 
   // With current mesh time possibly read from restart file, correct next_time for outputs
@@ -390,7 +390,8 @@ int main(int argc, char *argv[]) {
   double omp_start_time = omp_get_wtime();
 #endif
 
-  pmesh->pcm = pcomoving;
+  //pmesh->pcm = pcomoving;
+  //pcomoving->nstages = ptlist->nstages;
 
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
@@ -416,8 +417,8 @@ int main(int argc, char *argv[]) {
 	//std::cout << "update  Grid after stage" << stage;
 	//std::cout << cm->ShockPos << std::endl;
 	//Detect change, and adjust Grid
- 	pcomoving->UpdateComovingLock(pmesh, stage);
-        pcomoving->UpdateGrid(pmesh,stage);	
+ 	pmesh->CMLocking_(pmesh, pmesh->CMLockData);
+        pmesh->EditGrid(pmesh->CMLockData);	
         
         }
 	
