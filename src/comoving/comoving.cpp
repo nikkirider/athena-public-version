@@ -41,6 +41,10 @@ Comoving::Comoving(MeshBlock *pmb, ParameterInput *pin) {
         << "Coordinate System " << COORDINATE_SYSTEM << " not valid coordinate system for a comoving frame" << std::endl;
      
   }
+  
+  x10 = pin->GetReal("mesh","x1max");
+  x20 = pin->GetReal("mesh","x2max");
+  x30 = pin->GetReal("mesh","x3max");
 
   GridStage = 1;
   std::string integrator = pin->GetOrAddString("time","integrator","vl2");
@@ -80,13 +84,13 @@ Comoving::Comoving(MeshBlock *pmb, ParameterInput *pin) {
   if (pmb->block_size.nx2 > 1) ncells2 = (je-js+1) + 2*ng;
   if (pmb->block_size.nx3 > 1) ncells3 = (ke-ks+1) + 2*ng;
   
-  delx1f.NewAthenaArray(ncells1);
-  delx2f.NewAthenaArray(ncells2); 
-  delx3f.NewAthenaArray(ncells3);
+  delx1f.NewAthenaArray(ncells1+1);
+  delx2f.NewAthenaArray(ncells2+1); 
+  delx3f.NewAthenaArray(ncells3+1);
   
-  a1f.NewAthenaArray(ncells1);
-  a2f.NewAthenaArray(ncells2);
-  a3f.NewAthenaArray(ncells3);
+  a1f.NewAthenaArray(ncells1+1);
+  a2f.NewAthenaArray(ncells2+1);
+  a3f.NewAthenaArray(ncells3+1);
   
   x1fi.InitWithShallowCopy(pmb->pcoord->x1f);
   x2fi.InitWithShallowCopy(pmb->pcoord->x2f);
@@ -104,31 +108,29 @@ Comoving::~Comoving(){
 
 }
 
-//void Comoving::UpdateComovingLock(Mesh *pm, int stage){
-//  if (pm->CMLocking != NULL) {
-//    pm->CMLocking(pm,gvx1f,gvx2f,gvx3f);    
-//  }
-//  GridStage++;
-//  GridStage%(nstages+1);
-//  
-//  
+void Comoving::EditCoordObj(MeshBlock *pmb, Coordinates *pcoord){
+  //std::cout << delx1f((pmb->block_size.nx1+1)) << std::endl;  
+  pcoord->EditCoord(delx1f,delx2f,delx3f);
+} 
+
+//void Comoving::EditDelta(Real delta,int ind, int dir, Comoving &cm) {
+  
+  //AthenaArray<Real> &del1 = delx1f;  
+  //std::cout << "editing del Array" << std::endl;
+  //if (dir == 0)  std::cout << "reassigning del" << std::endl;
+  //if (dir == 0) cm.delx1f(ind) = 0.0;
+  //std::cout << "Reassigned Del" << std::endl;
+  //std::cout << delta << std::endl;
+
+// del1(ind) = delta;
+  //std::cout << "editing del Array" << std::endl;
+  //if (dir == 1) delx2f(ind) = delta;
+  //if (dir == 2) delx3f(ind) = delta;
+
+
 //}
 
-
-
-
-
-
-
-//void Comoving::UpdateGrid(Mesh *pm, int stage){
-//  //std::cout << stage << std::endl;
-//  //Edit Region data in Mesh
-//  //Edit all MeshBlock Data
-//  //Edit coord object
-//  pm->EditGrid(delx1f,delx2f,delx3f);  
-//
-//}
-
+//Source Terms for arbitrary grid expansion based on coordinate system
 
 void Comoving::ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
   const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons){

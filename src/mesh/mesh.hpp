@@ -57,7 +57,7 @@ class MeshBlock {
   friend class GravityBoundaryValues;
   friend class Mesh;
   friend class Hydro;
-	friend class Cless;
+  friend class Cless;
   friend class TaskList;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
@@ -109,7 +109,7 @@ public:
   Field *pfield;
   Gravity *pgrav;
   EquationOfState *peos;
-  Comoving *pcm;
+  Comoving *pcm = NULL;
   MeshBlock *prev, *next;
 
   // functions
@@ -121,7 +121,7 @@ public:
   void InitOTFOutput(ParameterInput *pin);         // in ../pgen
   void OTFWorkBeforeOutput(ParameterInput *pin);   // in ../pgen
   
-  void EditMBCoord(AthenaArray<Real> *ComovingLockData);
+  void EditMBCoord(AthenaArray<Real> ComovingLockData);
 
 private:
   // data

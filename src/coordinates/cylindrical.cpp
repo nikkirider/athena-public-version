@@ -410,51 +410,176 @@ void Cylindrical::CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
 #pragma omp simd
       for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
         // src_1 = <E_{phi phi}><1/r>
-        Real e_pp			= prim(IP22,k,j,i) 
-											+ prim(IDN ,k,j,i)*prim(IVY,k,j,i)*prim(IVY,k,j,i);
+        Real e_pp = prim(IP22,k,j,i) + prim(IDN ,k,j,i)*prim(IVY,k,j,i)*prim(IVY,k,j,i);
         u(IM1,k,j,i) += dt*coord_src1_i_(i)*e_pp;
-
         // src_2 = -< E_{phi r} ><1/r>
-				Real e_pr			= prim(IP12,k,j,i) 
-											+ prim(IDN ,k,j,i)*prim(IVX,k,j,i)*prim(IVY,k,j,i);
-
+	Real e_pr = prim(IP12,k,j,i) + prim(IDN ,k,j,i)*prim(IVX,k,j,i)*prim(IVY,k,j,i);
         u(IM2,k,j,i) -= dt*coord_src1_i_(i)*e_pr;
-
-				// src terms for stress tensor 
+	// src terms for stress tensor 
+	// src_3 = +< 2 Q_{r phi phi}><1/r>
+	Real q_rpp = e_pr*prim(IVY,k,j,i) + prim(IP22,k,j,i)*prim(IVX,k,j,i) + prim(IP12,k,j,i)*prim(IVY,k,j,i); 
+	u(IE11,k,j,i) += dt*coord_src1_i_(i)*2.0*q_rpp;
+	
+        // src_4 = -< 2 Q_{r phi phi}><1/r>
+	u(IE22,k,j,i) -= dt*coord_src1_i_(i)*2.0*q_rpp;
 				
-				// src_3 = +< 2 Q_{r phi phi}><1/r>
-				Real q_rpp		 = e_pr*prim(IVY,k,j,i) + prim(IP22,k,j,i)*prim(IVX,k,j,i)
-														  								+ prim(IP12,k,j,i)*prim(IVY,k,j,i); 
-				u(IE11,k,j,i) += dt*coord_src1_i_(i)*2.0*q_rpp;
-				
-				// src_4 = -< 2 Q_{r phi phi}><1/r>
-				u(IE22,k,j,i) -= dt*coord_src1_i_(i)*2.0*q_rpp;
-				
-				// src_5 = -< Q_{r r phi} ><1/r> + < Q_{phi phi phi} ><1/r>
-				Real e_rr			 = prim(IP11,k,j,i)
-											 + prim(IDN ,k,j,i)*prim(IVX,k,j,i)*prim(IVX,k,j,i); 
-				Real q_rrp		 = e_rr*prim(IVY,k,j,i) + 2.0*prim(IP12,k,j,i)*prim(IVX,k,j,i);  
-				Real q_ppp		 = e_pp*prim(IVY,k,j,i) + 2.0*prim(IP22,k,j,i)*prim(IVY,k,j,i);
+	// src_5 = -< Q_{r r phi} ><1/r> + < Q_{phi phi phi} ><1/r>
+	Real e_rr = prim(IP11,k,j,i) + prim(IDN ,k,j,i)*prim(IVX,k,j,i)*prim(IVX,k,j,i); 
+	Real q_rrp = e_rr*prim(IVY,k,j,i) + 2.0*prim(IP12,k,j,i)*prim(IVX,k,j,i);  
+	Real q_ppp = e_pp*prim(IVY,k,j,i) + 2.0*prim(IP22,k,j,i)*prim(IVY,k,j,i);
+        u(IE12,k,j,i) += dt*coord_src1_i_(i)*(q_ppp - q_rrp); 
 
-				u(IE12,k,j,i) += dt*coord_src1_i_(i)*(q_ppp - q_rrp); 
+	// src_6 = +< Q_{phi z phi}><1/r>
+	Real e_pz = prim(IP23,k,j,i) + prim(IDN ,k,j,i)*prim(IVY,k,j,i)*prim(IVZ,k,j,i);
+	Real q_pzp = e_pz*prim(IVY,k,j,i) + prim(IP23,k,j,i)*prim(IVY,k,j,i) + prim(IP22,k,j,i)*prim(IVZ,k,j,i);
+	u(IE13,k,j,i) += dt*coord_src1_i_(i)*q_pzp; 
 
-				// src_6 = +< Q_{phi z phi}><1/r>
-				Real e_pz			 = prim(IP23,k,j,i)
-											 + prim(IDN ,k,j,i)*prim(IVY,k,j,i)*prim(IVZ,k,j,i);
-				Real q_pzp		 = e_pz*prim(IVY,k,j,i) + prim(IP23,k,j,i)*prim(IVY,k,j,i)
-																						  + prim(IP22,k,j,i)*prim(IVZ,k,j,i);
-
-				u(IE13,k,j,i) += dt*coord_src1_i_(i)*q_pzp; 
-
-				// src_7 = -< Q_{r z phi}><1/r>
-				Real e_rz			 = prim(IP13,k,j,i)
-											 + prim(IDN ,k,j,i)*prim(IVX,k,j,i)*prim(IVZ,k,j,i); 
-				Real q_rzp		 = e_rz*prim(IVY,k,j,i) + prim(IP23,k,j,i)*prim(IVX,k,j,i)	
-																							+ prim(IP12,k,j,i)*prim(IVZ,k,j,i);
-				u(IE23,k,j,i) -= dt*coord_src1_i_(i)*q_rzp; 
+        // src_7 = -< Q_{r z phi}><1/r>
+	Real e_rz = prim(IP13,k,j,i) + prim(IDN ,k,j,i)*prim(IVX,k,j,i)*prim(IVZ,k,j,i); 
+	Real q_rzp = e_rz*prim(IVY,k,j,i) + prim(IP23,k,j,i)*prim(IVX,k,j,i) + prim(IP12,k,j,i)*prim(IVZ,k,j,i);
+	u(IE23,k,j,i) -= dt*coord_src1_i_(i)*q_rzp; 
       }
     }
   }
 
   return;
 }
+
+
+//----------------------------------------------------------------------------------------
+//Comoving editing coordinate values
+void Cylindrical::EditCoord(AthenaArray<Real> delx1f,AthenaArray<Real> delx2f,AthenaArray<Real> delx3f){
+  MeshBlock *pmb = pmy_block;
+  int il, iu, jl, ju, kl, ku, ng;
+  if (coarse_flag==true) {
+    il = pmb->cis; jl = pmb->cjs; kl = pmb->cks;
+    iu = pmb->cie; ju = pmb->cje; ku = pmb->cke;
+    ng=pmb->cnghost;
+  } else {
+    il = pmb->is; jl = pmb->js; kl = pmb->ks;
+    iu = pmb->ie; ju = pmb->je; ku = pmb->ke;
+    ng=NGHOST;
+  }
+  
+  //Face values
+  //x1  
+  for (int i=il-ng; i<=iu+ng+1; ++i){
+    x1f(i) = x1f(i)+delx1f(i);
+  }
+
+  //x2
+  if (pmb->block_size.nx2 ==1){
+    x2f(jl) = x2f(jl)+delx2f(jl);
+    x2f(jl+1) = x2f(jl+1)+delx2f(jl+1);
+  } else {
+    for (int j=jl-ng; j<=ju+ng+1; ++j){
+      x2f(j) = x2f(j)+delx2f(j);
+    }
+  }
+  //x3
+  if (pmb->block_size.nx3 ==1){
+    x3f(kl) = x3f(kl)+delx3f(kl);
+    x3f(kl+1) = x3f(kl+1)+delx3f(kl+1);
+  } else {
+    for (int k=kl-ng; k<=ku+ng+1; ++k){
+      x3f(k) = x3f(k)+delx3f(k);
+    }
+  }
+
+  //other stored arrays: volume coords, deltas, surfaces
+  // x1-direction: x1v = (\int r dV / \int dV) = d(r^3/3)d(r^2/2)
+  for (int i=il-ng; i<=iu+ng; ++i) {
+    dx1f(i) = x1f(i+1)-x1f(i);
+    x1v(i) = (TWO_3RD)*(pow(x1f(i+1),3)-pow(x1f(i),3))/(pow(x1f(i+1),2) - pow(x1f(i),2));
+  }
+  for (int i=il-ng; i<=iu+ng-1; ++i) {
+    dx1v(i) = x1v(i+1) - x1v(i);
+  }
+  
+  // x2-direction: x2v = (\int phi dV / \int dV) = dphi/2
+  if (pmb->block_size.nx2 == 1) {
+    dx2f(jl) = x2f(jl+1)-x2f(jl);
+    x2v(jl) = 0.5*(x2f(jl+1) + x2f(jl));
+    dx2v(jl) = dx2f(jl);
+  } else {
+    for (int j=jl-ng; j<=ju+ng; ++j) {
+      dx2f(j) = x2f(j+1)-x2f(j);
+      x2v(j) = 0.5*(x2f(j+1) + x2f(j));
+    }
+    for (int j=jl-ng; j<=ju+ng-1; ++j) {
+      dx2v(j) = x2v(j+1) - x2v(j);
+    }
+  }
+  
+  // x3-direction: x3v = (\int z dV / \int dV) = dz/2
+  if (pmb->block_size.nx3 == 1) {
+    dx3f(kl) = x3f(kl+1)-x3f(kl);
+    x3v(kl) = 0.5*(x3f(kl+1) + x3f(kl));
+    dx3v(kl) = dx3f(kl);
+  } else {
+    for (int k=kl-ng; k<=ku+ng; ++k) {
+      dx3f(k) = x3f(k+1)-x3f(k);
+      x3v(k) = 0.5*(x3f(k+1) + x3f(k));
+    }
+    for (int k=kl-ng; k<=ku+ng-1; ++k) {
+      dx3v(k) = x3v(k+1) - x3v(k);
+    }
+  }
+   
+  //Geometry Coefficients
+  for (int i=il-ng; i<=iu+ng; ++i){
+    h2v(i) = x1v(i);
+    h2f(i) = x1f(i); 
+  }
+  
+  //Area averaged coordinates
+  if ((pmb->pmy_mesh->multilevel==true) && MAGNETIC_FIELDS_ENABLED) {
+    for (int i=il-ng; i<=iu+ng; ++i) {
+      x1s2(i) = x1s3(i) = x1v(i);
+    }
+    if (pmb->block_size.nx2 == 1) {
+      x2s1(jl) = x2s3(jl) = x2v(jl);
+    } else {
+      for (int j=jl-ng; j<=ju+ng; ++j) {
+        x2s1(j) = x2s3(j) = x2v(j);
+      }
+    }
+    if (pmb->block_size.nx3 == 1) {
+      x3s1(kl) = x3s2(kl) = x3v(kl);
+    } else {
+      for (int k=kl-ng; k<=ku+ng; ++k) {
+        x3s1(k) = x3s2(k) = x3v(k);
+      }
+    }
+  }
+
+  //Edit Scratch Arrays with coefficients
+  if (coarse_flag==false) {
+    // Compute and store constant coefficients needed for face-areas, cell-volumes, etc.
+    // This helps improve performance
+#pragma omp simd
+    for (int i=il-ng; i<=iu+ng; ++i) {
+      Real rm = x1f(i  );
+      Real rp = x1f(i+1);
+      // dV = 0.5*(R_{i+1}^2 - R_{i}^2)
+      coord_area3_i_(i)= 0.5*(rp*rp - rm*rm);
+      // dV = 0.5*(R_{i+1}^2 - R_{i}^2)
+      coord_vol_i_(i) = coord_area3_i_(i);
+      // (A1^{+} - A1^{-})/dV
+      coord_src1_i_(i) = dx1f(i)/coord_vol_i_(i);
+      // (dR/2)/(R_c dV)
+      coord_src2_i_(i) = dx1f(i)/((rm + rp)*coord_vol_i_(i));
+      // Rf_{i}/R_{i}/Rf_{i}^2
+      phy_src1_i_(i) = 1.0/(x1v(i)*x1f(i));
+    }
+#pragma omp simd
+    for (int i=il-ng; i<=iu+(ng-1); ++i) {
+      // Rf_{i+1}/R_{i}/Rf_{i+1}^2
+      phy_src2_i_(i) = 1.0/(x1v(i)*x1f(i+1));
+      // dV = 0.5*(R_{i+1}^2 - R_{i}^2)
+      coord_area3vc_i_(i)= 0.5*(SQR(x1v(i+1)) - SQR(x1v(i)));
+    }
+  }
+    
+}
+

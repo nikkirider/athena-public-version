@@ -279,7 +279,7 @@ public:
   Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag);
   ~Cartesian();
   
-  void EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f);
+  //void EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f);
 };
 
 //----------------------------------------------------------------------------------------
@@ -326,10 +326,14 @@ public:
   // ...to compute geometrical source terms
   void CoordSrcTerms(const Real dt, const AthenaArray<Real> *flux,
     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &u);
-	// ...to compute geometrical source terms for collisionless variables 
-	void CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
-											 const AthenaArray<Real> &prim,
-											 AthenaArray<Real> &u);
+  // ...to compute geometrical source terms for collisionless variables 
+  void CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
+    const AthenaArray<Real> &prim, AthenaArray<Real> &u);
+
+  //...To Edit face values and correct coordinate data for comoving expansion
+  void EditCoord(AthenaArray<Real> delx1f,AthenaArray<Real> delx2f,AthenaArray<Real> delx3f);
+ 
+
 };
 
 //----------------------------------------------------------------------------------------
@@ -388,10 +392,14 @@ public:
   // ...to compute geometrical source terms
   void CoordSrcTerms(const Real dt, const AthenaArray<Real> *flux,
     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &u);
-	// ...to compute geometrical source terms for collisionless variables 
-	void CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
-											 const AthenaArray<Real> &prim,
-											 AthenaArray<Real> &u);
+  // ...to compute geometrical source terms for collisionless variables 
+  void CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
+    const AthenaArray<Real> &prim, AthenaArray<Real> &u);
+
+  //...To Edit face values and correct coordinate data for comoving expansion
+  void EditCoord(AthenaArray<Real> delx1f,AthenaArray<Real> delx2f,AthenaArray<Real> delx3f);
+
+
 };
 
 //----------------------------------------------------------------------------------------

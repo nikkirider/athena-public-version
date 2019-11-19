@@ -187,7 +187,7 @@ Cartesian::~Cartesian() {
   }
 }
 
-void Cartesian::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f){
+//void Cartesian::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f){
   //for(i=il-ng; i<=il+ng; i++){
   //  x1f(i) = x1f(i)+delx1f(i);    
   //}
@@ -202,4 +202,4 @@ void Cartesian::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, At
   //}
 
 
-}
+//}

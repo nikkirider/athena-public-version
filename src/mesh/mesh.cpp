@@ -172,8 +172,8 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   block_size.x2rat = mesh_size.x2rat = pin->GetOrAddReal("mesh","x2rat",1.0);
   block_size.x3rat = mesh_size.x3rat = pin->GetOrAddReal("mesh","x3rat",1.0);
 
-  int nLockData = pin->GetOrAddReal("problem","NumberOfCMLockDataPts",0);
-  CMLockData.NewAthenaArray((nLockData+1));
+  int nLockData = pin->GetOrAddReal("problem","nLockData",0);
+  CMLockData.NewAthenaArray(nLockData);
   
   // read BC flags for each of the 6 boundaries in turn.
   mesh_bcs[INNER_X1] = GetBoundaryFlag(pin->GetOrAddString("mesh","ix1_bc","none"));
@@ -628,8 +628,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   nrbx3=mesh_size.nx3/block_size.nx3;
   
   //Setup Blank array for CM Locking data to be passed into the meshblocks
-  int nLockData = pin->GetOrAddReal("problem","NumberOfCMLockDataPts",0);
-  CMLockData.NewAthenaArray(nLockData+1);
+  int nLockData = pin->GetOrAddReal("problem","nCMLockDataPts",0);
+  CMLockData.NewAthenaArray(nLockData);
   
   // initialize user-enrollable functions
   if (mesh_size.x1rat!=1.0) {
@@ -2417,14 +2417,24 @@ void Mesh::EditGrid(AthenaArray<Real> LockData){
   
   //Edit every MeshBlock
   MeshBlock *pmb = pblock;
-  AthenaArray<Real> *Data;
-  Data = &LockData; 
+  //AthenaArray<Real> *Data;
+  //Data = &LockData; 
+  //std::cout << mesh_size.x1max <<std::endl;  
+  mesh_size.x1min += CMNewCoord_(LockData,mesh_size.x1min,0);
+  mesh_size.x2min += CMNewCoord_(LockData,mesh_size.x2min,1);
+  mesh_size.x3min += CMNewCoord_(LockData,mesh_size.x3min,2);
+  mesh_size.x1max += CMNewCoord_(LockData,mesh_size.x1max,0);
+  mesh_size.x2max += CMNewCoord_(LockData,mesh_size.x2max,1);
+  mesh_size.x3max += CMNewCoord_(LockData,mesh_size.x3max,2);
+  //std::cout << mesh_size.x1max << std::endl;
+
   int i = 0;
   while (pmb!= NULL) {
-    
-    pmb->EditMBCoord(Data);
+    //std::cout << "Editing MeshBlock" << i << std::endl;
+    pmb->EditMBCoord(LockData);
     pmb = pmb->next;
     i++;
   } 
 
 }
+

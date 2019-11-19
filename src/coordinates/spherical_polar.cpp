@@ -591,3 +591,214 @@ void SphericalPolar::CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flu
                                      AthenaArray<Real> &u) {
 	return;
 }
+
+
+//Edit Spherical coordinate Arrays
+void SphericalPolar::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f){
+  MeshBlock *pmb = pmy_block;
+  
+  int il, iu, jl, ju, kl, ku, ng;
+  if (coarse_flag==true) {
+    il = pmb->cis; jl = pmb->cjs; kl = pmb->cks;
+    iu = pmb->cie; ju = pmb->cje; ku = pmb->cke;
+    ng=pmb->cnghost;
+  } else {
+    il = pmb->is; jl = pmb->js; kl = pmb->ks;
+    iu = pmb->ie; ju = pmb->je; ku = pmb->ke;
+    ng=NGHOST;
+  }
+  
+  //Make edits to all arrays of coord object (except scratches, since those are cleared)
+  //Face values
+  //x1  
+  for (int i=il-ng; i<=iu+ng+1; ++i){
+     //std::cout << "Editing x1f "<< i  << std::endl;     
+     x1f(i) = x1f(i)+delx1f(i);
+  }
+  
+  //x2  
+  if (pmb->block_size.nx2 ==1){
+    x2f(jl) = x2f(jl)+delx2f(jl);
+    x2f(jl+1) = x2f(jl+1)+delx2f(jl+1);
+  } else {
+    for (int j=jl-ng; j<=ju+ng+1; ++j){
+      x2f(j) = x2f(j)+delx2f(j);
+    }
+  }
+  //x3
+  if (pmb->block_size.nx3 ==1){
+    x3f(kl) = x3f(kl)+delx3f(kl);
+    x3f(kl+1) = x3f(kl+1)+delx3f(kl+1);
+  } else {
+    for (int k=kl-ng; k<=ku+ng+1; ++k){
+      x3f(k) = x3f(k)+delx3f(k);
+    }
+  }
+  
+  //x1 deltas, volumes  
+  // x1-direction: x1v = (\int r dV / \int dV) = d(r^4/4)/d(r^3/3)
+  for (int i=il-ng; i<=iu+ng; ++i) {
+    dx1f(i) = x1f(i+1)-x1f(i); 
+    x1v(i) = 0.75*(pow(x1f(i+1),4) - pow(x1f(i),4))/(pow(x1f(i+1),3) - pow(x1f(i),3));
+  }
+  for (int i=il-ng; i<=iu+ng-1; ++i) {
+    dx1v(i) = x1v(i+1) - x1v(i);
+  }
+
+  //x2 Deltas and volumes
+  // x2-direction: x2v = (\int sin[theta] theta dV / \int dV) =
+  //  d(sin[theta] - theta cos[theta])/d(-cos[theta])
+  if (pmb->block_size.nx2 == 1) {
+    dx2f(jl) = x1f(jl+1)-x1f(jl);
+    x2v(jl) = 0.5*(x2f(jl+1) + x2f(jl));
+    dx2v(jl) = dx2f(jl);
+  } else {
+    for (int j=jl-ng; j<=ju+ng; ++j) {
+      dx2f(j) = x2f(j+1)-x2f(j);
+      x2v(j) = ((sin(x2f(j+1)) - x2f(j+1)*cos(x2f(j+1))) -
+                (sin(x2f(j  )) - x2f(j  )*cos(x2f(j  ))))/
+                (cos(x2f(j  )) - cos(x2f(j+1)));
+    }
+    for (int j=jl-ng; j<=ju+ng-1; ++j) {
+      dx2v(j) = x2v(j+1) - x2v(j);
+    }
+  }
+    
+  //x3 Deltas and volumes
+  // x3-direction: x3v = (\int phi dV / \int dV) = dphi/2 
+  if (pmb->block_size.nx3 == 1) {
+    dx3f(kl) = x3f(kl+1)-x3f(kl);
+    x3v(kl) = 0.5*(x3f(kl+1) + x3f(kl));
+    dx3v(kl) = dx3f(kl);
+  } else {
+    for (int k=kl-ng; k<=ku+ng; ++k) {
+      dx3f(k) = x3f(k+1)-x3f(k);
+      x3v(k) = 0.5*(x3f(k+1) + x3f(k));
+    }
+    for (int k=kl-ng; k<=ku+ng-1; ++k) {
+      dx3v(k) = x3v(k+1) - x3v(k);
+    }
+  }
+
+  //Geometry Coefficients
+  for (int i=il-ng; i<=iu+ng; ++i) {
+    h2v(i) = x1v(i);
+    h2f(i) = x1f(i);
+    h31v(i) = x1v(i);
+    h31f(i) = x1f(i);
+  }
+  // x2-direction
+  if (pmb->block_size.nx2 == 1) {
+    h32v(jl) = sin(x2v(jl));
+    h32f(jl) = sin(x2f(jl));
+    dh32vd2(jl) = cos(x2v(jl));
+    dh32fd2(jl) = cos(x2f(jl));
+  } else {
+    for (int j=jl-ng; j<=ju+ng; ++j) {
+      h32v(j) = sin(x2v(j));
+      h32f(j) = sin(x2f(j));
+      dh32vd2(j) = cos(x2v(j));
+      dh32fd2(j) = cos(x2f(j));
+    }
+  }
+  
+  //Fix area averaged
+  if ((pmb->pmy_mesh->multilevel==true) && MAGNETIC_FIELDS_ENABLED) {
+    for (int i=il-ng; i<=iu+ng; ++i) {
+      x1s2(i) = x1s3(i) = (2.0/3.0)*(pow(x1f(i+1),3) - pow(x1f(i),3))
+                          /(SQR(x1f(i+1)) - SQR(x1f(i)));
+    }
+    if (pmb->block_size.nx2 == 1) {
+      x2s1(jl) = x2s3(jl) = x2v(jl);
+    } else {
+      for (int j=jl-ng; j<=ju+ng; ++j) {
+        x2s1(j) = x2s3(j) = x2v(j);
+      }
+    }
+    if (pmb->block_size.nx3 == 1) {
+      x3s1(kl) = x3s2(kl) = x3v(kl);
+    } else {
+      for (int k=kl-ng; k<=ku+ng; ++k) {
+        x3s1(k) = x3s2(k) = x3v(k);
+      }
+    }
+  }
+  if (coarse_flag==false){
+#pragma omp simd
+   //Fix internal scratch arrays for good measure
+   for (int i=il-ng; i<=iu+ng; ++i) {
+       Real rm = x1f(i  );
+       Real rp = x1f(i+1);
+       // R^2
+       coord_area1_i_(i) = rm*rm;
+       // 0.5*(R_{i+1}^2 - R_{i}^2)
+       coord_area2_i_(i) = 0.5*(rp*rp - rm*rm);
+       // 0.5*(R_{i+1}^2 - R_{i}^2)
+       coord_area3_i_(i) = coord_area2_i_(i);
+       // dV = (R_{i+1}^3 - R_{i}^3)/3
+       coord_vol_i_(i) = (ONE_3RD)*(rp*rp*rp - rm*rm*rm);
+       // (A1^{+} - A1^{-})/dV
+       coord_src1_i_(i) = coord_area2_i_(i)/coord_vol_i_(i);
+       // (dR/2)/(R_c dV)
+       coord_src2_i_(i) = dx1f(i)/((rm + rp)*coord_vol_i_(i));
+       // Rf_{i}^2/R_{i}^2/Rf_{i}^2
+       phy_src1_i_(i) = 1.0/SQR(x1v(i));
+       // Rf_{i+1}^2/R_{i}^2/Rf_{i+1}^2
+       phy_src2_i_(i) = phy_src1_i_(i);
+       // R^2 at the volume center for non-ideal MHD
+       coord_area1vc_i_(i) = SQR(x1v(i));
+   }
+   coord_area1_i_(iu+ng+1) = x1f(iu+ng+1)*x1f(iu+ng+1);
+#pragma omp simd
+    for (int i=il-ng; i<=iu+ng-1; ++i) {//non-ideal MHD
+      // 0.5*(R_{i+1}^2 - R_{i}^2)
+      coord_area2vc_i_(i)= 0.5*(SQR(x1v(i+1))-SQR(x1v(i)));
+      // 0.5*(R_{i+1}^2 - R_{i}^2)
+      coord_area3vc_i_(i)= coord_area2vc_i_(i);
+    }
+    if (pmb->block_size.nx2 > 1) {
+#pragma omp simd
+      for (int j=jl-ng; j<=ju+ng; ++j) {
+        Real sm = fabs(sin(x2f(j  )));
+        Real sp = fabs(sin(x2f(j+1)));
+        Real cm = cos(x2f(j  ));
+        Real cp = cos(x2f(j+1));
+        // d(sin theta) = d(-cos theta)
+        coord_area1_j_(j) = fabs(cm - cp);
+        // sin theta
+        coord_area2_j_(j) = sm;
+        // d(sin theta) = d(-cos theta)
+        coord_vol_j_(j) = coord_area1_j_(j);
+        // (A2^{+} - A2^{-})/dV
+        coord_src1_j_(j) = (sp - sm)/coord_vol_j_(j);
+        // (dS/2)/(S_c dV)
+        coord_src2_j_(j) = (sp - sm)/((sm + sp)*coord_vol_j_(j));
+        // < cot theta > = (|sin th_p| - |sin th_m|) / |cos th_m - cos th_p|
+        coord_src3_j_(j) = (sp - sm)/coord_vol_j_(j);
+        // d(sin theta) = d(-cos theta) at the volume center for non-ideal MHD
+        coord_area1vc_j_(j)= fabs(cos(x2v(j))-cos(x2v(j+1)));
+        // sin theta at the volume center for non-ideal MHD
+        coord_area2vc_j_(j)= fabs(sin(x2v(j)));
+      }
+      coord_area2_j_(ju+ng+1) = fabs(sin(x2f(ju+ng+1)));
+      if (IsPole(jl))   // inner polar boundary
+        coord_area1vc_j_(jl-1)= 2.0-cos(x2v(jl-1))-cos(x2v(jl));
+      if (IsPole(ju))   // outer polar boundary
+        coord_area1vc_j_(ju)  = 2.0+cos(x2v(ju))+cos(x2v(ju+1));
+    } else {
+      Real sm = fabs(sin(x2f(jl  )));
+      Real sp = fabs(sin(x2f(jl+1)));
+      Real cm = cos(x2f(jl  ));
+      Real cp = cos(x2f(jl+1));
+      coord_area1_j_(jl) = fabs(cm - cp);
+      coord_area2_j_(jl) = sm;
+      coord_area1vc_j_(jl)= coord_area1_j_(jl);
+      coord_area2vc_j_(jl)= sin(x2v(jl));
+      coord_vol_j_(jl) = coord_area1_j_(jl);
+      coord_src1_j_(jl) = (sp - sm)/coord_vol_j_(jl);
+      coord_src2_j_(jl) = (sp - sm)/((sm + sp)*coord_vol_j_(jl));
+      coord_src3_j_(jl) = (sp - sm)/coord_vol_j_(jl);
+      coord_area2_j_(jl+1) = sp;
+    }
+  }
+}

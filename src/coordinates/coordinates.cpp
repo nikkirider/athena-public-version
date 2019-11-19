@@ -700,30 +700,104 @@ void Coordinates::Metric(Real x1, Real x2, Real x3, ParameterInput *pin,
 
 void Coordinates::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, AthenaArray<Real> delx3f){
   MeshBlock *pmb = pmy_block; 
-  //coarse_flag=flag;
-  int is, ie, js, je, ks, ke, ng;
+  
+  int il, iu, jl, ju, kl, ku, ng;
   if (coarse_flag==true) {
-    is = pmb->cis; js = pmb->cjs; ks = pmb->cks;
-    ie = pmb->cie; je = pmb->cje; ke = pmb->cke;
+    il = pmb->cis; jl = pmb->cjs; kl = pmb->cks;
+    iu = pmb->cie; ju = pmb->cje; ku = pmb->cke;
     ng=pmb->cnghost;
   } else {
-    is = pmb->is; js = pmb->js; ks = pmb->ks;
-    ie = pmb->ie; je = pmb->je; ke = pmb->ke;
+    il = pmb->is; jl = pmb->js; kl = pmb->ks;
+    iu = pmb->ie; ju = pmb->je; ku = pmb->ke;
     ng=NGHOST;
   }
-   
 
-  for(int i=ie-ng; i<=ie+ng; i++){
-    x1f(i) = x1f(i)+delx1f(i);    
+  //Make edits to all arrays of coord object (except scratches, since those are cleared)
+  //Below corresponds to cartesian grid expansion -- Note no change in geometry coefficients
+  //which is not the case in spherical and cylindrical
+  
+  //Face values
+  //x1  
+  for (int i=il-ng; i<=iu+ng+1; ++i){
+    x1f(i) = x1f(i)+delx1f(i);
   }
   
-  for(int i=ie-ng; i<=ie+ng-1; i++){
+  //x2  
+  if (pmb->block_size.nx2 ==1){
+    x2f(jl) = x2f(jl)+delx2f(jl);
+    x2f(jl+1) = x2f(jl+1)+delx2f(jl+1);
+  } else {
+    for (int j=jl-ng; j<=ju+ng+1; ++j){
+      x2f(j) = x2f(j)+delx2f(j);
+    }
+  }                      
+  //x3
+  if (pmb->block_size.nx3 ==1){
+    x3f(kl) = x3f(kl)+delx3f(kl);
+    x3f(kl+1) = x3f(kl+1)+delx3f(kl+1);
+  } else {  
+    for (int k=kl-ng; k<=ku+ng+1; ++k){
+      x3f(k) = x3f(k)+delx3f(k);
+    }
+  }
+
+     
+  //First coordinate changes deltaface, volumes, and deltavolumes
+  for(int i=il-ng; i<=iu+ng; i++){
     x1v(i) = 0.5*(x1f(i+1)+x1f(i));
     dx1f(i) = x1f(i+1)-x1f(i);    
   }
-  
-  for(int i=ie-ng;i<=ie+ng-2;i++){
+  for(int i=il-ng;i<=iu+ng-1;i++){
     dx1v(i) = x1v(i+1)-x1v(i);
+  }
+
+  //Second coordinate changes to deltaface, volumes, and deltavolumes
+  if (pmb->block_size.nx2 ==1){
+    dx2f(jl) = x2f(jl+1)-x2f(jl);
+    x2v(jl) = 0.5*(x2f(jl+1) + x2f(jl));
+    dx2v(jl) = dx2f(jl);
+  } else {  
+    for(int j=jl-ng; j<=ju+ng; j++){
+      x2v(j) = 0.5*(x2f(j+1)+x2f(j));
+      dx2f(j) = x2f(j+1)-x2f(j);
+    }
+    for(int j=jl-ng;j<=ju+ng-1;j++){
+      dx2v(j) = x2v(j+1)-x2v(j);
+    }
+  }
+  //Third Coordinate change to deltaface, volumes, and deltavolumes
+  if (pmb->block_size.nx3 ==1) {
+    dx3f(kl) = x3f(kl+1)-x3f(kl);
+    x3v(kl) = 0.5*(x3f(kl+1) + x3f(kl));
+    dx3v(kl) = dx3f(kl);
+  } else {
+    for(int k=kl-ng; k<=ku+ng; k++){
+      x3v(k) = 0.5*(x3f(k+1)+x3f(k));
+      dx3f(k) = x3f(k+1)-x3f(k);
+    }
+    for(int k=kl-ng;k<=ku+ng-1;k++){
+      dx3v(k) = x3v(k+1)-x3v(k);
+    }
+  }
+  //Area Averaged Coordinates
+  if ((pmb->pmy_mesh->multilevel==true) && MAGNETIC_FIELDS_ENABLED) {
+    for (int i=il-ng; i<=iu+ng; ++i) {
+      x1s2(i) = x1s3(i) = x1v(i);
+    }
+    if (pmb->block_size.nx2 == 1) {
+      x2s1(jl) = x2s3(jl) = x2v(jl);
+    } else {
+      for (int j=jl-ng; j<=ju+ng; ++j) {
+        x2s1(j) = x2s3(j) = x2v(j);
+      }
+    }
+    if (pmb->block_size.nx3 == 1) {
+      x3s1(kl) = x3s2(kl) = x3v(kl);
+    } else {
+      for (int k=kl-ng; k<=ku+ng; ++k) {
+        x3s1(k) = x3s2(k) = x3v(k);
+      }
+    }
   }
 
 }

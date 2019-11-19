@@ -315,7 +315,8 @@ int main(int argc, char *argv[]) {
 //--- Step 5. ----------------------------------------------------------------------------
 // Construct and initialize TaskList
 
-  TaskList *ptlist;
+  TimeIntegratorTaskList *ptlist;
+
   try {
     ptlist   = new TimeIntegratorTaskList(pinput, pmesh);
   }
@@ -417,7 +418,10 @@ int main(int argc, char *argv[]) {
 	//std::cout << "update  Grid after stage" << stage;
 	//std::cout << cm->ShockPos << std::endl;
 	//Detect change, and adjust Grid
- 	pmesh->CMLocking_(pmesh, pmesh->CMLockData);
+	Real dt = (pmesh->dt) * (ptlist->stage_wghts[(stage-1)].beta) ;
+	AthenaArray<Real> &LockData = (*pmesh).CMLockData;
+ 	pmesh->CMLocking_(pmesh, LockData, dt);
+	//std::cout << pmesh->CMLockData(1) << std::endl;
         pmesh->EditGrid(pmesh->CMLockData);	
         
         }
