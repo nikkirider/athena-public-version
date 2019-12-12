@@ -51,6 +51,7 @@ void ReflectInnerX1_nonuniform(MeshBlock *pmb, Coordinates *pco, AthenaArray<Rea
 
 void CMLockToShock(Mesh *pm, AthenaArray<Real> LockingData);//, AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f);
 
+Real CMMove(const AthenaArray<Real> &LockData, Real xf, int dir);
 //====================================================================================
 // Enroll user-specific functions
 void Mesh::InitUserMeshData(ParameterInput *pin) {
@@ -64,6 +65,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   }
   if (COMOVING == 1){
     EnrollComovingLockingFunction(CMLockToShock);
+    EnrollFaceCoordFunction(CMMove);
   }
   return;
 }
@@ -84,9 +86,26 @@ Real LogMeshSpacingX1(Real x, RegionSize rs) {
 // Take mesh data, locate shock and get velocity.
 void CMLockToShock(Mesh *pm, AthenaArray<Real> LockingData){ //AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f){
   RegionSize meshDim = pm->mesh_size;
-  MeshBlock *pmb = pm->pblock;
-  
+  LockingData(0) = 0.1;
+  LockingData(1) = pm->dt;   
 
+}
+
+//=========================================================================================
+// Take new comoving data and previous grid cell position and returning new cell position
+// Mesh is accessible here, as thisfunction gets called by meshblock
+Real CMMove(const AthenaArray<Real> &LockData, Real xf, int dir){
+  
+  Real retval;
+  if (dir == 0){
+    Real Vel = LockData(0);
+    Real dT = LockData(1);
+    //if in x-direction
+    retval = (Vel * dT);
+  } else {
+    retval = 0.0;
+  }
+  return retval;
 }
 
 //========================================================================================

@@ -2413,25 +2413,25 @@ void Mesh::EnrollFaceCoordFunction(EditFaceCoord_t my_func){
 //! \fn void EditGrid(AthenaArray<Real> dx1f, AthenaArray<Real> dx2f, AthenaArray<Real> dx3f);
 //  \brief Moves through grid and adjusts coordinate frame based on change in frame
 
-void Mesh::EditGrid(AthenaArray<Real> LockData){
+void Mesh::EditGrid(AthenaArray<Real> LockData, Real dTStage, Real TimeStage){
   
   //Edit every MeshBlock
   MeshBlock *pmb = pblock;
   //AthenaArray<Real> *Data;
   //Data = &LockData; 
   //std::cout << mesh_size.x1max <<std::endl;  
-  mesh_size.x1min += CMNewCoord_(LockData,mesh_size.x1min,0);
-  mesh_size.x2min += CMNewCoord_(LockData,mesh_size.x2min,1);
-  mesh_size.x3min += CMNewCoord_(LockData,mesh_size.x3min,2);
-  mesh_size.x1max += CMNewCoord_(LockData,mesh_size.x1max,0);
-  mesh_size.x2max += CMNewCoord_(LockData,mesh_size.x2max,1);
-  mesh_size.x3max += CMNewCoord_(LockData,mesh_size.x3max,2);
+  mesh_size.x1min += CMNewCoord_(LockData,mesh_size.x1min,0,dTStage,TimeStage);
+  mesh_size.x2min += CMNewCoord_(LockData,mesh_size.x2min,1,dTStage,TimeStage);
+  mesh_size.x3min += CMNewCoord_(LockData,mesh_size.x3min,2,dTStage,TimeStage);
+  mesh_size.x1max += CMNewCoord_(LockData,mesh_size.x1max,0,dTStage,TimeStage);
+  mesh_size.x2max += CMNewCoord_(LockData,mesh_size.x2max,1,dTStage,TimeStage);
+  mesh_size.x3max += CMNewCoord_(LockData,mesh_size.x3max,2,dTStage,TimeStage);
   //std::cout << mesh_size.x1max << std::endl;
 
   int i = 0;
   while (pmb!= NULL) {
     //std::cout << "Editing MeshBlock" << i << std::endl;
-    pmb->EditMBCoord(LockData);
+    pmb->EditMBCoord(LockData,dTStage,TimeStage);
     pmb = pmb->next;
     i++;
   } 

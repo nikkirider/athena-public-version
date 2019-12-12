@@ -16,6 +16,7 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <float.h>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -52,7 +53,10 @@ void ReflectInnerX1_nonuniform(MeshBlock *pmb, Coordinates *pco, AthenaArray<Rea
 
 void CMLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT);//, AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f);
 
-Real CMMove(const AthenaArray<Real> LockData, Real xf, int dir);
+Real CMMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time);
+
+Real CMTimeStep(MeshBlock *pmb);
+
 //====================================================================================
 // Enroll user-specific functions
 void Mesh::InitUserMeshData(ParameterInput *pin) {
@@ -65,7 +69,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     EnrollComovingLockingFunction(CMLockToShock);
     EnrollFaceCoordFunction(CMMove);
     EnrollUserBoundaryFunction(OUTER_X1, InflowOuterX1_Comoving);
-    CMLockData(3) = pin->GetOrAddReal("problem","v0",0.0);
+    EnrollUserTimeStepFunction(CMTimeStep);
+    CMLockData(2)= pin->GetOrAddReal("problem","v0",0.0);
   }
   
   return;
@@ -149,13 +154,13 @@ void InflowOuterX1_Comoving(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> 
 // Set data necessary for expanding the grid.
 void CMLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT){ //AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f){
   RegionSize meshDim = pm->mesh_size;
-  
   LockingData(0) = meshDim.x1min;
   LockingData(1) = (meshDim.x1max) * (93.0/100.0);   
-  LockingData(2) = dT;
+  //LockingData(2) = dT;
+  //LockingData(3) = 2.0*(pm->time);
   //std::cout << "Here is LockData(1) in CMLockToShock: " << LockingData(1) << std::endl;
   //std::cout << "Here is LockData(0) in CMLockToShock: " << LockingData(0) << std::endl;
-  //std::cout << dT << std::endl;
+  //std::cout << meshDim.x1max << std::endl;
   return;
   //std::cout << LockingData(1) << std::endl;
 }
@@ -163,23 +168,90 @@ void CMLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT){ //AthenaA
 //=========================================================================================
 // Take new comoving data and previous grid cell position and returning new cell position
 // Mesh is accessible here, as thisfunction gets called by meshblock
-Real CMMove(const AthenaArray<Real> LockData, Real xf, int dir){
+Real CMMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
   
   Real retval;
-  if (dir == 0){
+  if (dir != 0){
+    retval = 0.0;
+  } else if (xf==LockData(0)){
+    retval = 0.0;
+  } else if (LockData(1) == LockData(0)){
+    retval = 0.0;
+  } else {
     Real x0 = LockData(0);
     Real alpha = LockData(1);
-    Real delAlpha = (LockData(2))*(LockData(3));
+    //std::cout << "alpha " << alpha << std::endl;
+    Real delAlpha = -1.0*(dT)*(LockData(2))*std::sin(time*3.0);
     //if in x-direction
     retval = (xf-x0) / (alpha-x0) * delAlpha;
     //std::cout << Vel  <<std::endl;
     //std::cout << dT << std::endl;
-  } else {
-    retval = 0.0;
-  }
-  
+  } 
+  //std::cout << retval << std::endl; 
   return retval;
 }
+//=========================================================================================
+//Make sure grid does not move too far
+Real CMTimeStep(MeshBlock *pmb){ 
+  Real min_dt = FLT_MAX;
+  Real nextPosDelta, minCellSize, dt;
+  
+  Mesh *pmesh = pmb->pmy_mesh;
+  Real Nx1 = pmesh->mesh_size.nx1;
+  Real Nx2 = pmesh->mesh_size.nx2;
+  Real Nx3 = pmesh->mesh_size.nx3; 
+  
+  for (int i = 0; i<=Nx1+1;i++){
+    nextPosDelta = pmesh->CMNewCoord_(pmesh->CMLockData,pmb->pcoord->x1f(i),0, pmesh->dt, pmesh->time);
+    //std::cout << i <<  "th NextPosDelta " << nextPosDelta  << std::endl;
+    if (nextPosDelta < 0 && i != 0){ 
+      minCellSize = pmb->pcoord->dx1f(i-1);
+    } else {
+      minCellSize = pmb->pcoord->dx1f(i);
+    }
+    //minCellSize = std::min(pmb->pcoord->dx1f(i),pmb->pcoord->dx1f(i-1));
+    if (nextPosDelta != 0.0 && minCellSize != 0.0){
+      dt = std::abs(minCellSize* 0.5/nextPosDelta * (pmesh->dt));
+      min_dt = std::min(min_dt, dt);
+    } else {
+      dt = FLT_MAX;
+      min_dt = std::min(min_dt,dt);
+    }
+
+  }
+  if (Nx2 > 1){
+    for (int j = 0; j<=Nx2+1;j++){
+      nextPosDelta = pmesh->CMNewCoord_(pmesh->CMLockData,pmb->pcoord->x2f(j),1, pmesh->dt, pmesh->time);
+      minCellSize = std::min(pmb->pcoord->dx2f(j),pmb->pcoord->dx2f(j-1));
+      dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+      min_dt = std::min(min_dt, dt);      
+      if (nextPosDelta != 0.0){
+        dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+        min_dt = std::min(min_dt, dt);
+      }   
+    }
+  }
+  if (Nx3 >1) {
+    for (int k = 0; k<=Nx3+1;k++){
+      nextPosDelta = pmesh->CMNewCoord_(pmesh->CMLockData,pmb->pcoord->x3f(k),2, pmesh->dt,pmesh->time);
+      minCellSize = std::min(pmb->pcoord->dx3f(k),pmb->pcoord->dx3f(k-1));
+      dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+      min_dt = std::min(min_dt, dt);
+      if (nextPosDelta != 0.0){
+        dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+        min_dt = std::min(min_dt, dt);
+      }
+    }
+  }
+
+  //std::cout << "This is my Min dt from grid growth: " << min_dt << std::endl;
+  return min_dt;
+
+
+
+}
+
+
 
 //========================================================================================
 // Reflecting inner X1 boundary conditions for radially non-uniform grids

@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
-
+    //std::cout << "Time: " << pmesh->time << std::endl;
     for (int stage=1; stage<=ptlist->nstages; ++stage) {
       if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
         pmesh->pfgrd->Solve(stage, 0);
@@ -418,12 +418,12 @@ int main(int argc, char *argv[]) {
 	//std::cout << "update  Grid after stage" << stage;
 	//std::cout << cm->ShockPos << std::endl;
 	//Detect change, and adjust Grid
-	Real dt = (pmesh->dt) * (ptlist->stage_wghts[(stage-1)].beta) ;
-	AthenaArray<Real> &LockData = (*pmesh).CMLockData;
- 	pmesh->CMLocking_(pmesh, LockData, dt);
-	//std::cout << pmesh->CMLockData(1) << std::endl;
-        pmesh->EditGrid(pmesh->CMLockData);	
-        
+	Real dT = (pmesh->dt) * (ptlist->stage_wghts[(stage-1)].beta) ;
+	//AthenaArray<Real> LockData = pmesh->CMLockData;
+ 	pmesh->CMLocking_(pmesh, pmesh->CMLockData, dT);
+	//std::cout << "Here is the stored value " << pmesh->CMLockData(1) << std::endl;
+        pmesh->EditGrid(pmesh->CMLockData,dT,(pmesh->time)+dT);	
+        //std::cout << "Stage " << stage << " x1max " << (pmesh->mesh_size).x1max << std::endl; 
         }
 	
     }

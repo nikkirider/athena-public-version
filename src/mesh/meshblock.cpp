@@ -441,7 +441,7 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
 //! \fn size_t MeshBlock:: EditMBCoord(AthenaArray<Real> MBdx1f[i], AthenaArray<Real> MBdx2f[i], AthenaArray<Real> MBdx3f);
 //  \brief Edit Coordinate object for comoving grid
 
-void MeshBlock::EditMBCoord(AthenaArray<Real> LockData){
+void MeshBlock::EditMBCoord(AthenaArray<Real> LockData, Real dTStage, Real TimeStage){
 
   //Edit MeshBlock attributes
   //block_size  
@@ -459,7 +459,7 @@ void MeshBlock::EditMBCoord(AthenaArray<Real> LockData){
   //AthenaArray<Real> &del1 = *(this->pcm->delx1f);   
   //Comoving &cm = *(this->pcm);  
   for (int i = 0; i<=Nx1+1;i++){
-    pcm->delx1f(i) = pmy_mesh->CMNewCoord_(LockData,pcoord->x1f(i),0);
+    pcm->delx1f(i) = pmy_mesh->CMNewCoord_(LockData,pcoord->x1f(i),0, dTStage,TimeStage);
     //pcmm->delx1f(i) = 0.0;
     //del1(i) = val;
     //this->pcm->EditDelta(val,i,0,cm);
@@ -468,11 +468,11 @@ void MeshBlock::EditMBCoord(AthenaArray<Real> LockData){
   } 
     
   for (int j = 0; j<=Nx2+1;j++){
-    pcm->delx2f(j) = pmy_mesh->CMNewCoord_(LockData,pcoord->x2f(j),1);
+    pcm->delx2f(j) = pmy_mesh->CMNewCoord_(LockData,pcoord->x2f(j),1, dTStage,TimeStage);
   } 
   
   for (int k = 0; k<=Nx3+1;k++){
-    pcm->delx3f(k) = pmy_mesh->CMNewCoord_(LockData,pcoord->x3f(k),2);
+    pcm->delx3f(k) = pmy_mesh->CMNewCoord_(LockData,pcoord->x3f(k),2, dTStage,TimeStage);
   }
 
   //Fix Block Size object
@@ -488,11 +488,15 @@ void MeshBlock::EditMBCoord(AthenaArray<Real> LockData){
   //Edit Coordinate Grid
   pcm->EditCoordObj(this,pcoord);
 
-  
+    
   
 
   //Calculate a values for source terms to be updated correctly
   //
+  //
+
+
+ 
 }
 
 

@@ -12,7 +12,7 @@ variable   = cons
 dt         = 1.0       # time increment between outputs
 
 <time>
-cfl_number = 0.2        # The Courant, Friedrichs, & Lewy (CFL) Number
+cfl_number = 0.5        # The Courant, Friedrichs, & Lewy (CFL) Number
 nlim       = -1         # cycle limit
 tlim       =  10.0     # time limit
 integrator  = rk3    # time integration algorithm
@@ -51,6 +51,7 @@ d0            = 1.0           # ambient density
 p0            = 4.6       # ambient pressure
 E0            = 2.34       # total energy 
 m0            = 2.0
-nLockData     = 333             # number of comoving Lock Data points needed
+v0            = 10.0
+nLockData     = 3           # number of comoving Lock Data points needed
 
 

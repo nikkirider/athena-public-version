@@ -194,7 +194,7 @@ typedef void (*FieldDiffusionCoeff_t)(FieldDiffusion *pfdif, MeshBlock *pmb,
 
 typedef void (*LockingFunction_t)(Mesh *pm, AthenaArray<Real> &LockData, Real dtStage);
 
-typedef Real (*EditFaceCoord_t)(const AthenaArray<Real> LockData, Real xf,int dir);
+typedef Real (*EditFaceCoord_t)(AthenaArray<Real> LockData, Real xf,int dir, Real dt, Real time);
 
 
 

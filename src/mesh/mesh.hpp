@@ -121,7 +121,7 @@ public:
   void InitOTFOutput(ParameterInput *pin);         // in ../pgen
   void OTFWorkBeforeOutput(ParameterInput *pin);   // in ../pgen
   
-  void EditMBCoord(AthenaArray<Real> ComovingLockData);
+  void EditMBCoord(AthenaArray<Real> ComovingLockData, Real dt, Real time);
 
 private:
   // data
@@ -194,7 +194,7 @@ public:
 
   AthenaArray<Real> CMLockData; //Always atleast a scalar (Gridstage) to check if entire mesh is ready for shifting
   //Comoving *pcm;
-  void EditGrid(AthenaArray<Real> LockData);
+  void EditGrid(AthenaArray<Real> LockData,Real dtStage, Real StageTime);
   LockingFunction_t CMLocking_;
   EditFaceCoord_t CMNewCoord_;
 
