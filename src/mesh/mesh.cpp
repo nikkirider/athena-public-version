@@ -48,7 +48,7 @@
 #include "mesh.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
-#include "../comoving/comoving.hpp"
+#include "../expansion/expansion.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -173,7 +173,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   block_size.x3rat = mesh_size.x3rat = pin->GetOrAddReal("mesh","x3rat",1.0);
 
   int nLockData = pin->GetOrAddReal("problem","nLockData",0);
-  CMLockData.NewAthenaArray(nLockData);
+  EXLockData.NewAthenaArray(nLockData);
   
   // read BC flags for each of the 6 boundaries in turn.
   mesh_bcs[INNER_X1] = GetBoundaryFlag(pin->GetOrAddString("mesh","ix1_bc","none"));
@@ -250,8 +250,8 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   ViscosityCoeff_=NULL;
   ConductionCoeff_=NULL;
   FieldDiffusivity_=NULL;
-  CMLocking_ = NULL;
-  CMNewCoord_ = NULL;
+  EXLocking_ = NULL;
+  EXNewCoord_ = NULL;
   MGBoundaryFunction_[INNER_X1]=MGPeriodicInnerX1;
   MGBoundaryFunction_[OUTER_X1]=MGPeriodicOuterX1;
   MGBoundaryFunction_[INNER_X2]=MGPeriodicInnerX2;
@@ -627,9 +627,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   nrbx2=mesh_size.nx2/block_size.nx2;
   nrbx3=mesh_size.nx3/block_size.nx3;
   
-  //Setup Blank array for CM Locking data to be passed into the meshblocks
-  int nLockData = pin->GetOrAddReal("problem","nCMLockDataPts",0);
-  CMLockData.NewAthenaArray(nLockData);
+  //Setup Blank array for EX Locking data to be passed into the meshblocks
+  int nLockData = pin->GetOrAddReal("problem","nLockData",0);
+  EXLockData.NewAthenaArray(nLockData);
   
   // initialize user-enrollable functions
   if (mesh_size.x1rat!=1.0) {
@@ -663,8 +663,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   StaticGravPot_=NULL;
   UserTimeStep_=NULL;
   ViscosityCoeff_=NULL;
-  CMLocking_ = NULL;
-  CMNewCoord_ = NULL;
+  EXLocking_ = NULL;
+  EXNewCoord_ = NULL;
   ConductionCoeff_=NULL;
   FieldDiffusivity_=NULL;
   MGBoundaryFunction_[INNER_X1]=MGPeriodicInnerX1;
@@ -2390,10 +2390,10 @@ unsigned int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
 //----------------------------------------------------------------------------------------
 //! \fn void EnrollComovingLockingFunction(LockingFunction_t myfunc)
 //  \brief Takes function defined in pgen describing movement of coordinate grid
-//  	   and uses it to define Comoving's CMLocking function
+//  	   and uses it to define Expansion EXLocking function
 // 
-void Mesh::EnrollComovingLockingFunction(LockingFunction_t my_func){
-  CMLocking_ = my_func;
+void Mesh::EnrollExpandingLockingFunction(LockingFunction_t my_func){
+  EXLocking_ = my_func;
    
 }
 
@@ -2403,7 +2403,7 @@ void Mesh::EnrollComovingLockingFunction(LockingFunction_t my_func){
 //         and uses it to provide the new coordinate for that grid point
 // 
 void Mesh::EnrollFaceCoordFunction(EditFaceCoord_t my_func){
-  CMNewCoord_ = my_func;
+  EXNewCoord_ = my_func;
 
   }
 
@@ -2413,25 +2413,25 @@ void Mesh::EnrollFaceCoordFunction(EditFaceCoord_t my_func){
 //! \fn void EditGrid(AthenaArray<Real> dx1f, AthenaArray<Real> dx2f, AthenaArray<Real> dx3f);
 //  \brief Moves through grid and adjusts coordinate frame based on change in frame
 
-void Mesh::EditGrid(AthenaArray<Real> LockData, Real dTStage, Real TimeStage){
+void Mesh::EditGrid(AthenaArray<Real> LockData, Real dT, Real Time){
   
   //Edit every MeshBlock
   MeshBlock *pmb = pblock;
   //AthenaArray<Real> *Data;
   //Data = &LockData; 
   //std::cout << mesh_size.x1max <<std::endl;  
-  mesh_size.x1min += CMNewCoord_(LockData,mesh_size.x1min,0,dTStage,TimeStage);
-  mesh_size.x2min += CMNewCoord_(LockData,mesh_size.x2min,1,dTStage,TimeStage);
-  mesh_size.x3min += CMNewCoord_(LockData,mesh_size.x3min,2,dTStage,TimeStage);
-  mesh_size.x1max += CMNewCoord_(LockData,mesh_size.x1max,0,dTStage,TimeStage);
-  mesh_size.x2max += CMNewCoord_(LockData,mesh_size.x2max,1,dTStage,TimeStage);
-  mesh_size.x3max += CMNewCoord_(LockData,mesh_size.x3max,2,dTStage,TimeStage);
+  mesh_size.x1min += EXNewCoord_(LockData,mesh_size.x1min,0,dT,Time);
+  mesh_size.x2min += EXNewCoord_(LockData,mesh_size.x2min,1,dT,Time);
+  mesh_size.x3min += EXNewCoord_(LockData,mesh_size.x3min,2,dT,Time);
+  mesh_size.x1max += EXNewCoord_(LockData,mesh_size.x1max,0,dT,Time);
+  mesh_size.x2max += EXNewCoord_(LockData,mesh_size.x2max,1,dT,Time);
+  mesh_size.x3max += EXNewCoord_(LockData,mesh_size.x3max,2,dT,Time);
   //std::cout << mesh_size.x1max << std::endl;
 
   int i = 0;
   while (pmb!= NULL) {
     //std::cout << "Editing MeshBlock" << i << std::endl;
-    pmb->EditMBCoord(LockData,dTStage,TimeStage);
+    pmb->EditMBCoord(LockData,dT,Time);
     pmb = pmb->next;
     i++;
   } 

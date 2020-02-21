@@ -11,6 +11,11 @@ file_type  = hdf5        # Binary data dump
 variable   = cons
 dt         = 1.0       # time increment between outputs
 
+<output2>
+file_type = hdf5
+variable  = uov
+dt        = 0.1
+
 <time>
 cfl_number = 0.5        # The Courant, Friedrichs, & Lewy (CFL) Number
 nlim       = -1         # cycle limit
@@ -21,7 +26,7 @@ ncycle_out  = 1000      # interval for stdout summary info
 
 <mesh>
 nx1        = 20000     # Number of zones in X1-direction
-x1min      = 0.0      # minimum value of X1
+x1min      = 0.1      # minimum value of X1
 x1max      = 4.0        # maximum value of X1 
 ix1_bc     = user    # inner-X1 boundary flag
 ox1_bc     = user    # outer-X1 boundary flag
@@ -52,6 +57,6 @@ p0            = 4.6       # ambient pressure
 E0            = 2.34       # total energy 
 m0            = 2.0
 v0            = 10.0
-nLockData     = 3           # number of comoving Lock Data points needed
+nLockData     = 4           # number of comoving Lock Data points needed
 
 

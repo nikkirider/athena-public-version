@@ -69,7 +69,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
-
+#include "../expansion/expansion.hpp"
 //----------------------------------------------------------------------------------------
 // OutputType constructor
 
@@ -365,18 +365,26 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       AppendOutputDataNode(pod);
       num_vars_++;
     }
-		if (DUAL_ENERGY) {
-			if (output_params.variable.compare("IGE") == 0 ||
-					output_params.variable.compare("prim") == 0) {
-				pod = new OutputData;
-				pod->type = "SCALARS";
-				pod->name = "IGint";
-				pod->data.InitWithShallowSlice(phyd->w,4,IGE,1);
-				AppendOutputDataNode(pod);
-				num_vars_++;
-			}
-		}
+    if (DUAL_ENERGY) {
+      if (output_params.variable.compare("IGE") == 0 ||
+	output_params.variable.compare("prim") == 0) {
+        pod = new OutputData;
+	pod->type = "SCALARS";
+	pod->name = "IGint";
+	pod->data.InitWithShallowSlice(phyd->w,4,IGE,1);
+	AppendOutputDataNode(pod);
+	num_vars_++;
+	}
+    }
   }
+  //if (COMOVING==1) {
+  //  pod = new OutputData;
+  //  pod->type = "SCALARS";
+  //  pod->name = "a1";
+  //  pod->data.InitWithShallowSlice(pmb->pcm->a1f,4,0,1);
+  //  AppendOutputDataNode(pod);
+  //  num_vars_++;
+  //}
 
   // momentum vector
   if (output_params.variable.compare("m") == 0 ||

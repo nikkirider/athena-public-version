@@ -37,7 +37,7 @@
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "mesh.hpp"
-#include "../comoving/comoving.hpp"
+#include "../expansion/expansion.hpp"
 
 
 //----------------------------------------------------------------------------------------
@@ -136,9 +136,9 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
 	if (CLESS_ENABLED) pcless = new Cless(this, pin); 
   peos = new EquationOfState(this, pin);
 
-  if (COMOVING==1) {
-    pcm = new Comoving(this,pin);
-  } 
+  if (EXPANDING==1) {
+    pex = new Expansion(this,pin);
+  } else {pex = NULL;}
 
   // Create user mesh data
   InitUserMeshBlockData(pin);
@@ -241,9 +241,10 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   peos = new EquationOfState(this, pin);
   InitUserMeshBlockData(pin);
   InitOTFOutput(pin);
-  if (COMOVING==1) {
-    pcm = new Comoving(this,pin);
+  if (EXPANDING==1) {
+    pex = new Expansion(this,pin);
   }
+  else {pex = NULL;}
    
   
   int os=0;
@@ -441,7 +442,7 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
 //! \fn size_t MeshBlock:: EditMBCoord(AthenaArray<Real> MBdx1f[i], AthenaArray<Real> MBdx2f[i], AthenaArray<Real> MBdx3f);
 //  \brief Edit Coordinate object for comoving grid
 
-void MeshBlock::EditMBCoord(AthenaArray<Real> LockData, Real dTStage, Real TimeStage){
+void MeshBlock::EditMBCoord(AthenaArray<Real> LockData, Real dT, Real Time){
 
   //Edit MeshBlock attributes
   //block_size  
@@ -456,46 +457,53 @@ void MeshBlock::EditMBCoord(AthenaArray<Real> LockData, Real dTStage, Real TimeS
   int Nx2 = block_size.nx2;
   int Nx3 = block_size.nx3;
   
-  //AthenaArray<Real> &del1 = *(this->pcm->delx1f);   
-  //Comoving &cm = *(this->pcm);  
-  for (int i = 0; i<=Nx1+1;i++){
-    pcm->delx1f(i) = pmy_mesh->CMNewCoord_(LockData,pcoord->x1f(i),0, dTStage,TimeStage);
-    //pcmm->delx1f(i) = 0.0;
-    //del1(i) = val;
-    //this->pcm->EditDelta(val,i,0,cm);
-    //std::cout << "Got Delta" << std::endl; 
-    
-  } 
-    
-  for (int j = 0; j<=Nx2+1;j++){
-    pcm->delx2f(j) = pmy_mesh->CMNewCoord_(LockData,pcoord->x2f(j),1, dTStage,TimeStage);
-  } 
-  
+  //AthenaArray<Real> &del1 = *(this->pex->delx1f);   
+  //Comoving &cm = *(this->pex);
   for (int k = 0; k<=Nx3+1;k++){
-    pcm->delx3f(k) = pmy_mesh->CMNewCoord_(LockData,pcoord->x3f(k),2, dTStage,TimeStage);
-  }
+    for (int j = 0;j<=Nx2+1;j++){      
+      for (int i = 0; i<=Nx1+1;i++){
+         pex->delx1f(i) = pmy_mesh->EXNewCoord_(LockData,pcoord->x1f(i),0, dT,Time);
+         pex->delx2f(j) = pmy_mesh->EXNewCoord_(LockData,pcoord->x2f(j),1, dT,Time);
+         pex->delx3f(k) = pmy_mesh->EXNewCoord_(LockData,pcoord->x3f(k),2, dT,Time);
+
+         if (pex->delx1f(i) == 0.0) { pex->scale(k,j,i,0) = 1.0; }
+         else { pex->scale(k,j,i,0) = 1.0 + (pex->delx1f(i))/(pcoord->x1f(i)); }
+         
+         if (pex->delx2f(j) == 0.0) { pex->scale(k,j,i,1) = 1.0; }
+         else { pex->scale(k,j,i,1) = 1.0 + (pex->delx2f(j))/(pcoord->x2f(j)); }
+          
+
+         if (pex->delx3f(k) == 0.0) { pex->scale(k,j,i,2) = 1.0; }
+         else { pex->scale(k,j,i,2) = 1.0 + (pex->delx3f(k))/(pcoord->x3f(k)); }
+         
+         //pex->delx1f(i) = 0.0;
+         //del1(i) = val;
+         //this->pex->EditDelta(val,i,0,cm);
+         //std::cout << "Got Delta" << std::endl; 
+      }
+    }
+  } 
+    
+  //for (int j = 0; j<=Nx2+1;j++){
+  //  pex->delx2f(j) = pmy_mesh->EXNewCoord_(LockData,pcoord->x2f(j),1, dTStage,TimeStage);
+  //} 
+  
+  //for (int k = 0; k<=Nx3+1;k++){
+  //  pex->delx3f(k) = pmy_mesh->EXNewCoord_(LockData,pcoord->x3f(k),2, dTStage,TimeStage);
+  //}
 
   //Fix Block Size object
-  block_size.x1min = block_size.x1min+pcm->delx1f(0);
-  block_size.x2min = block_size.x2min+pcm->delx2f(0);
-  block_size.x3min = block_size.x3min+pcm->delx3f(0);
+  block_size.x1min = block_size.x1min+pex->delx1f(0);
+  block_size.x2min = block_size.x2min+pex->delx2f(0);
+  block_size.x3min = block_size.x3min+pex->delx3f(0);
   
-  block_size.x1max = block_size.x1max+pcm->delx1f(Nx1);
-  block_size.x2max = block_size.x2max+pcm->delx2f(Nx2);
-  block_size.x3max = block_size.x3max+pcm->delx3f(Nx3);
+  block_size.x1max = block_size.x1max+pex->delx1f(Nx1);
+  block_size.x2max = block_size.x2max+pex->delx2f(Nx2);
+  block_size.x3max = block_size.x3max+pex->delx3f(Nx3);
 
  
   //Edit Coordinate Grid
-  pcm->EditCoordObj(this,pcoord);
-
-    
-  
-
-  //Calculate a values for source terms to be updated correctly
-  //
-  //
-
-
+  pex->EditCoordObj(this,pcoord);
  
 }
 

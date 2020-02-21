@@ -44,10 +44,10 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
-class Comoving;
+class Expansion;
 
 
-//----------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------
 //! \class MeshBlock
 //  \brief data/functions associated with a single block
 
@@ -109,7 +109,7 @@ public:
   Field *pfield;
   Gravity *pgrav;
   EquationOfState *peos;
-  Comoving *pcm = NULL;
+  Expansion *pex;
   MeshBlock *prev, *next;
 
   // functions
@@ -121,7 +121,7 @@ public:
   void InitOTFOutput(ParameterInput *pin);         // in ../pgen
   void OTFWorkBeforeOutput(ParameterInput *pin);   // in ../pgen
   
-  void EditMBCoord(AthenaArray<Real> ComovingLockData, Real dt, Real time);
+  void EditMBCoord(AthenaArray<Real> ExpandingLockData, Real dt, Real time);
 
 private:
   // data
@@ -164,7 +164,7 @@ class Mesh {
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
-  friend class Comoving;
+  friend class Expansion;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
@@ -192,11 +192,11 @@ public:
 
   MeshBlock *pblock;
 
-  AthenaArray<Real> CMLockData; //Always atleast a scalar (Gridstage) to check if entire mesh is ready for shifting
+  AthenaArray<Real> EXLockData; //Always atleast a scalar (Gridstage) to check if entire mesh is ready for shifting
   //Comoving *pcm;
-  void EditGrid(AthenaArray<Real> LockData,Real dtStage, Real StageTime);
-  LockingFunction_t CMLocking_;
-  EditFaceCoord_t CMNewCoord_;
+  void EditGrid(AthenaArray<Real> LockData,Real dt, Real time);
+  LockingFunction_t EXLocking_;
+  EditFaceCoord_t EXNewCoord_;
 
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
@@ -279,7 +279,7 @@ private:
   void SetGravityThreshold(Real eps) { grav_eps_=eps; }
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
 
-  void EnrollComovingLockingFunction(LockingFunction_t my_func);
+  void EnrollExpandingLockingFunction(LockingFunction_t my_func);
   void EnrollFaceCoordFunction(EditFaceCoord_t my_func);
 
 };

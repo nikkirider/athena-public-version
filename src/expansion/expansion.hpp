@@ -1,11 +1,11 @@
-#ifndef COMOVING_HPP_
-#define COMOVING_HPP_
+#ifndef EXPANSION_HPP_
+#define EXPANSION_HPP_
 //========================================================================================
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file comoving.hpp
+//! \file expansion.hpp
 //  \brief definitions for Comoving Class
 // Athena++ classes headers
 #include "../athena.hpp"
@@ -18,15 +18,15 @@ class Hydro;
 class Coordinates;
 
 
-class Comoving {
+class Expansion{
 public:
   //friend class Mesh;
   friend class Coordinates;
   friend class MeshBlock;
   //Constructors and Destructor
-  Comoving(MeshBlock* pmb, ParameterInput *pin);
+  Expansion(MeshBlock* pmb, ParameterInput *pin);
   //Comoving(Mesh* pm, ParameterInput* pin, Real null_flag);
-  ~Comoving();
+  ~Expansion();
   
   //Scalar location and velocity
   //Real InitGridPos;
@@ -37,7 +37,7 @@ public:
   Real x20;
   Real x30;
   AthenaArray<Real> delx1f, delx2f, delx3f; //Difference from old grid to new grid in each coordinate direction
-  AthenaArray<Real> a1f, a2f, a3f; //Velocity of each cell wall
+  AthenaArray<Real> scale; //a1f, a2f, a3f; //Velocity of each cell wall
 
   //LockingFunction_t CMLocking;  
   //void UpdateComovingLock(Mesh *pm, int stage);
@@ -49,8 +49,9 @@ public:
   void EditCoordObj(MeshBlock *pmb,Coordinates *pcoord);
 
   //void ComovingSrcTerms(Hydro *phydro, ParameterInput *pin, int stage);
-  void ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
-  const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
+  void ExpansionSrcTerms(const Real dt, const AthenaArray<Real> *flx, 
+                        const AthenaArray<Real> &p, const AthenaArray<Real> &c);
+  
   
 private:
   //AthenaArray<Real> ShockDetector(Mesh *pm);
@@ -58,4 +59,4 @@ private:
 };
 
 
-#endif // COMOVING_HPP_
+#endif // EXPANSION_HPP_

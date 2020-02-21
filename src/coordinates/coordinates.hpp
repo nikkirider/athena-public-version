@@ -31,7 +31,7 @@ class ParameterInput;
 class Coordinates {
 public:
   friend class HydroSourceTerms;
-  friend class Comoving;
+  friend class Expansion;
 
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
   virtual ~Coordinates();

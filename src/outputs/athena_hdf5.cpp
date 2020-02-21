@@ -133,6 +133,9 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       if (output_params.cartesian_vector)
         num_variables[n_dataset-1] += 3;
     }
+    //if (COMOVING == 1) {
+    //  num_variables[n_dataset++]+=1;
+    //}
   } else {
     num_datasets = 1;
     num_variables = new int[num_datasets];

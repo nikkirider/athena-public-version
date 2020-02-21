@@ -29,6 +29,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../bvals/bvals.hpp"
+#include "../expansion/expansion.hpp"
 
 //====================================================================================
 // global variables
@@ -45,17 +46,17 @@ MPI_Comm_Sub comm_slab;
 
 //====================================================================================
 // local functions
-void InflowOuterX1_Comoving(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+void InflowOuterX1_Expanding(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 void ReflectInnerX1_nonuniform(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
-void CMLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT);//, AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f);
+void EXLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT);//, AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f);
 
-Real CMMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time);
+Real EXMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time);
 
-Real CMTimeStep(MeshBlock *pmb);
+Real EXTimeStep(MeshBlock *pmb);
 
 //====================================================================================
 // Enroll user-specific functions
@@ -65,24 +66,47 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
      EnrollUserBoundaryFunction(INNER_X1, ReflectInnerX1_nonuniform);
   }
 
-  if (COMOVING == 1){
-    EnrollComovingLockingFunction(CMLockToShock);
-    EnrollFaceCoordFunction(CMMove);
-    EnrollUserBoundaryFunction(OUTER_X1, InflowOuterX1_Comoving);
-    EnrollUserTimeStepFunction(CMTimeStep);
-    CMLockData(2)= pin->GetOrAddReal("problem","v0",0.0);
+  if (EXPANDING == 1){
+    EnrollExpandingLockingFunction(EXLockToShock);
+    EnrollFaceCoordFunction(EXMove);
+    if (mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")){
+	EnrollUserBoundaryFunction(OUTER_X1, InflowOuterX1_Expanding);
+    }	
+    EnrollUserTimeStepFunction(EXTimeStep);
+    EXLockData(2) = pin->GetOrAddReal("problem","v0",0.0);
+    EXLockData(3) = pin->GetReal("problem","d0");
   }
   
   return;
 }
 
+//====================================================================================
+// Enroll user-specific output block
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
+  if (EXPANDING == 1) {  AllocateUserOutputVariables(1); }
+  return;
+} 
+
+//====================================================================================
+// Enroll user-specific output block
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin){
+  for (int k=ks;k<=ke;k++){
+    for (int j=js;j<=je;j++){
+      for (int i=is;i<=ie;i++){
+        user_out_var(0,k,j,i) = pex->scale(0,k,j,i);
+      }
+    }
+  }
+  return;
+}
+
 //=========================================================================================
 //inflow condition -> gets average density and adds it at boundary
-void InflowOuterX1_Comoving(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+void InflowOuterX1_Expanding(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh){
 
   //Get Average Density here
-  Real RhoAve = 0.0; 
+  Real RhoAve = pmb->pmy_mesh->EXLockData(3); 
 
   for (int n=0; n<(NHYDRO); ++n) {
     if (n==(IVX)) {
@@ -90,7 +114,7 @@ void InflowOuterX1_Comoving(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> 
         for (int j=js; j<=je; ++j) {
 #pragma omp simd
           for (int i=1; i<=ngh; ++i) {
-            prim(IVX,k,j,is-i) = -prim(IVX,k,j,(is+i-1));  // reflect 1-velocity
+            prim(IVX,k,j,is-i) = 0.0; //prim(IVX,k,j,(is+i-1));  // reflect 1-velocity
           }
         }
       }
@@ -99,7 +123,7 @@ void InflowOuterX1_Comoving(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> 
         for (int j=js; j<=je; ++j) {
 #pragma omp simd
           for (int i=1; i<=ngh; ++i) {
-            prim(n,k,j,is-i) = RhoAve+ prim(n,k,j,(is+i-1));
+            prim(n,k,j,is-i) = RhoAve ; //+ prim(n,k,j,(is+i-1));
           }
         }
       }
@@ -152,10 +176,10 @@ void InflowOuterX1_Comoving(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> 
 
 // ======= =================================================================================
 // Set data necessary for expanding the grid.
-void CMLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT){ //AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f){
+void EXLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT){ //AthenaArray<Real> &vx2f, AthenaArray<Real> &vx3f){
   RegionSize meshDim = pm->mesh_size;
   LockingData(0) = meshDim.x1min;
-  LockingData(1) = (meshDim.x1max) * (93.0/100.0);   
+  LockingData(1) = (meshDim.x1max) * (97.0/100.0);   
   //LockingData(2) = dT;
   //LockingData(3) = 2.0*(pm->time);
   //std::cout << "Here is LockData(1) in CMLockToShock: " << LockingData(1) << std::endl;
@@ -168,7 +192,7 @@ void CMLockToShock(Mesh *pm, AthenaArray<Real> &LockingData, Real dT){ //AthenaA
 //=========================================================================================
 // Take new comoving data and previous grid cell position and returning new cell position
 // Mesh is accessible here, as thisfunction gets called by meshblock
-Real CMMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
+Real EXMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
   
   Real retval;
   if (dir != 0){
@@ -181,7 +205,7 @@ Real CMMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
     Real x0 = LockData(0);
     Real alpha = LockData(1);
     //std::cout << "alpha " << alpha << std::endl;
-    Real delAlpha = -1.0*(dT)*(LockData(2))*std::sin(time*3.0);
+    Real delAlpha = 0.2*(dT)*(LockData(2))*std::cos(time/1.0);
     //if in x-direction
     retval = (xf-x0) / (alpha-x0) * delAlpha;
     //std::cout << Vel  <<std::endl;
@@ -192,7 +216,7 @@ Real CMMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
 }
 //=========================================================================================
 //Make sure grid does not move too far
-Real CMTimeStep(MeshBlock *pmb){ 
+Real EXTimeStep(MeshBlock *pmb){ 
   Real min_dt = FLT_MAX;
   Real nextPosDelta, minCellSize, dt;
   
@@ -202,7 +226,7 @@ Real CMTimeStep(MeshBlock *pmb){
   Real Nx3 = pmesh->mesh_size.nx3; 
   
   for (int i = 0; i<=Nx1+1;i++){
-    nextPosDelta = pmesh->CMNewCoord_(pmesh->CMLockData,pmb->pcoord->x1f(i),0, pmesh->dt, pmesh->time);
+    nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x1f(i),0, pmesh->dt, pmesh->time);
     //std::cout << i <<  "th NextPosDelta " << nextPosDelta  << std::endl;
     if (nextPosDelta < 0 && i != 0){ 
       minCellSize = pmb->pcoord->dx1f(i-1);
@@ -221,7 +245,7 @@ Real CMTimeStep(MeshBlock *pmb){
   }
   if (Nx2 > 1){
     for (int j = 0; j<=Nx2+1;j++){
-      nextPosDelta = pmesh->CMNewCoord_(pmesh->CMLockData,pmb->pcoord->x2f(j),1, pmesh->dt, pmesh->time);
+      nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x2f(j),1, pmesh->dt, pmesh->time);
       minCellSize = std::min(pmb->pcoord->dx2f(j),pmb->pcoord->dx2f(j-1));
       dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
       min_dt = std::min(min_dt, dt);      
@@ -233,7 +257,7 @@ Real CMTimeStep(MeshBlock *pmb){
   }
   if (Nx3 >1) {
     for (int k = 0; k<=Nx3+1;k++){
-      nextPosDelta = pmesh->CMNewCoord_(pmesh->CMLockData,pmb->pcoord->x3f(k),2, pmesh->dt,pmesh->time);
+      nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x3f(k),2, pmesh->dt,pmesh->time);
       minCellSize = std::min(pmb->pcoord->dx3f(k),pmb->pcoord->dx3f(k-1));
       dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
       min_dt = std::min(min_dt, dt);
@@ -316,6 +340,7 @@ void ReflectInnerX1_nonuniform(MeshBlock *pmb, Coordinates *pco, AthenaArray<Rea
 //========================================================================================
 
 void MeshBlock::InitOTFOutput(ParameterInput *pin) {
+  
   return;
 }
 
@@ -331,11 +356,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   //Real dr         = pin->GetReal("problem","dr"); // width of transition
   Real p0         = pin->GetReal("problem","p0"); // ambient pressure
   Real d0         = pin->GetReal("problem","d0"); // ambient density
-  //Real v0         = pin->GetReal("problem","v0"); // velocity of ejecta
+  Real v0         = pin->GetReal("problem","v0"); // velocity of ejecta
   Real m0         = pin->GetReal("problem","m0"); // mass of ejecta
   Real E0         = pin->GetReal("problem","E0"); // total energy of ejecta
   Real x1min      = pin->GetReal("mesh","x1min");
-
+  Real x1max      = pin->GetReal("mesh","x1max");
   if (MAGNETIC_FIELDS_ENABLED) {
     Real b0    = pin->GetReal("problem","b0");
     Real angle = (PI/180.0)*pin->GetReal("problem","angle");
@@ -350,57 +375,58 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real e0      = p0/gm1;
   
    // get coordinates of center of blast, and convert to Cartesian if necessary
-  //Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);
-  //Real x2_0   = pin->GetOrAddReal("problem","x2_0",0.0);
-  //Real x3_0   = pin->GetOrAddReal("problem","x3_0",0.0);
-  //Real x0,y0,z0;
-  //if (COORDINATE_SYSTEM == "cartesian") {
-  //  x0 = x1_0;
-  //  y0 = x2_0;
-  //  z0 = x3_0;
-  //} else if (COORDINATE_SYSTEM == "cylindrical") {
-  //  x0 = x1_0*std::cos(x2_0);
-  //  y0 = x1_0*std::sin(x2_0);
-  //  z0 = x3_0;
-  //} else if (COORDINATE_SYSTEM == "spherical_polar") {
-  //  x0 = x1_0*std::sin(x2_0)*std::cos(x3_0);
-  //  y0 = x1_0*std::sin(x2_0)*std::sin(x3_0);
-  //  z0 = x1_0*std::cos(x2_0);
-  //} else {
-  //  // Only check legality of COORDINATE_SYSTEM once in this function
-  //  std::stringstream msg;
-  //  msg << "### FATAL ERROR in knovae.cpp ProblemGenerator" << std::endl
-  //      << "Unrecognized COORDINATE_SYSTEM= " << COORDINATE_SYSTEM << std::endl;
-  //  throw std::runtime_error(msg.str().c_str());
-  //}
+  Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);
+  Real x2_0   = pin->GetOrAddReal("problem","x2_0",0.0);
+  Real x3_0   = pin->GetOrAddReal("problem","x3_0",0.0);
+  Real x0,y0,z0;
+  if (COORDINATE_SYSTEM == "cartesian") {
+    x0 = x1_0;
+    y0 = x2_0;
+    z0 = x3_0;
+  } else if (COORDINATE_SYSTEM == "cylindrical") {
+    x0 = x1_0*std::cos(x2_0);
+    y0 = x1_0*std::sin(x2_0);
+    z0 = x3_0;
+  } else if (COORDINATE_SYSTEM == "spherical_polar") {
+    x0 = x1_0*std::sin(x2_0)*std::cos(x3_0);
+    y0 = x1_0*std::sin(x2_0)*std::sin(x3_0);
+    z0 = x1_0*std::cos(x2_0);
+  } else {
+    // Only check legality of COORDINATE_SYSTEM once in this function
+    std::stringstream msg;
+    msg << "### FATAL ERROR in knovae.cpp ProblemGenerator" << std::endl
+        << "Unrecognized COORDINATE_SYSTEM= " << COORDINATE_SYSTEM << std::endl;
+    throw std::runtime_error(msg.str().c_str());
+  }
 
   // setup uniform ambient medium with spherical over-pressured region
   for (int k=ks; k<=ke; k++) {
     for (int j=js; j<=je; j++) {
       for (int i=is; i<=ie; i++) {
-       // Real rad,thet;
-       // if (COORDINATE_SYSTEM == "cartesian") {
-       //   Real x   = pcoord->x1v(i);
-       //   Real y   = pcoord->x2v(j);
-       //   Real z   = pcoord->x3v(k);
-       //   rad      = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
-       //   thet   = std::acos(z/rad);
-       // } else if (COORDINATE_SYSTEM == "cylindrical") {
-       //   Real x = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
-       //   Real y = pcoord->x1v(i)*std::sin(pcoord->x2v(j));
-       //   Real z = pcoord->x3v(k);
-       //   rad    = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
-       //   thet   = std::acos(z/rad);
-       // } else { // if (COORDINATE_SYSTEM == "spherical_polar")
-       //   Real x = pcoord->x1v(i)*std::sin(pcoord->x2v(j))*std::cos(pcoord->x3v(k));
-       //   Real y = pcoord->x1v(i)*std::sin(pcoord->x2v(j))*std::sin(pcoord->x3v(k));
-       //   Real z = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
-       //   rad    = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
-       //   thet   = pcoord->x2v(j);
-       // }
-
-        phydro->u(IDN,k,j,i) = rho0; 
-        phydro->u(IM1,k,j,i) = 0.0;
+        Real rad,thet;
+        if (COORDINATE_SYSTEM == "cartesian") {
+          Real x   = pcoord->x1v(i);
+          Real y   = pcoord->x2v(j);
+          Real z   = pcoord->x3v(k);
+          rad      = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
+          thet   = std::acos(z/rad);
+        } else if (COORDINATE_SYSTEM == "cylindrical") {
+          Real x = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
+          Real y = pcoord->x1v(i)*std::sin(pcoord->x2v(j));
+          Real z = pcoord->x3v(k);
+          rad    = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
+          thet   = std::acos(z/rad);
+        } else { // if (COORDINATE_SYSTEM == "spherical_polar")
+          Real x = pcoord->x1v(i)*std::sin(pcoord->x2v(j))*std::cos(pcoord->x3v(k));
+          Real y = pcoord->x1v(i)*std::sin(pcoord->x2v(j))*std::sin(pcoord->x3v(k));
+          Real z = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
+          rad    = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
+          thet   = pcoord->x2v(j);
+        }
+        Real mdpnt = x1max*97.0/100.0;
+        Real del   = (x1max-x1min)/100.0;
+        phydro->u(IDN,k,j,i) = rho0*(1.0+100*std::exp(-1.0*pow((rad-mdpnt)/del,2))); 
+        phydro->u(IM1,k,j,i) = v0*std::exp(-1.0*pow((rad-mdpnt)/del,2));
         phydro->u(IM2,k,j,i) = 0.0;
         phydro->u(IM3,k,j,i) = 0.0;
         if (NON_BAROTROPIC_EOS) {

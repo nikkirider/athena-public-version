@@ -19,7 +19,7 @@
 #include "../../coordinates/coordinates.hpp"
 #include "../hydro.hpp"
 #include "../../parameter_input.hpp"
-#include "../../comoving/comoving.hpp"
+#include "../../expansion/expansion.hpp"
 
 // HydroSourceTerms constructor
 
@@ -65,7 +65,7 @@ HydroSourceTerms::HydroSourceTerms(Hydro *phyd, ParameterInput *pin) {
 
   if (DUAL_ENERGY) hydro_sourceterms_defined = true; 
 
-  if (COMOVING) hydro_sourceterms_defined = true;
+  if (EXPANDING) hydro_sourceterms_defined = true;
 
   StaticGravPot  = phyd->pmy_block->pmy_mesh->StaticGravPot_;
   if (StaticGravPot != NULL) hydro_sourceterms_defined = true;
@@ -114,10 +114,10 @@ void HydroSourceTerms::AddHydroSourceTerms(const Real time, const Real dt,
   if (UserSourceTerm != NULL)
     UserSourceTerm(pmb, time,dt,prim,bcc,cons);
 
-  // Comoving grid source term
-  if (COMOVING ==1) {
-   //std::cout << "Adding Comoving Source Terms!" << std::endl;
-   pmb->pcm->ComovingSrcTerms(pmb,time,dt,prim,bcc,cons);
+  // Expanding grid source term
+  if (EXPANDING ==1) {
+   //std::cout << "Adding Expanding Source Terms!" << std::endl;
+   pmb->pex->ExpansionSrcTerms(dt,flux,prim,cons);
   }
   return;
 }

@@ -3,8 +3,8 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file comoving.cpp
-//  \brief implementation of Comoving class.
+//! \file expansion.cpp
+//  \brief implementation of Expansion class.
 //
 //
 // C/C++ headers
@@ -23,10 +23,10 @@
 #include "../eos/eos.hpp"
 #include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "comoving.hpp"
+#include "expansion.hpp"
 
 //Constructor for comoving object which will actually make changes
-Comoving::Comoving(MeshBlock *pmb, ParameterInput *pin) {
+Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   //LockPos = pin->GetOrAddReal("mesh","cmR0",0.0); //Get initial scalar position
   //LockVel = pin->GetOrAddReal("mesh","cmV0",0.0); //Get initial scalar velocity
   if (COORDINATE_SYSTEM == "cartesian") {
@@ -60,7 +60,7 @@ Comoving::Comoving(MeshBlock *pmb, ParameterInput *pin) {
     nstages = 5;
   } else {
     nstages = 0;
-    std::cout << "### Warning in Comoving creator"
+    std::cout << "### Warning in Expansion creator"
            << "integrator=" << integrator << " not valid time integrator" << std::endl;
   
   }
@@ -88,27 +88,28 @@ Comoving::Comoving(MeshBlock *pmb, ParameterInput *pin) {
   delx2f.NewAthenaArray(ncells2+1); 
   delx3f.NewAthenaArray(ncells3+1);
   
-  a1f.NewAthenaArray(ncells1+1);
-  a2f.NewAthenaArray(ncells2+1);
-  a3f.NewAthenaArray(ncells3+1);
+  //a1f.NewAthenaArray(ncells1+1);
+  //a2f.NewAthenaArray(ncells2+1);
+  //a3f.NewAthenaArray(ncells3+1);
   
   x1fi.InitWithShallowCopy(pmb->pcoord->x1f);
   x2fi.InitWithShallowCopy(pmb->pcoord->x2f);
   x3fi.InitWithShallowCopy(pmb->pcoord->x3f);
 
-  
+  scale.NewAthenaArray(pmb->block_size.nx1,pmb->block_size.nx2,pmb->block_size.nx3,3); 
+   
 
 
 }
 
 
 //destructor
-Comoving::~Comoving(){
+Expansion::~Expansion(){
 
 
 }
 
-void Comoving::EditCoordObj(MeshBlock *pmb, Coordinates *pcoord){
+void Expansion::EditCoordObj(MeshBlock *pmb, Coordinates *pcoord){
   //std::cout << delx1f((pmb->block_size.nx1+1)) << std::endl;  
   pcoord->EditCoord(delx1f,delx2f,delx3f);
 } 
@@ -132,9 +133,10 @@ void Comoving::EditCoordObj(MeshBlock *pmb, Coordinates *pcoord){
 
 //Source Terms for arbitrary grid expansion based on coordinate system
 
-void Comoving::ComovingSrcTerms(MeshBlock *pmb, const Real time, const Real dt,
-  const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons){
-
+void Expansion::ExpansionSrcTerms(const Real dt, const AthenaArray<Real> *flux,
+  const AthenaArray<Real> &prim, const AthenaArray<Real> &cons){
+  //Need to update Cons using this function
+    
 
 }
 

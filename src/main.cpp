@@ -41,7 +41,7 @@
 #include "outputs/outputs.hpp"
 #include "parameter_input.hpp"
 #include "utils/utils.hpp"
-#include "comoving/comoving.hpp"
+#include "expansion/expansion.hpp"
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -414,17 +414,15 @@ int main(int argc, char *argv[]) {
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
       ptlist->DoTaskListOneStage(pmesh, stage);
-      if (COMOVING == 1){
-	//std::cout << "update  Grid after stage" << stage;
-	//std::cout << cm->ShockPos << std::endl;
-	//Detect change, and adjust Grid
-	Real dT = (pmesh->dt) * (ptlist->stage_wghts[(stage-1)].beta) ;
-	//AthenaArray<Real> LockData = pmesh->CMLockData;
- 	pmesh->CMLocking_(pmesh, pmesh->CMLockData, dT);
-	//std::cout << "Here is the stored value " << pmesh->CMLockData(1) << std::endl;
-        pmesh->EditGrid(pmesh->CMLockData,dT,(pmesh->time)+dT);	
+      if (EXPANDING == 1){
+	//Get timestep
+	//Real dT = (pmesh->dt) * (ptlist->stage_wghts[(stage-1)].beta) ;
+	//Refresh Expansion Data
+ 	pmesh->EXLocking_(pmesh, pmesh->EXLockData, pmesh->dt);
+	//Edit entire grid for next time step
+	pmesh->EditGrid(pmesh->EXLockData,pmesh->dt,pmesh->time);	
         //std::cout << "Stage " << stage << " x1max " << (pmesh->mesh_size).x1max << std::endl; 
-        }
+      }
 	
     }
 
