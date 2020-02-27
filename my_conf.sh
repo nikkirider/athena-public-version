@@ -1,15 +1,9 @@
 # Easy to edit configure script for athena++ 
-python configure.py\
-			 --prob blast\
-			 --flux roe\
+python3 configure.py\
+			 --prob shock_tube\
+			 --flux bgk2\
 			 --coord cartesian \
 			 --nghost=2 \
-			 -debug \
 			 -hdf5 \
-			 --include /usr/include/hdf5/openmpi/ \
-			 --fluxcl hlle\
-			 -cl \
-			 -mpi \
-			 -omp 
-			 #--include /usr/include/hdf5/openmpi/ \
-#			 --hdf5_path=/usr/lib/x86_64-linux-gnu/
+			 --include /srv/analysis/local/hdf5/include \
+			 --hdf5_path=/srv/analysis/local/hdf5/
