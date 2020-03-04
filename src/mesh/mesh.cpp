@@ -173,7 +173,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   block_size.x3rat = mesh_size.x3rat = pin->GetOrAddReal("mesh","x3rat",1.0);
 
   int nLockData = pin->GetOrAddReal("problem","nLockData",0);
+  //int nBndData  = pin->GetOrAddReal("problem","nBoundData",0);
   EXLockData.NewAthenaArray(nLockData);
+  //EXBoundaryData.NewAthenaArray(nBndData);
   
   // read BC flags for each of the 6 boundaries in turn.
   mesh_bcs[INNER_X1] = GetBoundaryFlag(pin->GetOrAddString("mesh","ix1_bc","none"));

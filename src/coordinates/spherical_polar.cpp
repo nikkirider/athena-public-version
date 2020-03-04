@@ -611,7 +611,7 @@ void SphericalPolar::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2
   //Make edits to all arrays of coord object (except scratches, since those are cleared)
   //Face values
   //x1  
-  for (int i=il-ng; i<=iu+ng+1; ++i){
+  for (int i=il-ng; i<=iu+ng; ++i){
      //std::cout << "Editing x1f "<< i  << std::endl;     
      x1f(i) = x1f(i)+delx1f(i);
   }
@@ -637,7 +637,7 @@ void SphericalPolar::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2
   
   //x1 deltas, volumes  
   // x1-direction: x1v = (\int r dV / \int dV) = d(r^4/4)/d(r^3/3)
-  for (int i=il-ng; i<=iu+ng; ++i) {
+  for (int i=il-ng; i<iu+ng; ++i) {
     dx1f(i) = x1f(i+1)-x1f(i); 
     x1v(i) = 0.75*(pow(x1f(i+1),4) - pow(x1f(i),4))/(pow(x1f(i+1),3) - pow(x1f(i),3));
   }
@@ -681,7 +681,7 @@ void SphericalPolar::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2
   }
 
   //Geometry Coefficients
-  for (int i=il-ng; i<=iu+ng; ++i) {
+  for (int i=il-ng; i<iu+ng; ++i) {
     h2v(i) = x1v(i);
     h2f(i) = x1f(i);
     h31v(i) = x1v(i);

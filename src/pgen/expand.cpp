@@ -43,7 +43,10 @@ typedef struct MPI_Comm_Sub {
 MPI_Comm_Sub comm_x1;
 MPI_Comm_Sub comm_slab;
 #endif
-
+Real rhoAve;
+Real vxAve;
+Real vyAve;
+Real vzAve;
 //====================================================================================
 // local functions
 void InflowOuterX1_Expanding(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
@@ -73,8 +76,18 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 	EnrollUserBoundaryFunction(OUTER_X1, InflowOuterX1_Expanding);
     }	
     EnrollUserTimeStepFunction(EXTimeStep);
-    EXLockData(2) = pin->GetOrAddReal("problem","v0",0.0);
+    EXLockData(2) = pin->GetOrAddReal("problem","vg",0.0);
     EXLockData(3) = pin->GetReal("problem","d0");
+    //EXBoundaryData(0) = 0.0 ; //IVX
+    //EXBoundaryData(1) = pin->GetReal("problem","d0"); //IDN
+            
+    //Real p0 = pin->GetReal("problem","p0");
+    //Real gamma = pin->GetReal("hydro","gamma");
+    //EXBoundaryData(2) = p0;
+    //if (DUAL_ENERGY) {
+    //  EXBoundaryData(3) = p0/(gamma-1.0);  //IIE
+    //}
+    
   }
   
   return;
@@ -106,40 +119,25 @@ void InflowOuterX1_Expanding(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real>
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh){
 
   //Get Average Density here
-  Real RhoAve = pmb->pmy_mesh->EXLockData(3); 
+  //Real RhoAve = pmb->pmy_mesh->EXBoundaryData(1);
+  //Real vAve = pmb->pmy_mesh->EXBoundaryData(0);
+  //Real eiAve = pmb->pmy_mesh->EXBoundaryData(3);
+  //Real pAve = pmb->pmy_mesh->EXBoundaryData(2); 
+  //std::cout << "Ambient Density = " << RhoAve << std::endl;
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+#pragma omp simd
+      for (int i=1; i<=ngh; ++i) {
+        prim(IVX,k,j,ie+i) = vxAve;  //
+        prim(IVY,k,j,ie+i) = vyAve;
+        prim(IVZ,k,j,ie+i) = vzAve;
+        prim(IDN,k,j,ie+i) = rhoAve;
 
-  for (int n=0; n<(NHYDRO); ++n) {
-    if (n==(IVX)) {
-      for (int k=ks; k<=ke; ++k) {
-        for (int j=js; j<=je; ++j) {
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            prim(IVX,k,j,is-i) = 0.0; //prim(IVX,k,j,(is+i-1));  // reflect 1-velocity
-          }
-        }
       }
-    } else if (n==(IDN)){  
-      for (int k=ks; k<=ke; ++k) {
-        for (int j=js; j<=je; ++j) {
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            prim(n,k,j,is-i) = RhoAve ; //+ prim(n,k,j,(is+i-1));
-          }
-        }
-      }
-     
-    } else {
-      for (int k=ks; k<=ke; ++k) {
-        for (int j=js; j<=je; ++j) {
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            prim(n,k,j,is-i) = prim(n,k,j,(is+i-1));
-          }
-        }
-      }
-
     }
   }
+  
+  
   // copy face-centered magnetic fields into ghost zones, reflecting b1
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=ks; k<=ke; ++k) {
@@ -205,7 +203,7 @@ Real EXMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
     Real x0 = LockData(0);
     Real alpha = LockData(1);
     //std::cout << "alpha " << alpha << std::endl;
-    Real delAlpha = 0.2*(dT)*(LockData(2))*std::cos(time/1.0);
+    Real delAlpha = (dT)*(LockData(2));
     //if in x-direction
     retval = (xf-x0) / (alpha-x0) * delAlpha;
     //std::cout << Vel  <<std::endl;
@@ -217,57 +215,79 @@ Real EXMove(AthenaArray<Real> LockData, Real xf, int dir, Real dT, Real time){
 //=========================================================================================
 //Make sure grid does not move too far
 Real EXTimeStep(MeshBlock *pmb){ 
-  Real min_dt = FLT_MAX;
-  Real nextPosDelta, minCellSize, dt;
+  Real min_dt = (FLT_MAX);
+  Real nextPosDelta, minCellSize;//, dt;
   
   Mesh *pmesh = pmb->pmy_mesh;
-  Real Nx1 = pmesh->mesh_size.nx1;
-  Real Nx2 = pmesh->mesh_size.nx2;
-  Real Nx3 = pmesh->mesh_size.nx3; 
-  
-  for (int i = 0; i<=Nx1+1;i++){
-    nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x1f(i),0, pmesh->dt, pmesh->time);
+  Real Nx1 = pmb->block_size.nx1;
+  Real Nx2 = pmb->block_size.nx2;
+  Real Nx3 = pmb->block_size.nx3; 
+  Real mydt = pmesh->dt;
+  for (int i = 1; i<=Nx1;i++){
+    nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x1f(i),0, mydt, pmesh->time);
+    //if (i==Nx1){ std::cout << "" << nextPosDelta << std::endl;}
+
     //std::cout << i <<  "th NextPosDelta " << nextPosDelta  << std::endl;
     if (nextPosDelta < 0 && i != 0){ 
       minCellSize = pmb->pcoord->dx1f(i-1);
     } else {
       minCellSize = pmb->pcoord->dx1f(i);
     }
+    minCellSize *= 0.75;
+    nextPosDelta = fabs(nextPosDelta);
+    //if  (i==Nx1){ std::cout << "dens(Nx1) " << pmb->phydro->u(IDN,0,0,Nx1) << std::endl;}
     //minCellSize = std::min(pmb->pcoord->dx1f(i),pmb->pcoord->dx1f(i-1));
+    //int count = 0;
     if (nextPosDelta != 0.0 && minCellSize != 0.0){
-      dt = std::abs(minCellSize* 0.5/nextPosDelta * (pmesh->dt));
-      min_dt = std::min(min_dt, dt);
-    } else {
-      dt = FLT_MAX;
-      min_dt = std::min(min_dt,dt);
-    }
-
-  }
-  if (Nx2 > 1){
-    for (int j = 0; j<=Nx2+1;j++){
-      nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x2f(j),1, pmesh->dt, pmesh->time);
-      minCellSize = std::min(pmb->pcoord->dx2f(j),pmb->pcoord->dx2f(j-1));
-      dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
-      min_dt = std::min(min_dt, dt);      
-      if (nextPosDelta != 0.0){
-        dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
-        min_dt = std::min(min_dt, dt);
-      }   
-    }
-  }
-  if (Nx3 >1) {
-    for (int k = 0; k<=Nx3+1;k++){
-      nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x3f(k),2, pmesh->dt,pmesh->time);
-      minCellSize = std::min(pmb->pcoord->dx3f(k),pmb->pcoord->dx3f(k-1));
-      dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
-      min_dt = std::min(min_dt, dt);
-      if (nextPosDelta != 0.0){
-        dt = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
-        min_dt = std::min(min_dt, dt);
+      Real overStep = minCellSize - nextPosDelta;
+      //int count = 0;
+      while (overStep <= 0){
+        mydt *= 0.99;
+        nextPosDelta = fabs(pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x1f(i),0, mydt, pmesh->time));
+        overStep = minCellSize - nextPosDelta;      
+        //count++;
+        //if (count >= 100) {
+        //  mydt*=0.5;
+        //  std::cout << "In Loop. MinCell = " << minCellSize << std::endl;
+        //}
+        
       }
+      Real& dtEx = mydt;//fabs(minCellSize* 0.5/nextPosDelta * (pmesh->dt));
+      //Real& dt_Ex =  dtEx;
+      min_dt = std::min(min_dt, dtEx);
+    } else {
+      Real dtEx = (FLT_MAX);
+      //Real& dt_Ex = dtEx;
+      min_dt = std::min(min_dt,dtEx);
+    }
+    //std::cout << i  << " ->  " << mydt  <<std::endl; 
+  }
+  //std::cout << min_dt << std::endl;
+  if (Nx2 > 2){
+    for (int j = 0; j<=Nx2+1;j++){
+  //    nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x2f(j),1, pmesh->dt, pmesh->time);
+  //    minCellSize = std::min(pmb->pcoord->dx2f(j),pmb->pcoord->dx2f(j-1));
+  //    Real dtEx = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+  //    min_dt = std::min(min_dt, dtEx);      
+  //    if (nextPosDelta != 0.0){
+  //      dtEx = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+  //      min_dt = std::min(min_dt, dtEx);
+  //    }   
     }
   }
-
+  if (Nx3 >2) {
+    for (int k = 0; k<=Nx3+1;k++){
+  //    nextPosDelta = pmesh->EXNewCoord_(pmesh->EXLockData,pmb->pcoord->x3f(k),2, pmesh->dt,pmesh->time);
+  //    minCellSize = std::min(pmb->pcoord->dx3f(k),pmb->pcoord->dx3f(k-1));
+  //    Real dtEx = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+  //    min_dt = std::min(min_dt, dtEx);
+  //    if (nextPosDelta != 0.0){
+  //      dtEx = minCellSize* 0.5/nextPosDelta * (pmesh->dt);
+  //      min_dt = std::min(min_dt, dtEx);
+  //    }
+    }
+  }
+  //min_dt *= pmesh->cfl_number;
   //std::cout << "This is my Min dt from grid growth: " << min_dt << std::endl;
   return min_dt;
 
@@ -289,7 +309,7 @@ void ReflectInnerX1_nonuniform(MeshBlock *pmb, Coordinates *pco, AthenaArray<Rea
         for (int j=js; j<=je; ++j) {
 #pragma omp simd
           for (int i=1; i<=ngh; ++i) {
-            prim(IVX,k,j,is-i) = -prim(IVX,k,j,(is+i-1));  // reflect 1-velocity
+            prim(IVX,k,j,is-i) =-1.0* prim(IVX,k,j,(is+i-1));  // reflect 1-velocity
           }
         }
       }
@@ -357,8 +377,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real p0         = pin->GetReal("problem","p0"); // ambient pressure
   Real d0         = pin->GetReal("problem","d0"); // ambient density
   Real v0         = pin->GetReal("problem","v0"); // velocity of ejecta
-  Real m0         = pin->GetReal("problem","m0"); // mass of ejecta
-  Real E0         = pin->GetReal("problem","E0"); // total energy of ejecta
+  //Real m0         = pin->GetReal("problem","m0"); // mass of ejecta
+  //Real E0         = pin->GetReal("problem","E0"); // total energy of ejecta
   Real x1min      = pin->GetReal("mesh","x1min");
   Real x1max      = pin->GetReal("mesh","x1max");
   if (MAGNETIC_FIELDS_ENABLED) {
@@ -370,10 +390,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
   Real gamma   = peos->GetGamma();
   Real gm1     = gamma - 1.0;
-  Real T       = gm1*E0/m0; 
+  //Real T       = gm1*E0/m0; 
   Real rho0    = d0;
   Real e0      = p0/gm1;
-  
+ 
+  rhoAve = d0;
+  vxAve  = 0.0;
+  vyAve  = 0.0;
+  vzAve  = 0.0; 
    // get coordinates of center of blast, and convert to Cartesian if necessary
   Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);
   Real x2_0   = pin->GetOrAddReal("problem","x2_0",0.0);
@@ -423,14 +447,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           rad    = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
           thet   = pcoord->x2v(j);
         }
-        Real mdpnt = x1max*97.0/100.0;
-        Real del   = (x1max-x1min)/100.0;
-        phydro->u(IDN,k,j,i) = rho0*(1.0+100*std::exp(-1.0*pow((rad-mdpnt)/del,2))); 
-        phydro->u(IM1,k,j,i) = v0*std::exp(-1.0*pow((rad-mdpnt)/del,2));
-        phydro->u(IM2,k,j,i) = 0.0;
+        Real mdpnt = x1max*0.7;
+        Real del   = (x1max-x1min)/20.0;
+	Real expArg = -1.0*pow((rad-mdpnt)/del,2);
+	//if (expArg >= -6.0) {
+	phydro->u(IDN,k,j,i) = rho0*(1.0+5*std::exp(expArg)); 
+        phydro->u(IM1,k,j,i) = v0*std::exp(expArg)*phydro->u(IDN,k,j,i);
+        //} else {
+        //  phydro->u(IDN,k,j,i) = rho0;
+        //  phydro->u(IM1,k,j,i) = 0.0;
+        //}
+        //phydro->u(IM1,k,j,i) *= phydro->u(IDN,k,j,i); 
+	phydro->u(IM2,k,j,i) = 0.0;
         phydro->u(IM3,k,j,i) = 0.0;
         if (NON_BAROTROPIC_EOS) {
-          phydro->u(IEN,k,j,i) = e0+0.5*SQR(phydro->u(IM1,k,j,i))/phydro->u(IDN,k,j,i);
+          phydro->u(IEN,k,j,i) = e0+0.5*SQR(phydro->u(IM1,k,j,i)) /phydro->u(IDN,k,j,i);
           if (RELATIVISTIC_DYNAMICS)  // this should only ever be SR with this file
             phydro->u(IEN,k,j,i) += phydro->u(IDN,k,j,i);
         }

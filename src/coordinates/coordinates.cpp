@@ -711,11 +711,16 @@ void Coordinates::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, 
     iu = pmb->ie; ju = pmb->je; ku = pmb->ke;
     ng=NGHOST;
   }
-
+  
   //Make edits to all arrays of coord object (except scratches, since those are cleared)
   //Below corresponds to cartesian grid expansion -- Note no change in geometry coefficients
   //which is not the case in spherical and cylindrical
-  
+  //AthenaArray<Real> x1fscr, x2fscr, x3fscr, dx1fscr, dx2fscr, dx3fscr;
+  //x1fscr.InitWithShallowCopy(x1f);
+  //x2fscr.InitWithShallowCopy(x2f);
+   
+  //AthenaArray<Real> x1vscr, x2vscr, x3vscr, dx1vscr, dx2vscr, dx3vscr;
+  //AthenaArray<Real> x1s2scr, x1s3scr, x2s1scr, x2x3scr, x3s1scr, x3s2scr;
   //Face values
   //x1  
   for (int i=il-ng; i<=iu+ng+1; ++i){
@@ -750,7 +755,7 @@ void Coordinates::EditCoord(AthenaArray<Real> delx1f, AthenaArray<Real> delx2f, 
   for(int i=il-ng;i<=iu+ng-1;i++){
     dx1v(i) = x1v(i+1)-x1v(i);
   }
-
+  //std::cout << "x1v Up" << x1v(iu) << std::endl;
   //Second coordinate changes to deltaface, volumes, and deltavolumes
   if (pmb->block_size.nx2 ==1){
     dx2f(jl) = x2f(jl+1)-x2f(jl);

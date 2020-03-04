@@ -456,12 +456,12 @@ void MeshBlock::EditMBCoord(AthenaArray<Real> LockData, Real dT, Real Time){
   int Nx1 = block_size.nx1;
   int Nx2 = block_size.nx2;
   int Nx3 = block_size.nx3;
-  
+  int ng = NGHOST;
   //AthenaArray<Real> &del1 = *(this->pex->delx1f);   
   //Comoving &cm = *(this->pex);
-  for (int k = 0; k<=Nx3+1;k++){
-    for (int j = 0;j<=Nx2+1;j++){      
-      for (int i = 0; i<=Nx1+1;i++){
+  for (int k = ks-ng; k<=ke+ng;k++){
+    for (int j = js-ng;j<=je+ng;j++){      
+      for (int i = is-ng; i<=ie+ng;i++){
          pex->delx1f(i) = pmy_mesh->EXNewCoord_(LockData,pcoord->x1f(i),0, dT,Time);
          pex->delx2f(j) = pmy_mesh->EXNewCoord_(LockData,pcoord->x2f(j),1, dT,Time);
          pex->delx3f(k) = pmy_mesh->EXNewCoord_(LockData,pcoord->x3f(k),2, dT,Time);

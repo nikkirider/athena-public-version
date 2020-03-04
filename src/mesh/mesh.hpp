@@ -192,7 +192,8 @@ public:
 
   MeshBlock *pblock;
 
-  AthenaArray<Real> EXLockData; //Always atleast a scalar (Gridstage) to check if entire mesh is ready for shifting
+  AthenaArray<Real> EXLockData; //Data needed in Edit Coords
+  //AthenaArray<Real> EXBoundaryData; //Data needed for Bounds (ambient ISM)
   //Comoving *pcm;
   void EditGrid(AthenaArray<Real> LockData,Real dt, Real time);
   LockingFunction_t EXLocking_;

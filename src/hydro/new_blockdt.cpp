@@ -58,7 +58,7 @@ Real Hydro::NewBlockTimeStep(void) {
   dt3.InitWithShallowCopy(dt3_);
   Real wi[(NWAVE+NINT)];
 	Real wicl[(NWAVECL)]; 
-
+  //std::cout << dt1.GetDim1() << std::endl;
   Real min_dt = (FLT_MAX);
 
   for (int k=ks; k<=ke; ++k) {
@@ -73,32 +73,32 @@ Real Hydro::NewBlockTimeStep(void) {
           wi[IVX]=w(IVX,k,j,i);
           wi[IVY]=w(IVY,k,j,i);
           wi[IVZ]=w(IVZ,k,j,i);
+          //std::cout << i << " -> " << dt1_(i) << std::endl;
           if (NON_BAROTROPIC_EOS) {
-						wi[IPR]=w(IPR,k,j,i);
-						if (DUAL_ENERGY) wi[IGE]=w(IGE,k,j,i);
-					}
+	    wi[IPR]=w(IPR,k,j,i);
+	    if (DUAL_ENERGY) wi[IGE]=w(IGE,k,j,i);
+	  }
 					
-					if (CLESS_ENABLED) { // cless + hydro
-						Real c1f, c2f, c3f; 
-						wicl[IDN ] = wcl(IDN ,k,j,i);
-						wicl[IVX ] = wcl(IVX ,k,j,i);
-						wicl[IVY ] = wcl(IVY ,k,j,i);
-						wicl[IVZ ] = wcl(IVZ ,k,j,i);
-						wicl[IP11] = wcl(IP11,k,j,i);
-						wicl[IP22] = wcl(IP22,k,j,i);
-						wicl[IP33] = wcl(IP33,k,j,i);
-						wicl[IP12] = wcl(IP12,k,j,i);
-						wicl[IP13] = wcl(IP13,k,j,i);
-						wicl[IP23] = wcl(IP23,k,j,i);
+	  if (CLESS_ENABLED) { // cless + hydro
+	    Real c1f, c2f, c3f; 
+	    wicl[IDN ] = wcl(IDN ,k,j,i);
+	    wicl[IVX ] = wcl(IVX ,k,j,i);
+	    wicl[IVY ] = wcl(IVY ,k,j,i);
+	    wicl[IVZ ] = wcl(IVZ ,k,j,i);
+	    wicl[IP11] = wcl(IP11,k,j,i);
+	    wicl[IP22] = wcl(IP22,k,j,i);
+	    wicl[IP33] = wcl(IP33,k,j,i);
+	    wicl[IP12] = wcl(IP12,k,j,i);
+	    wicl[IP13] = wcl(IP13,k,j,i);
+	    wicl[IP23] = wcl(IP23,k,j,i);
 
-						pmb->peos->SoundSpeedsCL(wicl,&c1f,&c2f,&c3f); 
+	    pmb->peos->SoundSpeedsCL(wicl,&c1f,&c2f,&c3f); 
+            Real cs = pmb->peos->SoundSpeed(wi); 
 
-						Real cs = pmb->peos->SoundSpeed(wi); 
-
-						dt1(i) /= std::max( fabs(wi[IVX] + cs), fabs(wicl[IVX] + c1f) );
-						dt2(i) /= std::max( fabs(wi[IVY] + cs), fabs(wicl[IVY] + c2f) );
-						dt3(i) /= std::max( fabs(wi[IVZ] + cs), fabs(wicl[IVZ] + c3f) ); 
-					}
+	    dt1(i) /= std::max( fabs(wi[IVX] + cs), fabs(wicl[IVX] + c1f) );
+	    dt2(i) /= std::max( fabs(wi[IVY] + cs), fabs(wicl[IVY] + c2f) );
+	    dt3(i) /= std::max( fabs(wi[IVZ] + cs), fabs(wicl[IVZ] + c3f) ); 
+   	  }
           else if (MAGNETIC_FIELDS_ENABLED) { // hydro + mhd
 
             Real bx = bcc(IB1,k,j,i) + fabs(b_x1f(k,j,i)-bcc(IB1,k,j,i));
@@ -119,24 +119,23 @@ Real Hydro::NewBlockTimeStep(void) {
             cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
             dt3(i) /= (fabs(wi[IVZ]) + cf);
 
-          } 
-					else { // hydro only 
-
+          } else { // hydro only 
+            //if (i==ie) std::cout << dt1(i) << std::endl;
             Real cs = pmb->peos->SoundSpeed(wi);
             dt1(i) /= (fabs(wi[IVX]) + cs);
             dt2(i) /= (fabs(wi[IVY]) + cs);
             dt3(i) /= (fabs(wi[IVZ]) + cs);
-
-          }
+            //if (i==ie) std::cout <<fabs(wi[IVX])  << " "<< wi[IVX] <<std::endl; 
+          } 
         }
       }
-
+      
       // compute minimum of (v1 +/- C)
       for (int i=is; i<=ie; ++i) {
-        Real& dt_1 = dt1(i);
+        Real dt_1 = dt1(i);
         min_dt = std::min(min_dt,dt_1);
+        //if (i==ie) {std::cout << "x1 " << min_dt << std::endl;}
       }
-
       // if grid is 2D/3D, compute minimum of (v2 +/- C)
       if (pmb->block_size.nx2 > 1) {
         for (int i=is; i<=ie; ++i) {
@@ -144,7 +143,7 @@ Real Hydro::NewBlockTimeStep(void) {
           min_dt = std::min(min_dt,dt_2);
         }
       }
-
+      //std::cout << "min in x2 " << min_dt << std::endl;
       // if grid is 3D, compute minimum of (v3 +/- C)
       if (pmb->block_size.nx3 > 1) {
         for (int i=is; i<=ie; ++i) {
@@ -152,7 +151,7 @@ Real Hydro::NewBlockTimeStep(void) {
           min_dt = std::min(min_dt,dt_3);
         }
       }
-
+      //std::cout << "min in x3 " << min_dt << std::endl;
     }
   }
 
@@ -173,11 +172,16 @@ Real Hydro::NewBlockTimeStep(void) {
   } // field diffusion
 
   min_dt *= pmb->pmy_mesh->cfl_number;
-
+  //std::cout << "Before Me dt = " << min_dt <<std::endl;
+  //if (min_dt <=0.0){
+  //  std::cout << "Scr dt Array: " << dt1_(ie)  << std::endl;
+  //  std::cout << "w Arr " << w(IVX,0,0,ie) << std::endl;
+  //}
   if (UserTimeStep_!=NULL) {
     min_dt = std::min(min_dt, UserTimeStep_(pmb));
   }
 
   pmb->new_block_dt=min_dt;
+  //std::cout << "Final dt " << min_dt << std::endl;
   return min_dt;
 }

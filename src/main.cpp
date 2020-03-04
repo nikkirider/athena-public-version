@@ -413,12 +413,12 @@ int main(int argc, char *argv[]) {
         pmesh->pfgrd->Solve(stage, 0);
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
+      if (EXPANDING ==1){
+        //Refresh expansion Data
+        pmesh->EXLocking_(pmesh, pmesh->EXLockData, pmesh->dt);
+      }
       ptlist->DoTaskListOneStage(pmesh, stage);
       if (EXPANDING == 1){
-	//Get timestep
-	//Real dT = (pmesh->dt) * (ptlist->stage_wghts[(stage-1)].beta) ;
-	//Refresh Expansion Data
- 	pmesh->EXLocking_(pmesh, pmesh->EXLockData, pmesh->dt);
 	//Edit entire grid for next time step
 	pmesh->EditGrid(pmesh->EXLockData,pmesh->dt,pmesh->time);	
         //std::cout << "Stage " << stage << " x1max " << (pmesh->mesh_size).x1max << std::endl; 
