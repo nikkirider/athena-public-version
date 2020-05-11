@@ -37,10 +37,12 @@ void SpiralInfallOuterX2(MeshBlock *pmb, Coordinates *pco,
                          int is, int ie, int js, int je, int ks, int ke, int ngh);
 Real GetMeanDensity(Coordinates *pcoord, Hydro *phydro);
 Real GetL(const Real dens, const Real temp); // heating and cooling
-Real BracketRoot(const Real dens, const Real temp0);
-Real FindRoot(const Real dens, const Real temp0, const Real temp1);
+Real RootFunc(const Real dens, const Real temp0, const Real temp1, const Real dt);
+Real BracketRoot(const Real dens, const Real temp0, const Real dt);
+Real FindRoot(const Real dens, const Real temp0, const Real temp1, const Real dt);
 void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<Real> &prim,
                          const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
+Real HeatCoolTimeStep(MeshBlock *pmb);
 
 static void stop_this();
 
@@ -51,14 +53,23 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollStaticGravPotFunction(gravpot_spirarm); // Cox & Gomez
 
   // enroll user-defined upper y-boundary for infall
-  int infall = pin->GetOrAddInteger("problem","infall",0);
+  int infall = pin->GetInteger("problem","infall");
   if (infall == 1)
     EnrollUserBoundaryFunction(OUTER_X2, SpiralInfallOuterX2);
 
   // enroll user-defined cooling function
-  int icool = pin->GetOrAddInteger("problem","icool",0);
-  if (icool == 1)
+  int icool = pin->GetInteger("problem","icool");
+  if (icool == 1) {
+    if (!DUAL_ENERGY) {
+      std::stringstream msg;
+      msg << "[spiralarm]: icool = 1 requires DUAL_ENERGY" << std::endl;
+      throw std::runtime_error(msg.str().c_str());
+    }
+ 
+    Real pcool = pin->GetReal("problem","pcool");
     EnrollUserExplicitSourceFunction(HeatCool);
+    EnrollUserTimeStepFunction(HeatCoolTimeStep);
+  }
 
   Real four_pi_G = 48.0*std::atan(1.0); // unit system (n,T) with G=1
   Real eps = 0.0;
@@ -82,42 +93,54 @@ static void stop_this() {
 //   returns de/dt [erg/s] in code units assuming ISM units with n0=T0=1.
 Real GetL(const Real dens, const Real temp) {
   const Real fac = 2.1756879947982705e+29;
-  Real gain = 5e-27+(7e-24-5e-27)*0.5*(1.0+std::tanh((std::log10(temp)-4.5)/0.10));
-  Real loss = 2e-19*std::exp(-1.8e5/(temp)) + 2.8e-27*sqrt(temp)*std::exp(-1e3/temp);
+  Real gain=2e-26+(1e-23-2e-26)*0.5*(1.0+std::tanh((std::log10(temp)-5.0)/(0.15)));
+  Real loss=(  1e-15*std::exp(-1e7/temp)
+             + 2e-19*std::exp(-5e5/(temp))
+             + 5e-28*std::sqrt(temp)*std::exp(-1.0e3/temp));
   return (gain-dens*loss)*fac;
 }
 
 //====================================================================================
-// Real BracketRoot(const Real temp0)
-Real BracketRoot(const Real dens, const Real temp0) {
-  Real lam   = GetL(dens,temp0); 
-  Real sig   = (Real) ((lam > 0) - (lam < 0));
+// Real RootFunc(const Real dens, const Real temp0, const Real, temp1, const Real dt)
+// This is not the thermal equilibrium, but the implicit update for the thermal ODE
+//   dT = dt*(gamma-1)/kB * (Gamma(T)-n*Lambda(T))
+Real RootFunc(const Real dens, const Real temp0, const Real temp1, const Real dt) {
+  return temp0 + dt*0.66666667*GetL(dens,temp1) - temp1;
+}
+
+//====================================================================================
+// Real BracketRoot(const Real temp0, const Real dt)
+Real BracketRoot(const Real dens, const Real temp0, const Real dt) {
+  Real rf    = RootFunc(dens,temp0,temp0,dt); 
+  Real sig   = (Real) ((rf > 0) - (rf < 0));
   Real fac   = 1.0 + sig*0.1;
   Real temp1 = temp0;
-  while (lam*GetL(dens,temp1) > 0) 
+  while (rf*RootFunc(dens,temp0,temp1,dt) > 0) 
     temp1 *= fac;
   return temp1;
 }
 
 //====================================================================================
-// Real FindRoot(const Real dens, const Real temp0, const Real temp1)
-Real FindRoot(const Real dens, const Real temp0, const Real temp1) {
-  if (temp0 == temp1) return temp0;
+// Real FindRoot(const Real dens, const Real temp0, const Real temp1, const Real dt)
+Real FindRoot(const Real dens, const Real temp0, const Real temp1, const Real dt) {
+  if (GetL(dens,temp0) == 0.0) return temp0; // Nothing to do for thermal equilibrium
+  // Otherwise, temp1 and temp0 bracket the temperature down to which we should integrate.
   Real tt0=temp0,tt1=temp1;
-  if (tt0 > tt1) std::swap(tt0, tt1);
+  //if (tt0 > tt1) std::swap(tt0, tt1);
   const Real tol = 1e-6;
-  int nit = (int) (log((tt1-tt0)/tol)/log(2.0));
+  int nit = (int) (log(fabs(tt1-tt0)/tol)/log(2.0));
   Real T[2], L[2];
   T[0]         = tt0;
   T[1]         = 0.5*(tt0+tt1);
-  L[0]         = GetL(dens,T[0]);
-  L[1]         = GetL(dens,T[1]);
+  L[0]         = RootFunc(dens,tt0,T[0],dt);
+  L[1]         = RootFunc(dens,tt0,T[1],dt);
+#pragma omp simd
   for (int i=0; i<nit; i++) {
     int w = (L[0]*L[1] < 0); // 0 if >0, 1 if <= 0
     T[w]  = T[1];
     L[w]  = L[1];
     T[1]  = 0.5*(T[0]+T[1]);
-    L[1]  = GetL(dens,T[1]);
+    L[1]  = RootFunc(dens,tt0,T[1],dt);
   }
   return T[1];
 }
@@ -526,7 +549,8 @@ Real OdeIntegrator::rk45(const Real x0, const Real y0, const Real dx) {
 //====================================================================================
 // Global variables for boundaries and gravity
 AthenaArray<Real> dprofloc, tprofloc;
-Real gm1;
+int icool, infall;
+Real gm1, pcool, dtcool = HUGE_NUMBER;
 Real tinfall,rinfall,ninfall,pinfall,xinfall,yinfall,vxinfall,vyinfall,x1leninfall; // variables for cloud infall
 Potential *pot;
 
@@ -585,7 +609,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   int iprob     = pin->GetInteger("problem","iprob");
   int itemp     = pin->GetInteger("problem","itemp"); // 0: constant, 1: tanh(z), 2: thermal equilibrium
-  int infall    = pin->GetOrAddInteger("problem","infall",0) ; // 0: no infall, 1: infall
+  icool         = pin->GetInteger("problem","icool");
+  infall        = pin->GetOrAddInteger("problem","infall",0) ; // 0: no infall, 1: infall
   if (itemp < 2) 
     T0          = pin->GetReal("problem","T0"); // Temperature at midplane. For itemp==1, 0.01*Thalo
   if (infall == 1) {
@@ -744,39 +769,58 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<Real> &prim,
                  const AthenaArray<Real> &bcc, AthenaArray<Real> &cons)
 {
-  Real g = pmb->peos->GetGamma();
-  Real tau = 0.01;
+  if (dtcool == HUGE_NUMBER) // for the first iteration.
+    dtcool = 0.25*dt;    // global variable for timestep, to be sent to HeatCoolTimeStep 
+  Real g1  = pmb->peos->GetGamma()-1.0;
   for (int k=pmb->ks; k<=pmb->ke; ++k) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
       for (int i=pmb->is; i<=pmb->ie; ++i) {
         Real dens  = prim(IDN,k,j,i);
         Real temp0 = 0.0;
-        if (DUAL_ENERGY) {
-          temp0 = prim(IGE,k,j,i)*(g-1.0); // This should have gam-1, bc it's the internal energy
-        } else {
-          temp0 = prim(IPR,k,j,i)/dens; // This should not have gam-1, bc it's the pressure.
+        temp0 = prim(IGE,k,j,i)*g1; // This should have gam-1, bc it's the internal energy
+        if (temp0 <= 0.0) {
+          std::stringstream msg;
+          msg << "### FATAL ERROR in spiralarm.cpp: HeatCool: temp0 <=0 for DUAL_ENERGY" << std::endl
+              << "    p=" << std::setw(5) << Globals::my_rank << " i=" << std::setw(5) << i << " j=" << std::setw(5) << j << " k=" << std::setw(5) << k << std::endl
+              << "    temp0=" << std::scientific << std::setw(13) << std::setprecision(5) << temp0 
+              << "    dens=" << std::scientific << std::setw(13) << std::setprecision(5) << dens << std::endl;
+          throw std::runtime_error(msg.str().c_str());
         }
-        Real temp1 = BracketRoot(dens,temp0);
-        Real temp2 = FindRoot(dens,temp0,temp1);
-        Real dtemp = temp2 - temp0;
-        cons(IEN,k,j,i) += dens*dtemp/(g-1.0);
-        if (i == pmb->is) {
-          std::cout << "HeatCool: j  =" << std::setw(5)    << j  
-                    <<       " dens  =" << std::scientific << std::setw(13) << std::setprecision(5) << dens 
-                    <<       " temp0 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
-                    <<       " temp1 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp1
-                    <<       " temp2 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp2
-                    <<       " dE    =" << std::scientific << std::setw(13) << std::setprecision(5) << dens*dtemp/(g-1.0)
-                    <<       " Etot  =" << std::scientific << std::setw(13) << std::setprecision(5) << cons(IEN,k,j,i)
-                    << std::endl;
-        }
-        if (DUAL_ENERGY) {
-          cons(IIE,k,j,i) += dens*dtemp/(g-1.0);
-        }
+        Real temp1       = BracketRoot(dens,temp0,dt);
+        Real temp2       = FindRoot(dens,temp0,temp1,dt);
+        Real dener       = dens*(temp2 - temp0);
+        dtcool           = temp0*dens*dt/(fabs(dener)+1e-60);
+        cons(IEN,k,j,i) += dener/g1;
+        cons(IIE,k,j,i) += dener/g1;
+        //if ((i == pmb->is) && (Globals::my_rank == 0)) {
+        //  std::cout << "HeatCool: j  =" << std::setw(5)    << j  
+        //            <<       " dens  =" << std::scientific << std::setw(13) << std::setprecision(5) << dens 
+        //            <<       " temp0 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
+        //            <<       " temp1 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp1
+        //            <<       " temp2 =" << std::scientific << std::setw(13) << std::setprecision(5) << temp2
+        //            <<       " dE    =" << std::scientific << std::setw(13) << std::setprecision(5) << dener
+        //            <<       " Etot  =" << std::scientific << std::setw(13) << std::setprecision(5) << cons(IEN,k,j,i)
+        //            <<       " dt    =" << std::scientific << std::setw(13) << std::setprecision(5) << dt
+        //            <<       " dtcool=" << std::scientific << std::setw(13) << std::setprecision(5) << dtcool
+        //            << std::endl;
+        //}
       }
     }
   }
   return;
+}
+
+//========================================================================================
+//! \fn void HeatCoolTimeStep(...)
+//  \brief Calculates cooling timestep and sends it to new_blockdt
+//    Geometric mean between cfl timestep and cooling time, dt = dtcfl^(1-p) * dtcool^p,
+//    if dtcool < dtcfl.
+//========================================================================================
+
+Real HeatCoolTimeStep(MeshBlock *pmb)
+{
+  Real dt = pmb->pmy_mesh->dt;
+  return dt*std::min(1.0,pow(dtcool/dt,pcool));
 }
 
 //----------------------------------------------------------------------------------------
@@ -843,13 +887,22 @@ void SpiralInfallOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &pr
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
         prim(IVY,k,je+j,i) =   prim(IVY,k,je+j,i)
-                             + 0.5*(vyinfall-prim(IVY,k,je+j,i))
+                             + 0.5*(-vyinfall-prim(IVY,k,je+j,i))
                                   *(1.0-std::tanh((sqrt( SQR(fmod(pco->x1v(i)+xoff,x1leninfall))
                                                         +SQR(pco->x2v(j)+yoff))
                                                   /rinfall-1.0)/0.1));
       }
     }
   }
+  //if (icool == 1) { // pressure only needs to be changed for icool == 1
+  //  for (int k=ks; k<=ke; ++k) {
+  //    for (int j=1; j<=ngh; ++j) {
+  //      for (int i=is; i<=ie; ++i) {
+  //        prim(IPR,k,je+j,i) = prim(IDN,k,je+j,i)*get 
+  //      }
+  //    }
+  //  }
+  //}
   if (DUAL_ENERGY) {
     for (int k=ks; k<=ke; ++k) {
       for (int j=1; j<=ngh; ++j) {
