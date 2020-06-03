@@ -789,7 +789,7 @@ void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<
         Real temp1       = BracketRoot(dens,temp0,dt);
         Real temp2       = FindRoot(dens,temp0,temp1,dt);
         Real dener       = dens*(temp2 - temp0);
-        dtcool           = temp0*dens*dt/(fabs(dener)+1e-60);
+        dtcool           = std::min(dtcool,temp0*dens*dt/(fabs(dener)+1e-60));
         cons(IEN,k,j,i) += dener/g1;
         cons(IIE,k,j,i) += dener/g1;
         //if ((i == pmb->is) && (Globals::my_rank == 0)) {
