@@ -25,8 +25,8 @@
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   pmy_block_ = pmb;
   gamma_ = pin->GetReal("hydro", "gamma");
-	ieta1_ = pin->GetOrAddReal("hydro", "ieta1",1e-3);
-	ieta2_ = pin->GetOrAddReal("hydro", "ieta2",1e-1);
+  ieta1_ = pin->GetOrAddReal("hydro", "ieta1",1e-3);
+  ieta2_ = pin->GetOrAddReal("hydro", "ieta2",1e-1);
   density_floor_  = pin->GetOrAddReal("hydro","dfloor", std::sqrt(1024*(FLT_MIN)));
   pressure_floor_ = pin->GetOrAddReal("hydro","pfloor", std::sqrt(1024*(FLT_MIN)));
 }
@@ -131,41 +131,41 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
       Real& u_m2 = cons(IM2,k,j,i);
       Real& u_m3 = cons(IM3,k,j,i);
       Real& u_e  = cons(IEN,k,j,i);
-			Real& u_ie = cons(IIE,k,j,i);
+      Real& u_ie = cons(IIE,k,j,i);
 
       const Real& w_d  = prim(IDN,k,j,i);
       const Real& w_vx = prim(IVX,k,j,i);
       const Real& w_vy = prim(IVY,k,j,i);
       const Real& w_vz = prim(IVZ,k,j,i);
       const Real& w_p  = prim(IPR,k,j,i);
-			const Real& w_ge = prim(IGE,k,j,i);
+      const Real& w_ge = prim(IGE,k,j,i);
 
       u_d = w_d;
       u_m1 = w_vx*w_d;
       u_m2 = w_vy*w_d;
       u_m3 = w_vz*w_d;
       u_e  = w_p*igm1 + 0.5*w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz));
-			u_ie = w_ge*w_d; 
+      u_ie = w_ge*w_d; 
     }
   }}
 
-	// passive scalars 
-	for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) { 
+  // passive scalars 
+  for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) { 
 #pragma omp simd
-		for (int k=kl; k<=ku; ++k) {
-		for (int j=jl; j<=ju; ++j) {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
 #pragma novector
-			for (int i=il; i<=iu; ++i) {
-				Real& u_s = cons(n,k,j,i);
+        for (int i=il; i<=iu; ++i) {
+          Real& u_s = cons(n,k,j,i);
 
-				const Real& w_s = prim(n  ,k,j,i);
-				const Real& w_d = prim(IDN,k,j,i);
+          const Real& w_s = prim(n  ,k,j,i);
+          const Real& w_d = prim(IDN,k,j,i);
 
-				u_s = w_s*w_d; 
-			}
-		}}
-	}
-
+          u_s = w_s*w_d; 
+        }
+      }
+    }
+  }
   return;
 }
 
