@@ -24,6 +24,8 @@
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   pmy_block_ = pmb;
   gamma_ = pin->GetReal("hydro", "gamma");
+  bgkc1_ = pin->GetOrAddReal("hydro","bgkc1",1e3);
+  bgkc2_ = pin->GetOrAddReal("hydro","bgkc2",2.0);
   density_floor_  = pin->GetOrAddReal("hydro","dfloor", std::sqrt(1024*(FLT_MIN)));
   pressure_floor_ = pin->GetOrAddReal("hydro","pfloor", std::sqrt(1024*(FLT_MIN)));
 }
@@ -73,8 +75,8 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       Real ke = 0.5*di*(SQR(u_m1) + SQR(u_m2) + SQR(u_m3));
       w_p = gm1*(u_e - ke);
 
-			u_e = (w_p > pressure_floor_) ?  u_e : ((pressure_floor_/gm1) + ke);
-			w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+      u_e = (w_p > pressure_floor_) ?  u_e : ((pressure_floor_/gm1) + ke);
+      w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
     }
   }}
 

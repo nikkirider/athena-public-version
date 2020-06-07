@@ -8,6 +8,7 @@
 
 // C/C++ headers
 #include <iostream>
+#include <iomanip>
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
@@ -322,6 +323,8 @@ void TurbulenceDriver::Perturb(Real dt) {
   if (std::isnan(s)) std::cout << "[perturb]: s is NaN!" << std::endl;
 
   // Apply momentum pertubations
+  m[0] = 0.0;
+  m[1] = 0.0;
   for (int igid=nbs, nb=0; igid<=nbe; igid++, nb++) {
     MeshBlock *pmb=pm->FindMeshBlock(igid);
     if (pmb != NULL) {
@@ -343,11 +346,28 @@ void TurbulenceDriver::Perturb(Real dt) {
             pmb->phydro->u(IM1,k,j,i) += s*den*v1;
             pmb->phydro->u(IM2,k,j,i) += s*den*v2;
             pmb->phydro->u(IM3,k,j,i) += s*den*v3;
+            m[0]                      += s*s*(SQR(v1)+SQR(v2)+SQR(v3))*dvol;
+            m[1]                      += dvol;
           }
         }
       }
     }
   }
+#ifdef MPI_PARALLEL
+  mpierr = MPI_Allreduce(m, gm, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if (mpierr) {
+    msg << "[normalize]: MPI_Allreduce error = "
+        << mpierr << std::endl;
+    throw std::runtime_error(msg.str().c_str());
+  }
+  m[0]  = gm[0];
+  m[1]  = gm[1];
+#endif 
+  m[0] /= (m[1]*std::sqrt(3.0)); // 1D rms velocity
+  if (Globals::my_rank==0) {
+    std::cout << "[TurbulenceDriver::Perturb]: vrms = " << std::scientific << std::setprecision(5) << m[0] << std::endl;
+  }
+
   return;
 
 }

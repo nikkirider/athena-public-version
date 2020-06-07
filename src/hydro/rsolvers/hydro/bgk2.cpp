@@ -23,12 +23,20 @@
 // C++ headers
 #include <algorithm>  // max(), min()
 #include <cmath>      // sqrt()
+#include <iostream>
+
 
 // Athena++ headers
 #include "../../hydro.hpp"
 #include "../../../athena.hpp"
 #include "../../../athena_arrays.hpp"
 #include "../../../eos/eos.hpp"
+
+#define FLUXES_RECON
+#define FLUXES_G0
+#define FLUXES_ABAR
+//#define DEBUG_ALL
+//
 
 //----------------------------------------------------------------------------------------
 //! \fn void Hydro::RiemannSolver
@@ -40,37 +48,47 @@ void dxe3d(Real axu, Real ayu, Real azu, Real al ,
            Real *qd, Real *qx, Real *qy, Real *qz, Real *ql,
            Real ck, Real ddim);
 
+
+
 void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju,
   const int il, const int iu, const int ivx, const AthenaArray<Real> &bx,
   AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx,
   AthenaArray<Real> &ey, AthenaArray<Real> &ez) {
 
   MeshBlock *pmb = pmy_block;
-  Mesh *pmesh;
-  Real tau=pmesh->dt;
-
+  Mesh *pmesh = pmb->pmy_mesh;
+  Real tau=pmesh->dt; 
+  Real bgkc1 = pmb->peos->GetBgkC1();
+  Real bgkc2 = pmb->peos->GetBgkC2();
 
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
-  Real wli[(NHYDRO)],wri[(NHYDRO)];
-  Real flxi[(NHYDRO)],fl[(NHYDRO)],fr[(NHYDRO)];
-  Real gm1 = pmy_block->peos->GetGamma() - 1.0;
-  Real igm1 = 1.0/gm1;
+  Real Gamma_1 = pmy_block->peos->GetGamma() - 1.0;
+  Real iGamma_1 = 1.0/Gamma_1;
+
 
   int im1 = ivx;
   int im2 = IVX + ((im1-IM1)+1)%3;
   int im3 = IVX + ((im1-IM1)+2)%3;
-  Real uli[(NHYDRO)],uri[(NHYDRO)];
 
+
+#ifdef DEBUG_ALL
+  fprintf(stdout,"[bgk2]: called with bgkc1=%13.5e bgkc2=%13.5e\n",bgkc1,bgkc2);
+  //fprintf(stdout,"kl=%6i,ku=%6i,jl=%6i,ju=%6i,ivx=%6i\n",kl,ku,jl,ju,ivx);
+#endif
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
-#pragma distribute_point
-#pragma omp simd private(wli,wri,wroe,flxi,fl,fr)
+//#pragma distribute_point
+//#pragma omp simd private(wli,wri,wroe,flxi,fl,fr)
   for (int i=il; i<=iu; ++i) {
 
+    Real dxx = pmy_block->pcoord->dx1v(i);
+    Real x1f = pmy_block->pcoord->x1f(i);
+
 //Offsets in inactive coordinates introduced for conservative variables in cell walls.
-  Real ioff, joff, koff;
+    int ioff, joff, koff;
+
     if (ivx==1) {
       ioff=1;
       joff=0;
@@ -87,71 +105,78 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       koff=1; 
     }
 
+    int kdif=k-koff;
+    int jdif=j-joff;
+    int idif=i-ioff;
+
+
 //--- Step 1.  Load L/R states into local variables
-    
-    Real kdif,jdif,idif;
-    kdif=k-koff,jdif=j-joff,idif=i-ioff;
 
 // Originally the following declarations were passed as arguments to the 
 // program, but now they are contained, or can be obtained, from the 
-// structures Um, Up, Ul, Ur, Wl, and Wr.
-   Real ad[2],ax[2],ay[2],az[2],ae[2],al[2];
-   Real ade1,axm1,aym1,azm1,axu1,ayu1,azu1,aen1,ae1,rade1,rae1,sae1;
-   Real ade2,axm2,aym2,azm2,axu2,ayu2,azu2,aen2,ae2,rade2,rae2,sae2;
-   Real ck = 0.0, dof = 0.0, ddim = 3.0;
-   Real pi = 4.0*atan(1.0);
-   Real gra1 = 0.0, gra2 = 0.0;
+// primitive variables w(i-1) and w(i). flx(i) is on the wall between i-1 and i. 
+    Real ad[2],ax[2],ay[2],az[2],ap[2],ae[2],al[2];
+    Real ade1,axm1,aym1,azm1,axu1,ayu1,azu1,apr1,aen1,ae1,rade1,rae1,sae1;
+    Real ade2,axm2,aym2,azm2,axu2,ayu2,azu2,apr2,aen2,ae2,rade2,rae2,sae2;
+    Real ck, dof, ddim = 3.0;
+    Real pi = 4.0*atan(1.0);
+    Real gra1 = 0.0, gra2 = 0.0;
+    dof = (-3.0*(Gamma_1+1.0)+5.0)/Gamma_1;
+    ck  = dof + 3.0-ddim;
 
 
-// Get the conserved quantities at the center of cell "i-1"
-    ad[0] = pmb->phydro->u(IDN,kdif,jdif,idif);
-    ax[0] = pmb->phydro->u(IM1,kdif,jdif,idif);
-    ay[0] = pmb->phydro->u(IM2,kdif,jdif,idif);
-    az[0] = pmb->phydro->u(IM3,kdif,jdif,idif);
-    ae[0] = pmb->phydro->u(IEN,kdif,jdif,idif);
-    al[0] = 0.5*(ad[0])/(gm1*(ae[0]-0.5*(SQR(ax[0])+SQR(ay[0])+SQR(az[0]))/(ad[0])));
-// Replaced old expressions to be consistent with Athena convention.
-//al[0] = 0.25*(ck+3.0)*ad[0]/
-//        (ae[0]-0.5*(SQR(ax[0])+SQR(ay[0])+SQR(az[0]))/ad[0]);
+    //fprintf(stdout, "kdif=%6i,jdif=%6i,idif=%6i,k=%6i,j=%6i,i=%6i,koff=%6i,joff=%6i,ioff=%6i\n",kdif,jdif,idif,k,j,i,koff,joff,ioff);
 
-//are THESE the quantities read from phydro and the indices are changed?
-//If so, try to find how they equate left and right u values?
-// Get the conserved quantities at the center of cell "i"
-    ad[1] = pmb->phydro->u(IDN,k,j,i);
-    ax[1] = pmb->phydro->u(IM1,k,j,i);
-    ay[1] = pmb->phydro->u(IM2,k,j,i);
-    az[1] = pmb->phydro->u(IM3,k,j,i);
-    ae[1] = pmb->phydro->u(IEN,k,j,i);
-    al[1] = 0.5*(ad[1])/(gm1*(ae[1]-0.5*(SQR(ax[1])+SQR(ay[1])+SQR(az[1]))/(ad[1])));
-//al[1] = 0.25*(ck+3.0)*ad[1]/
-//        (ae[1]-0.5*(SQR(ax[1])+SQR(ay[1])+SQR(az[1]))/ad[1]);
+    // Get the conserved quantities at the center of cell "i-1"
+    ad[0] = pmb->phydro->w(IDN,kdif,jdif,idif);
+    ax[0] = pmb->phydro->w(ivx,kdif,jdif,idif)*ad[0];
+    ay[0] = pmb->phydro->w(ivy,kdif,jdif,idif)*ad[0];
+    az[0] = pmb->phydro->w(ivz,kdif,jdif,idif)*ad[0];
+    ap[0] = pmb->phydro->w(IPR,kdif,jdif,idif); // this is the pressure
+    al[0] = 0.5*ad[0]/ap[0]; // lambda (inverse temperature)
+    ae[0] = ap[0]/Gamma_1 + 0.5*(SQR(ax[0])+SQR(ay[0])+SQR(az[0]))/ad[0]; // total energy
 
+    // Get the conserved quantities at the center of cell "i"
+    ad[1] = pmb->phydro->w(IDN,k,j,i);
+    ax[1] = pmb->phydro->w(ivx,k,j,i)*ad[1];
+    ay[1] = pmb->phydro->w(ivy,k,j,i)*ad[1];
+    az[1] = pmb->phydro->w(ivz,k,j,i)*ad[1];
+    ap[1] = pmb->phydro->w(IPR,k,j,i); // this is the pressure
+    al[1] = 0.5*ad[1]/ap[1]; // lambda (inverse temperature)
+    ae[1] = ap[1]/Gamma_1 + 0.5*(SQR(ax[1])+SQR(ay[1])+SQR(az[1]))/ad[1]; // total energy
 
-// conservative variable: 
-    ade1=wl(IDN,k,j,i);
-    axm1=wl(ivx,k,j,i)*wl(IDN,k,j,i);
-    aym1=wl(ivy,k,j,i)*wl(IDN,k,j,i);
-    azm1=wl(ivx,k,j,i)*wl(IDN,k,j,i);
-    aen1=wl(IPR,k,j,i)/gm1 + 0.5*wl(IDN,k,j,i)*(wl(ivx,k,j,i)*wl(ivx,k,j,i) + wl(ivy,k,j,i)*wl(ivy,k,j,i) + wl(ivz,k,j,i)*wl(ivz,k,j,i));
+    // conservative variables at cell walls (left): 
+    ade1  = wl(IDN,k,j,i);
+    axu1  = wl(ivx,k,j,i);
+    ayu1  = wl(ivy,k,j,i);
+    azu1  = wl(ivz,k,j,i);
+    apr1  = wl(IPR,k,j,i);
+    axm1  = axu1*ade1;
+    aym1  = ayu1*ade1;
+    azm1  = azu1*ade1;
+    aen1  = apr1/Gamma_1 + 0.5*ade1*(SQR(axu1) + SQR(ayu1) + SQR(azu1));
+    ae1   = 0.5*ade1/apr1;
     
-    ade2=wr(IDN,k,j,i);
-    axm2=wr(ivx,k,j,i)*wr(IDN,k,j,i);
-    aym2=wr(ivy,k,j,i)*wr(IDN,k,j,i);
-    azm2=wr(ivz,k,j,i)*wr(IDN,k,j,i);
-    aen2=wr(IPR,k,j,i)/gm1 + 0.5*wr(IDN,k,j,i)*(wr(ivx,k,j,i)*wr(ivx,k,j,i) + wr(ivy,k,j,i)*wr(ivy,k,j,i) + wr(ivz,k,j,i)*wr(ivz,k,j,i));
+    // conservative variables at cell walls (right):
+    ade2  = wr(IDN,k,j,i);
+    axu2  = wr(ivx,k,j,i);
+    ayu2  = wr(ivy,k,j,i);
+    azu2  = wr(ivz,k,j,i);
+    apr2  = wr(IPR,k,j,i);
+    axm2  = axu2*ade2;
+    aym2  = ayu2*ade2;
+    azm2  = azu2*ade2;
+    aen2  = apr2/Gamma_1 + 0.5*ade2*(SQR(axu2) + SQR(ayu2) + SQR(azu2));
+    ae2   = 0.5*ade2/apr2;
+   
+#ifdef DEBUG_ALL
+    fprintf(stdout,"    initcond : i=%4i x1f=%13.5e dens: ad[0]=%13.5e,ade1=%13.5e,ade2=%13.5e,ad[1]=%13.5e\n", i,x1f,ad[0],ade1,ade2,ad[1]);
+    fprintf(stdout,"    initcond : i=%4i x1f=%13.5e etot: ae[0]=%13.5e,aen1=%13.5e,aen2=%13.5e,ae[1]=%13.5e\n", i,x1f,ae[0],aen1,aen2,ae[1]);
+    fprintf(stdout,"    initcond : i=%4i x1f=%13.5e momx: ax[0]=%13.5e,axm1=%13.5e,axm2=%13.5e,ax[1]=%13.5e\n", i,x1f,ax[0],axm1,axm2,ax[1]);
+    fprintf(stdout,"    initcond : i=%4i x1f=%13.5e lamb: al[0]=%13.5e,ae1 =%13.5e,ae2 =%13.5e,al[1]=%13.5e\n", i,x1f,al[0],ae1 ,ae2 ,al[1]);
+    fprintf(stdout,"    initcond : i=%4i x1f=%13.5e lamb: ap[0]=%13.5e,apr1=%13.5e,apr2=%13.5e,ap[1]=%13.5e\n", i,x1f,ap[0],apr1,apr2,ap[1]);
+#endif
 
-//see if left and right and solve interface v center
-    ade1=wl(IDN,k,j,i);
-    axu1=wl(ivx,k,j,i);
-    ayu1=wl(ivy,k,j,i);
-    azu1=wl(ivz,k,j,i);
-    //wli[IPR]=wr(IPR,k,j,i);
-
-    ade2=wr(IDN,k,j,i);
-    axu2=wr(ivx,k,j,i);
-    ayu2=wr(ivy,k,j,i);
-    azu2=wr(ivz,k,j,i);
-    //wri[IPR]=wr(IPR,k,j,i);
 
 //------------------------------------------------------------------------------------------------------
 // Declare the moments 
@@ -301,7 +326,11 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
   ae1t  = ae1;
   ae2t  = ae2;
 
+    
+//    Thus we don't have to redo the limiters
+//    This assumes a uniform grid.
   //pcoord will give us dx1/dx2/dx3
+    
   Real dx1,dx2,dx3;
   dx1=pmy_block->pcoord->dx1v(i);
   dx2=pmy_block->pcoord->dx2v(j);
@@ -309,8 +338,6 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
   //Temporary change bc 1D. Change actual dxx for different directions
   Real dxx=dx1;
 
-
-//    Thus we don't have to redo the limiters
 #ifdef FLUXES_RECON
   aw11  = 2.0*(ade1-ad[0])/dxx;
   bxw11 = 2.0*(axm1-ax[0])/dxx;
@@ -323,6 +350,13 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
   byw22 = 2.0*(ay[1]-aym2)/dxx;
   bzw22 = 2.0*(az[1]-azm2)/dxx;
   cw22  = 2.0*(ae[1]-aen2)/dxx;
+
+    
+#ifdef DEBUG_ALL
+  fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw11=%13.5e bxw11=%13.5e byw11=%13.5e bzw11=%13.5e cw11=%13.5e\n",i,x1f,aw11,bxw11,byw11,bzw11,cw11);
+  fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw22=%13.5e bxw22=%13.5e byw22=%13.5e bzw22=%13.5e cw22=%13.5e\n",i,x1f,aw22,bxw22,byw22,bzw22,cw22);
+#endif
+
 #else
   aw11  = 0.0;
   bxw11 = 0.0;
@@ -357,8 +391,10 @@ dxe3d gives the algebraic equation for the inverted matrix M_alpha_beta
   rae1 = one/ae1;
   rae2 = one/ae2;
 
-  sae1 = sqrt(ae1);
-  sae2 = sqrt(ae2);
+
+  sae1 = std::sqrt(ae1);
+  sae2 = std::sqrt(ae2);
+
 
 /*
 Compute the half-moments of the left side of velocity space.
@@ -371,10 +407,12 @@ it doesn't matter for the final flux whether ERFC or EXP is 1e-20
 or 0.
 */
 
-  precision_arg = std::min(-axu1*sqrt(ae1),mach_precision);
-//  precision_arg = -axu1*sqrt(ae1);
+
+  precision_arg = std::min(-axu1*std::sqrt(ae1),mach_precision);
+  //precision_arg = -axu1*sqrt(ae1);
   te1 = 0.5*erfc(precision_arg);
-  te2 = 0.5*exp(-SQR(precision_arg))/sqrt(ae1*pi);
+  te2 = 0.5*std::exp(-SQR(precision_arg))/std::sqrt(ae1*pi);
+
 
   teu[1] = axu1*te1+te2;
   teu[2] = axu1*teu[1]+0.5*te1*rae1;
@@ -383,10 +421,12 @@ or 0.
   teu[5] = axu1*teu[4]+2.0*teu[3]*rae1;
   teu[6] = axu1*teu[5]+2.5*teu[4]*rae1;
 
-  precision_arg = std::min(axu2*sqrt(ae2),mach_precision);
-//  precision_arg = axu2*sqrt(ae2);
+
+  precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
+  //precision_arg = axu2*sqrt(ae2);
   tg1 = 0.5*erfc(precision_arg);
-  tg2 = -0.5*exp(-SQR(precision_arg))/sqrt(ae2*pi);
+  tg2 = -0.5*std::exp(-SQR(precision_arg))/std::sqrt(ae2*pi);
+
 
   tgu[1] = axu2*tg1+tg2;
   tgu[2] = axu2*tgu[1]+0.5*tg1*rae2;
@@ -396,6 +436,9 @@ or 0.
   tgu[6] = axu2*tgu[5]+2.5*tgu[4]*rae2;
 
 // Extra moments for the Navier Stokes version
+
+#ifdef UNAVSTOKES
+
   tlu0=1.0;
   tlu1=axu1;
   tlu2=axu1*tlu1+0.5*tlu0*rae1;
@@ -410,6 +453,9 @@ or 0.
   tru4=axu2*tru3+1.5*tru2*rae2;
   tru5=axu2*tru4+2.0*tru3*rae2;
 // End of moments for the Navier Stokes version
+
+#endif // UNAVSTOKES
+
 
 // Full moments of the internal degrees of freedom
 
@@ -632,6 +678,9 @@ or 0.
 
 // Moments needed for the N.S. version
 
+
+#ifdef UNAVSTOKES
+
   tlu1y1   = tlu1*ey1;
   tlu1y2   = tlu1*ey2;
   tlu1y3   = tlu1*ey3;
@@ -711,6 +760,9 @@ or 0.
   
 // End of the extra moments for the Navier Stokes version
 
+#endif // UNAVSTOKES
+
+
 /*
 =====================================================================
  
@@ -736,7 +788,13 @@ or 0.
   prec = fabs(aen-ekin)/aen;
   if (prec < roundoff) aen = (1.0+roundoff)*ekin;
 
-  ae0 = 0.5*ade/(gm1*(aen-ekin));
+#ifdef DEBUG_ALL
+#ifdef FLUXES_G0
+  fprintf(stdout,"    fluxesg0: ade=%13.5e,Gamma_1=%13.5e,aen=%13.5e,ekin=%13.5e\n",ade,Gamma_1,aen,ekin);
+#endif
+#endif
+  ae0 = 0.5*ade/(Gamma_1*(aen-ekin));
+
 
   if ((ae0 < 0.0) || (ade < 0.0)) perror("[bgk2]: ae0 or ade < 0\n");
 
@@ -783,7 +841,9 @@ discontinuities.
 //{
  // Real BGK_c1 = pin->GetReal("hydro","BGK_c1");
  // Real BGK_c2 = pin->GetReal("hydro","BGK_c2");
-  te = BGK_c1*tau + tau*std::min(((float)(1.0)),BGK_c2*(fabs(aa1-aa2)/(aa1+aa2)));
+
+  te = bgkc1*tau + tau*std::min(1.0,bgkc2*(fabs(aa1-aa2)/(aa1+aa2)));
+
 //}else if(ieuler == 2) // Navier Stokes with diffusivity nu=c_1
 //{
 //    te = 2.0*c_1*ae0 + c_2*tau*(fabs(aa1-aa2)/(aa1+aa2));
@@ -801,7 +861,7 @@ discontinuities.
 // Integrals over a timestep of exp(-t/tau) and t*exp(-t/tau)
 
   st   = -tau/te;
-  sw   = exp(st);
+  sw   = std::exp(st);
   se1  = te*(1.0-sw);
   set0 = te*(-tau+se1);
   set1 = -te*tau*sw+te*se1;
@@ -979,6 +1039,9 @@ discontinuities.
 #endif
         ;
 
+
+#ifdef UNAVSTOKES
+
 // Extra stuff for the Navier Stokes version
   a1=-(x1*tlu1+y1*tlu2+yx1*tlu1y1+zx1*tlu1z1+z1* 
       (tlu3+tlu1y2+tlu1z2+tlu1*ei2));
@@ -1063,6 +1126,9 @@ discontinuities.
 
 //  End of extra Navier Stokes stuff
 
+#endif
+
+
 /*
 =====================================================================
 We can get "g" now since we've already computed "g_0" and the 
@@ -1122,10 +1188,12 @@ AND time.
   rade1 = one/ade;
   rade2 = rade1;
 
-  precision_arg = std::min(-axu1*sqrt(ae1),mach_precision);
+
+  precision_arg = std::min(-axu1*std::sqrt(ae1),mach_precision);
 //precision_arg = -axu1*sqrt(ae1);
   te1    = 0.5*erfc(precision_arg);
-  te2    = 0.5*exp(-precision_arg*precision_arg)/sqrt(ae1*pi);
+  te2    = 0.5*std::exp(-precision_arg*precision_arg)/std::sqrt(ae1*pi);
+
   teu[1] = axu1*te1+te2;
   teu[2] = axu1*teu[1]+0.5*te1*rae1;
   teu[3] = axu1*teu[2]+1.0*teu[1]*rae1;
@@ -1136,10 +1204,12 @@ AND time.
 // Try computing these moments the long way instead
 // of taking the shortcut of the subtraction
 
-precision_arg = std::min(axu2*sqrt(ae2),mach_precision);
+
+precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
 //precision_arg = axu2*sqrt(ae2);
   tg1    = 0.5*erfc(precision_arg);
-  tg2    = -0.5*exp(-precision_arg*precision_arg)/sqrt(ae2*pi);
+  tg2    = -0.5*std::exp(-precision_arg*precision_arg)/std::sqrt(ae2*pi);
+
   tgu[1] = axu2*tg1+tg2;
   tgu[2] = axu2*tgu[1]+0.5*tg1*rae2;
   tgu[3] = axu2*tgu[2]+1.0*tgu[1]*rae2;
@@ -1343,6 +1413,15 @@ precision_arg = std::min(axu2*sqrt(ae2),mach_precision);
 //    Combination of moments of "g_0" entering the calculation of 
 //    the A_bar coefficients of "g". In eqn. (4.37) the second term
 //    in the integral gives "triu", "triu2", "triuy1", "trieu".
+
+
+#ifdef DEBUG_ALL
+#ifdef FLUXES_G0
+  fprintf(stdout,"    x1=%13.5e,teu[2]=%13.5e,teu[3]=%13.5e,teu2i2=%13.5e\n",x1,teu[2],teu[3],teu2i2);
+  fprintf(stdout,"    x2=%13.5e,tgu[2]=%13.5e,tgu[3]=%13.5e,tgu2i2=%13.5e\n",x2,tgu[2],tgu[3],tgu2i2);
+#endif
+#endif
+  
 
   triu   = (x1*teu[1]+y1*teu[2]+yx1*teu1y1+zx1*teu1z1+ 
            z1*(teu[3]+teu1y2+teu1z2+teu1i2))+ 
@@ -1576,6 +1655,8 @@ moments of the first term in eqn. (4.34) over a time step.
   b = set2;
   d = 0.5*tau*tau-te*tau+te*te*(1.0-sw);
 
+//fprintf(stdout,"t1=%13.5e,t2=%13.5e,t3=%13.5e,t1y1=%13.5e,t1z1=%13.5e,a=%13.5e,b=%13.5e,triu2=%13.5e,triu3=%13.5e,triu2y1=%13.5e,triu2z1=%13.5e,t12=%13.5e,t1y2=%13.5e,t1z2=%13.5e,trieu2=%13.5e\n", t1,t2,t3,t1y1,t1z1,a,b,triu2,triu3,triu2y1,triu2z1,t12,t1y2,t1z2,trieu2);
+
 #ifdef FLUXES_G0
   fmg0    = a*t1   + b*triu2;
   fpg0    = a*t2   + b*triu3;
@@ -1614,8 +1695,12 @@ moments of the first term in eqn. (4.34) over a time step.
 //    flux "fix" here is actually the flux given by the beam scheme based on 
 //    the collisionless Boltzmann equation and therefore should be the best 
 //    approximation to rarefied gas dynamics ...
+
+  //fprintf(stdout, "f1=%13.5e,f2=%13.5e,mp=%13.5e,axu1t=%13.5e,ae1t=%13.5e,axu2t=%13.5e,ae2t=%13.5e\n",-axu1t*std::sqrt(ae1t), axu2t*std::sqrt(ae2t), mach_precision,axu1t,ae1t,axu2t,ae2t);
  
-  if ( (-axu1t*sqrt(ae1t) <= mach_precision) ||  (axu2t*sqrt(ae2t) <= mach_precision)) {
+  if ( (-axu1t*std::sqrt(ae1t) <= mach_precision) ||  (axu2t*std::sqrt(ae2t) <= mach_precision)) {
+    //fprintf(stdout,"    with flux i=%4i\n",i);
+
     afm =   fmg0
           + fmAbar
 #ifdef UNAVSTOKES
@@ -1667,6 +1752,9 @@ moments of the first term in eqn. (4.34) over a time step.
 #endif
           + fe1 + fe2; 
   }else{
+
+    fprintf(stdout,"    without flux i=%4i il=%4i iu=%4i\n",i,il,iu);
+
     afm  = 0.0;
     afp  = 0.0;
     afpx = 0.0;
@@ -1675,27 +1763,33 @@ moments of the first term in eqn. (4.34) over a time step.
   }
 
 #ifdef DEBUG_ALL
-  fprintf(stdout,"Um,Up,Ul,Ur,Wl,Wr                               = %11.3e %11.3e %11.3e %11.3e %11.3e %11.3e\n",Um.d,Up.d,Ul.d,Ur.d,Wl.d,Wr.d);
-  fprintf(stdout,"fmg0 ,fmAbar ,fm1 ,fm2 ,afm                     = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fmg0 /tau,fmAbar /tau,fm1 /tau,fm2 /tau,afm /tau);
-  fprintf(stdout,"fpg0 ,fpAbar ,fp1 ,fp2 ,afp                     = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpg0 /tau,fpAbar /tau,fp1 /tau,fp2 /tau,afp /tau);
-  fprintf(stdout,"fpxg0,fpxAbar,fpx1,fpx2,afpx                    = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpxg0/tau,fpxAbar/tau,fpx1/tau,fpx2/tau,afpx/tau);
-  fprintf(stdout,"fpzg0,fpzAbar,fpz1,fpz2,afpz                    = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpzg0/tau,fpzAbar/tau,fpz1/tau,fpz2/tau,afpz/tau);
-  fprintf(stdout,"feg0 ,feAbar ,fe1 ,fe2 ,afe                     = %11.3e %11.3e %11.3e %11.3e %11.3e\n",feg0 /tau,feAbar /tau,fe1 /tau,fe2 /tau,afe /tau);
-#endif
+
+  fprintf(stdout,"    allfluxes: Um,Up,Wl,Wr                  = %11.3e %11.3e %11.3e %11.3e \n",pmb->phydro->u(IDN,kdif,jdif,idif),pmb->phydro->u(IDN,k,j,i),wl(IDN,k,j,i),wr(IDN,k,j,i));
+  fprintf(stdout,"    allfluxes: fmg0 ,fmAbar ,fm1 ,fm2 ,afm  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fmg0 /tau,fmAbar /tau,fm1 /tau,fm2 /tau,afm /tau);
+  fprintf(stdout,"    allfluxes: fpg0 ,fpAbar ,fp1 ,fp2 ,afp  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpg0 /tau,fpAbar /tau,fp1 /tau,fp2 /tau,afp /tau);
+  fprintf(stdout,"    allfluxes: fpxg0,fpxAbar,fpx1,fpx2,afpx = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpxg0/tau,fpxAbar/tau,fpx1/tau,fpx2/tau,afpx/tau);
+  fprintf(stdout,"    allfluxes: fpzg0,fpzAbar,fpz1,fpz2,afpz = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpzg0/tau,fpzAbar/tau,fpz1/tau,fpz2/tau,afpz/tau);
+  fprintf(stdout,"    allfluxes: feg0 ,feAbar ,fe1 ,fe2 ,afe  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",feg0 /tau,feAbar /tau,fe1 /tau,fe2 /tau,afe /tau);
+
  
  
 // NOTE: Divison by tau (=pGrid->dt) to make consistent with Athena. 
 // bgk2 calculates absolute changes (F(W)*dt), Athena expects F(W).
   flx(IDN,k,j,i)  = afm /tau;
-  flx(IM1,k,j,i) = afp /tau;
-  flx(IM2,k,j,i) = afpx/tau;
-  flx(IM3,k,j,i) = afpz/tau;
+  flx(im1,k,j,i) = afp /tau;
+  flx(im2,k,j,i) = afpx/tau;
+  flx(im3,k,j,i) = afpz/tau;
   flx(IEN,k,j,i)  = afe /tau; 
-
-  return;
+  
+  //if (i>4){
+   //exit(0);
+  // }
   }
  }
-}}
+}
+return;
+}
+
 
 /*
 

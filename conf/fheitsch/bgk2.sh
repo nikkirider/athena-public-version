@@ -4,20 +4,15 @@
 #python3 configure.py --prob spiralarm --coord cartesian --eos isothermal -mpi -hdf5 --cxx icc --ccmd /nas/longleaf/apps-dogwood/hdf5/1.10.2/openmpi/bin/h5pcc --cflag="-DH5_HAVE_PARALLEL" -fft --grav fft
 
 python3 configure.py\
-                         --prob spiralarm\
+                         --prob shock_tube\
                          --coord cartesian \
                          --eos adiabatic \
-                         --flux hllc \
-                         --ns 1 \
-                         -de \
+                         --flux bgk2 \
                          --cxx icc \
-                         --cflag="-DH5_HAVE_PARALLEL -std=c++11" \
-                         --ccmd /nas/longleaf/apps-dogwood/hdf5/1.10.2/openmpi/bin/h5pcc \
-                         -hdf5 \
-                         -mpi
-                         #--grav fft \
+                         --cflag="-g -std=c++11" \
+                         -debug
+                         #--cflag="-DH5_HAVE_PARALLEL -std=c++11" \
+                         #--ccmd /nas/longleaf/apps-dogwood/hdf5/1.10.2/openmpi/bin/h5pcc \
                          #-hdf5 \
-                         #-fft \
-                         #-debug
-                         #-mpi 
+                         #-mpi
 
