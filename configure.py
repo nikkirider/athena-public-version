@@ -165,7 +165,7 @@ parser.add_argument('-debug',
 # -float argument
 parser.add_argument('-float',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='enable single precision')
 
 # -mpi argument
@@ -195,13 +195,13 @@ parser.add_argument('-fft',
 # --fftw_path argument
 parser.add_argument('--fftw_path',
                     type=str,
-                    default='',
+                    default='/srv/analysis/local/fftw',
                     help='path to FFTW libraries')
 
 # -hdf5 argument
 parser.add_argument('-hdf5',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='enable HDF5 Output')
 
 # -h5double argument
@@ -212,7 +212,7 @@ parser.add_argument('-h5double',
 
 # --hdf5_path argument
 parser.add_argument('--hdf5_path',
-                    default='',
+                    default='/srv/analysis/local/hdf5',
                     help='path to HDF5 libraries')
 
 # --cxx=[name] argument
@@ -245,7 +245,7 @@ parser.add_argument('--cflag',
 # --include=[name] arguments
 parser.add_argument(
     '--include',
-    default=[],
+    default=['/srv/analysis/local/openmpi/include'],
     action='append',
     help=('extra path for included header files (-I<path>); can be specified multiple '
           'times')
@@ -253,7 +253,7 @@ parser.add_argument(
 # --lib=[name] arguments
 parser.add_argument(
     '--lib',
-    default=[],
+    default=['/srv/analysis/local/openmpi/lib'],
     action='append',
     help=('extra path for linked library files (-L<path>); can be specified multiple '
           'times')

@@ -161,7 +161,7 @@ if __name__ == '__main__':
                         help=help_msg)
 
     parser.add_argument('--mpirun',
-                        default='mpirun',
+                        default='/srv/analysis/local/openmpi/bin/mpirun',
                         choices=['mpirun', 'srun', 'mpiexec'],
                         help='select MPI run command')
 

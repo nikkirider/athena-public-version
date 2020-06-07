@@ -8,7 +8,10 @@ import scripts.utils.athena as athena
 def prepare(**kwargs):
     athena.configure(
         prob='blast',
-        coord='cylindrical', **kwargs)
+        coord='cylindrical',
+	include='/srv/analysis/local/openmpi/include',
+	lib='/srv/analysis/local/openmpi/lib',
+	**kwargs)
     athena.make()
 
 

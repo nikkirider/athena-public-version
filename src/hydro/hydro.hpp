@@ -37,6 +37,8 @@ public:
   AthenaArray<Real> u2;       // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
+  Real BGK_c1, BGK_c2;
+  
   AthenaArray<Real> flux[3];  // face-averaged flux vector
 
   HydroSourceTerms *psrc;
