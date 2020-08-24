@@ -263,11 +263,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
 
   // NEW_PHYSICS: add load of new physics from restart file here
-	if (CLESS_ENABLED) {
-		memcpy(pcless->u.data(), &(mbdata[os]), pcless->u.GetSizeInBytes());
-		memcpy(pcless->u1.data(),&(mbdata[os]), pcless->u1.GetSizeInBytes());
-		os += pcless->u.GetSizeInBytes(); 
-	}
+  if (CLESS_ENABLED) {
+    memcpy(pcless->u.data(), &(mbdata[os]), pcless->u.GetSizeInBytes());
+    memcpy(pcless->u1.data(),&(mbdata[os]), pcless->u1.GetSizeInBytes());
+    os += pcless->u.GetSizeInBytes(); 
+  }
 
   if (SELF_GRAVITY_ENABLED >= 1) {
     memcpy(pgrav->phi.data(), &(mbdata[os]), pgrav->phi.GetSizeInBytes());
@@ -425,3 +425,22 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
 
   return size;
 }
+
+//----------------------------------------------------------------------------------------
+//! \fn Real GetMeanDensity(void)
+//  \brief Calculates the total mass of one meshblock. 
+//  Used by Mesh to calculate mean density
+
+Real MeshBlock::GetMeanDensity() {
+  Real mass = 0.0;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        Real dv  = pcoord->GetCellVolume(k,j,i);
+        mass    += phydro->u(IDN,k,j,i)*dv;
+      }
+    }
+  }
+  return mass;
+}
+

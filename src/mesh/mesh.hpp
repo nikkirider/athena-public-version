@@ -113,6 +113,7 @@ public:
   // functions
   size_t GetBlockSizeInBytes(void);
   void SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist, int *nslist);
+  Real GetMeanDensity(void); // for self-gravity
   void UserWorkInLoop(void); // in ../pgen
   void InitUserMeshBlockData(ParameterInput *pin); // in ../pgen
   void UserWorkBeforeOutput(ParameterInput *pin);  // in ../pgen
@@ -205,6 +206,7 @@ public:
   void ApplyUserWorkBeforeOutput(ParameterInput *pin);
   void ApplyOTFWorkBeforeOutput(ParameterInput *pin);
   void UserWorkAfterLoop(ParameterInput *pin); // method in ../pgen
+  void GetMeanDensity(void); // For self-gravity. Called during Mesh Initialization, and in UserWorkInLoop if necessary
 
 private:
   // data

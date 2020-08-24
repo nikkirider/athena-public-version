@@ -36,8 +36,9 @@
 #define SUBSAMPLE
 
 
-// Cooling variables
+// Cooling variables. These need to be set in InitUserMeshData (restarts!!)
 Real gm1, pcool, dstiff, dtcool = HUGE_NUMBER;
+// Shell variables.
 Real nstar,e51,n0,ciso,rsh;
 int64_t rseed; // seed for turbulence power spectrum
 AthenaArray<Real> dvturb;
@@ -45,7 +46,6 @@ AthenaArray<Real> dvturb;
 //====================================================================================
 // local functions
 void InitTurbulence(ParameterInput *pin, Coordinates *pcoord, Hydro *phydro);
-Real GetMeanDensity(Coordinates *pcoord, Hydro *phydro);
 Real GetL(const Real dens, const Real temp, const Real radi); // heating and cooling
 Real RootFunc(const Real dens, const Real temp0, const Real temp1, const Real radi, const Real dt);
 Real BracketRoot(const Real dens, const Real temp0, const Real radi, const Real dt);
@@ -201,37 +201,6 @@ Real GetEquiTemp(const Real dens, const Real radi) {
   return T[2];
 }
   
-//====================================================================================
-// Real GetMeanDensity(void)
-Real GetMeanDensity(Coordinates *pcoord, Hydro *phydro) {
-  MeshBlock* pmb = phydro->pmy_block;
-  std::stringstream msg;
-#ifdef MPI_PARALLEL
-  int  mpierr;
-#endif
-  Real mass[2], gmass[2];
-  mass[0] = 0.0; mass[1] = 0.0;
-  for (int k=pmb->ks; k<=pmb->ke; k++) {
-    for (int j=pmb->js; j<=pmb->je; j++) {
-      for (int i=pmb->is; i<=pmb->ie; i++) {
-        Real dv  = pcoord->GetCellVolume(k,j,i);
-        mass[0] += phydro->u(IDN,k,j,i)*dv;
-        mass[1] += dv;
-      }
-    }
-  }
-#ifdef MPI_PARALLEL
-  mpierr = MPI_Allreduce(&mass, &gmass, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  if (mpierr) {
-    msg << "[GetMeanDensity]: MPI_Allreduce error = "
-        << mpierr << std::endl;
-    throw std::runtime_error(msg.str().c_str());
-  }
-  for (int n=0; n<2; n++) mass[n] = gmass[n];
-#endif // MPI_PARALLEL
-  mass[0] /= mass[1];
-  return mass[0];
-}
 
 //====================================================================================
 // Real InitTurbulence()
@@ -421,7 +390,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     Real eps = 0.0;
     SetFourPiG(four_pi_G);
     SetGravityThreshold(eps);
-    SetMeanDensity(0.0); // temporary -- will be set to mean density in initialization
+    SetMeanDensity(0.0);
   }
 
   // enroll user-defined cooling function for ieqos == 2
@@ -438,6 +407,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
       throw std::runtime_error(msg.str().c_str());
     }
 
+    gm1   = pin->GetReal("hydro","gamma")-1.0;
     pcool = pin->GetReal("problem","pcool");
     dstiff= pin->GetReal("problem","dstiff");
     EnrollUserExplicitSourceFunction(HeatCool);
@@ -469,8 +439,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
   if (ieqos == 0) {
     ciso   = pin->GetReal("hydro","iso_sound_speed");
-  } else {
-    gm1    = pin->GetReal("hydro","gamma")-1.0;
   }
   n0       = pin->GetOrAddReal("problem","d0",1.0); // background density
   e51      = pin->GetOrAddReal("problem","e51",1.0); 
@@ -645,16 +613,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     std::stringstream msg;
     msg << "[ProblemGenerator]: ieqos == 1 not implented yet" << std::endl;
     throw std::runtime_error(msg.str().c_str());
-  }
-
-  if (SELF_GRAVITY_ENABLED) {
-    Real rhomean = GetMeanDensity(pcoord, phydro);
-    pmy_mesh->SetMeanDensity(rhomean);
-    if (Globals::my_rank == 0) {
-      std::cout << "[ProblemGenerator]: "
-                << " rhomean="     << std::scientific << std::setprecision(5) << rhomean 
-                << std::endl;
-    }
   }
 
 }

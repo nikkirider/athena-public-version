@@ -641,8 +641,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
 
   for (int dir=0; dir<6; dir++) {
     BoundaryFunction_[dir]=NULL;
-		BoundaryFunctionCL_[dir]=NULL; 
-	}
+    BoundaryFunctionCL_[dir]=NULL; 
+  }
   AMRFlag_=NULL;
   UserSourceTerm_=NULL;
   StaticGravPot_=NULL;
@@ -1039,6 +1039,34 @@ void Mesh::NewTimeStep(void) {
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn void Mesh::GetMeanDens(void)
+// \brief function that loops over all MeshBlocks and finds mean density
+// This assumes a fixed grid (no AMR). For AMR, restrict to coarsest level.
+// In the current form, this should only be used for initialization or restarts,
+// because of global MPI operation. 
+
+void Mesh::GetMeanDensity(void) {
+  MeshBlock *pmb = pblock;
+  Real mass = 0.0;
+  while (pmb != NULL)  {
+    mass += pmb->GetMeanDensity();
+    pmb       =pmb->next;
+  }
+#ifdef MPI_PARALLEL
+  MPI_Allreduce(MPI_IN_PLACE,&mass,1,MPI_ATHENA_REAL,MPI_SUM,MPI_COMM_WORLD);
+#endif 
+  Real dvol = mesh_size.x1max-mesh_size.x1min;
+  if (mesh_size.nx2 > 1)
+    dvol *= (mesh_size.x2max-mesh_size.x2min); 
+  if (mesh_size.nx3 > 1)
+    dvol *= (mesh_size.x3max-mesh_size.x3min);
+  mass /= dvol;
+  //std::cout << "[Mesh::GetMeanDensity]: " << mass << std::endl; 
+  SetMeanDensity(mass);
+  return;
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserBoundaryFunction(enum BoundaryFace dir, BValHydro_t my_bc)
 //  \brief Enroll a user-defined boundary function
 
@@ -1294,6 +1322,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pmb->pbval->CheckBoundary();
       }
     }
+    // fh200819: Calculate grav_mean_rho if not provided.
+    // GetMeanDensity sets grav_mean_rho_.
+    // The default value is grav_mean_rho_=-1.0.
+    // When using GetMeanDensity, use SetMeanDensity(0.0) in InitUserData.
+    if (SELF_GRAVITY_ENABLED == 1) {
+      if (grav_mean_rho_ == 0.0) { 
+        GetMeanDensity();
+      }
+    }
 
     // add initial perturbation for decaying or impulsive turbulence
     if (((turb_flag == 1) || (turb_flag == 2)) && (res_flag == 0))
@@ -1309,7 +1346,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 {
     MeshBlock *pmb;
     Hydro *phydro;
-		Cless *pcless;
+    Cless *pcless;
     Field *pfield;
     BoundaryValues *pbval;
 
@@ -1328,9 +1365,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, HYDRO_CONS);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->SendFieldBoundaryBuffers(pmb->pfield->b);
-			if (CLESS_ENABLED) 
-				pbval->SendCellCenteredBoundaryBuffers(pmb->pcless->u, CLESS_CONS);
-		}
+      if (CLESS_ENABLED) 
+        pbval->SendCellCenteredBoundaryBuffers(pmb->pcless->u, CLESS_CONS);
+    }
 		
     // wait to receive conserved variables
 #pragma omp for private(pmb,pbval)
@@ -1342,8 +1379,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // send and receive shearingbox boundary conditions
       if (SHEARING_BOX)
         pbval->SendHydroShearingboxBoundaryBuffersForInit(pmb->phydro->u, true);
-			if (CLESS_ENABLED)
-				pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pcless->u, CLESS_CONS);
+      if (CLESS_ENABLED)
+        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pcless->u, CLESS_CONS);
       pbval->ClearBoundaryForInit(true);
     }
 
@@ -1380,10 +1417,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       if (multilevel==true) {
         pbval->ProlongateBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                     time, 0.0);
-				if (CLESS_ENABLED) {
-					pbval->ProlongateBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-				}
-			}
+        if (CLESS_ENABLED) {
+          pbval->ProlongateBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+        }
+      }
 
       int il=pmb->is, iu=pmb->ie, jl=pmb->js, ju=pmb->je, kl=pmb->ks, ku=pmb->ke;
       if (pbval->nblevel[1][1][0]!=-1) il-=NGHOST;
@@ -1401,12 +1438,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                       il, iu, jl, ju, kl, ku);
       pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                      time, 0.0);
-			if (CLESS_ENABLED) {
-				pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
-																	pcless->w, pmb->pcoord, 
-																	il, iu, jl, ju, kl, ku);
-				pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-			}
+      if (CLESS_ENABLED) {
+        pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
+                                  pcless->w, pmb->pcoord, 
+                                  il, iu, jl, ju, kl, ku);
+        pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+      }
     }
 
     // Calc initial diffusion coefficients
@@ -2310,12 +2347,12 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           pmr->ProlongateInternalField(pb->pfield->b, pb->cis, pb->cie,
                                        pb->cjs, pb->cje, pb->cks, pb->cke);
         }
-				if (CLESS_ENABLED) {
-					BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_conscl_,
-                                    0, NCLESS-1, is, ie, js, je, ks, ke, p);
-					pmr->ProlongateCellCenteredValues(pmr->coarse_conscl_, pb->pcless->u, 0, NCLESS-1,
-																		 pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
-				}
+        if (CLESS_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_conscl_,
+                                      0, NCLESS-1, is, ie, js, je, ks, ke, p);
+          pmr->ProlongateCellCenteredValues(pmr->coarse_conscl_, pb->pcless->u, 0, NCLESS-1,
+                                            pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+        }
         k++;
       }
     }

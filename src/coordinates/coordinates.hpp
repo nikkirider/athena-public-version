@@ -115,8 +115,8 @@ public:
                              AthenaArray<Real> &u);
 	// ...to compute geometrical source terms for collisionless variables 
   virtual void CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
-															 const AthenaArray<Real> &prim,
-															 AthenaArray<Real> &u);
+                               const AthenaArray<Real> &prim,
+                               AthenaArray<Real> &u);
 
   // ...to determine if index is a pole
   bool IsPole(int j);

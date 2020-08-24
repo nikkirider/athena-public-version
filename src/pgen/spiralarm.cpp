@@ -75,7 +75,6 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   Real eps = 0.0;
   SetFourPiG(four_pi_G);
   SetGravityThreshold(eps);
-  SetMeanDensity(0.0); // temporary -- will be set to mean density in initialization
   return;
 }
 
@@ -734,8 +733,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   tprofcmp.DeleteAthenaArray();
 
   // set the mean density
-  Real dmean = GetMeanDensity(pcoord, phydro);
-  pmy_mesh->SetMeanDensity(dmean);
+  //Real dmean = GetMeanDensity(pcoord, phydro);
+  //pmy_mesh->SetMeanDensity(dmean);
 
   return;
 }
