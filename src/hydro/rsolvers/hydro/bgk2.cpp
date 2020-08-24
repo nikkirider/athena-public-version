@@ -25,6 +25,7 @@
 #include <cmath>      // sqrt()
 #include <iostream>
 
+
 // Athena++ headers
 #include "../../hydro.hpp"
 #include "../../../athena.hpp"
@@ -65,9 +66,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   Real Gamma_1 = pmy_block->peos->GetGamma() - 1.0;
   Real iGamma_1 = 1.0/Gamma_1;
 
+
   int im1 = ivx;
   int im2 = IVX + ((im1-IM1)+1)%3;
   int im3 = IVX + ((im1-IM1)+2)%3;
+
 
 #ifdef DEBUG_ALL
   fprintf(stdout,"[bgk2]: called with bgkc1=%13.5e bgkc2=%13.5e\n",bgkc1,bgkc2);
@@ -85,6 +88,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
 //Offsets in inactive coordinates introduced for conservative variables in cell walls.
     int ioff, joff, koff;
+
     if (ivx==1) {
       ioff=1;
       joff=0;
@@ -100,6 +104,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       joff=0;
       koff=1; 
     }
+
     int kdif=k-koff;
     int jdif=j-joff;
     int idif=i-ioff;
@@ -321,8 +326,18 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
   ae1t  = ae1;
   ae2t  = ae2;
 
+    
 //    Thus we don't have to redo the limiters
 //    This assumes a uniform grid.
+  //pcoord will give us dx1/dx2/dx3
+    
+  Real dx1,dx2,dx3;
+  dx1=pmy_block->pcoord->dx1v(i);
+  dx2=pmy_block->pcoord->dx2v(j);
+  dx3=pmy_block->pcoord->dx3v(k);
+  //Temporary change bc 1D. Change actual dxx for different directions
+  Real dxx=dx1;
+
 #ifdef FLUXES_RECON
   aw11  = 2.0*(ade1-ad[0])/dxx;
   bxw11 = 2.0*(axm1-ax[0])/dxx;
@@ -336,6 +351,7 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
   bzw22 = 2.0*(az[1]-azm2)/dxx;
   cw22  = 2.0*(ae[1]-aen2)/dxx;
 
+    
 #ifdef DEBUG_ALL
   fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw11=%13.5e bxw11=%13.5e byw11=%13.5e bzw11=%13.5e cw11=%13.5e\n",i,x1f,aw11,bxw11,byw11,bzw11,cw11);
   fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw22=%13.5e bxw22=%13.5e byw22=%13.5e bzw22=%13.5e cw22=%13.5e\n",i,x1f,aw22,bxw22,byw22,bzw22,cw22);
@@ -375,8 +391,10 @@ dxe3d gives the algebraic equation for the inverted matrix M_alpha_beta
   rae1 = one/ae1;
   rae2 = one/ae2;
 
+
   sae1 = std::sqrt(ae1);
   sae2 = std::sqrt(ae2);
+
 
 /*
 Compute the half-moments of the left side of velocity space.
@@ -389,10 +407,12 @@ it doesn't matter for the final flux whether ERFC or EXP is 1e-20
 or 0.
 */
 
+
   precision_arg = std::min(-axu1*std::sqrt(ae1),mach_precision);
   //precision_arg = -axu1*sqrt(ae1);
   te1 = 0.5*erfc(precision_arg);
   te2 = 0.5*std::exp(-SQR(precision_arg))/std::sqrt(ae1*pi);
+
 
   teu[1] = axu1*te1+te2;
   teu[2] = axu1*teu[1]+0.5*te1*rae1;
@@ -401,10 +421,12 @@ or 0.
   teu[5] = axu1*teu[4]+2.0*teu[3]*rae1;
   teu[6] = axu1*teu[5]+2.5*teu[4]*rae1;
 
+
   precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
   //precision_arg = axu2*sqrt(ae2);
   tg1 = 0.5*erfc(precision_arg);
   tg2 = -0.5*std::exp(-SQR(precision_arg))/std::sqrt(ae2*pi);
+
 
   tgu[1] = axu2*tg1+tg2;
   tgu[2] = axu2*tgu[1]+0.5*tg1*rae2;
@@ -414,7 +436,9 @@ or 0.
   tgu[6] = axu2*tgu[5]+2.5*tgu[4]*rae2;
 
 // Extra moments for the Navier Stokes version
+
 #ifdef UNAVSTOKES
+
   tlu0=1.0;
   tlu1=axu1;
   tlu2=axu1*tlu1+0.5*tlu0*rae1;
@@ -429,7 +453,9 @@ or 0.
   tru4=axu2*tru3+1.5*tru2*rae2;
   tru5=axu2*tru4+2.0*tru3*rae2;
 // End of moments for the Navier Stokes version
+
 #endif // UNAVSTOKES
+
 
 // Full moments of the internal degrees of freedom
 
@@ -652,7 +678,9 @@ or 0.
 
 // Moments needed for the N.S. version
 
+
 #ifdef UNAVSTOKES
+
   tlu1y1   = tlu1*ey1;
   tlu1y2   = tlu1*ey2;
   tlu1y3   = tlu1*ey3;
@@ -731,7 +759,9 @@ or 0.
   tru2y2z2=tru2*gy2*gz2;
   
 // End of the extra moments for the Navier Stokes version
+
 #endif // UNAVSTOKES
+
 
 /*
 =====================================================================
@@ -757,13 +787,14 @@ or 0.
 
   prec = fabs(aen-ekin)/aen;
   if (prec < roundoff) aen = (1.0+roundoff)*ekin;
- 
+
 #ifdef DEBUG_ALL
 #ifdef FLUXES_G0
   fprintf(stdout,"    fluxesg0: ade=%13.5e,Gamma_1=%13.5e,aen=%13.5e,ekin=%13.5e\n",ade,Gamma_1,aen,ekin);
 #endif
 #endif
   ae0 = 0.5*ade/(Gamma_1*(aen-ekin));
+
 
   if ((ae0 < 0.0) || (ade < 0.0)) perror("[bgk2]: ae0 or ade < 0\n");
 
@@ -810,7 +841,9 @@ discontinuities.
 //{
  // Real BGK_c1 = pin->GetReal("hydro","BGK_c1");
  // Real BGK_c2 = pin->GetReal("hydro","BGK_c2");
+
   te = bgkc1*tau + tau*std::min(1.0,bgkc2*(fabs(aa1-aa2)/(aa1+aa2)));
+
 //}else if(ieuler == 2) // Navier Stokes with diffusivity nu=c_1
 //{
 //    te = 2.0*c_1*ae0 + c_2*tau*(fabs(aa1-aa2)/(aa1+aa2));
@@ -1006,7 +1039,9 @@ discontinuities.
 #endif
         ;
 
+
 #ifdef UNAVSTOKES
+
 // Extra stuff for the Navier Stokes version
   a1=-(x1*tlu1+y1*tlu2+yx1*tlu1y1+zx1*tlu1z1+z1* 
       (tlu3+tlu1y2+tlu1z2+tlu1*ei2));
@@ -1090,7 +1125,9 @@ discontinuities.
   ferr=(-se1*te)*agtri1eu1;
 
 //  End of extra Navier Stokes stuff
+
 #endif
+
 
 /*
 =====================================================================
@@ -1151,10 +1188,12 @@ AND time.
   rade1 = one/ade;
   rade2 = rade1;
 
+
   precision_arg = std::min(-axu1*std::sqrt(ae1),mach_precision);
 //precision_arg = -axu1*sqrt(ae1);
   te1    = 0.5*erfc(precision_arg);
   te2    = 0.5*std::exp(-precision_arg*precision_arg)/std::sqrt(ae1*pi);
+
   teu[1] = axu1*te1+te2;
   teu[2] = axu1*teu[1]+0.5*te1*rae1;
   teu[3] = axu1*teu[2]+1.0*teu[1]*rae1;
@@ -1165,10 +1204,12 @@ AND time.
 // Try computing these moments the long way instead
 // of taking the shortcut of the subtraction
 
+
 precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
 //precision_arg = axu2*sqrt(ae2);
   tg1    = 0.5*erfc(precision_arg);
   tg2    = -0.5*std::exp(-precision_arg*precision_arg)/std::sqrt(ae2*pi);
+
   tgu[1] = axu2*tg1+tg2;
   tgu[2] = axu2*tgu[1]+0.5*tg1*rae2;
   tgu[3] = axu2*tgu[2]+1.0*tgu[1]*rae2;
@@ -1373,6 +1414,7 @@ precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
 //    the A_bar coefficients of "g". In eqn. (4.37) the second term
 //    in the integral gives "triu", "triu2", "triuy1", "trieu".
 
+
 #ifdef DEBUG_ALL
 #ifdef FLUXES_G0
   fprintf(stdout,"    x1=%13.5e,teu[2]=%13.5e,teu[3]=%13.5e,teu2i2=%13.5e\n",x1,teu[2],teu[3],teu2i2);
@@ -1380,6 +1422,7 @@ precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
 #endif
 #endif
   
+
   triu   = (x1*teu[1]+y1*teu[2]+yx1*teu1y1+zx1*teu1z1+ 
            z1*(teu[3]+teu1y2+teu1z2+teu1i2))+ 
            (x2*tgu[1]+y2*tgu[2]+yx2*tgu1y1+zx2*tgu1z1+ 
@@ -1652,10 +1695,12 @@ moments of the first term in eqn. (4.34) over a time step.
 //    flux "fix" here is actually the flux given by the beam scheme based on 
 //    the collisionless Boltzmann equation and therefore should be the best 
 //    approximation to rarefied gas dynamics ...
+
   //fprintf(stdout, "f1=%13.5e,f2=%13.5e,mp=%13.5e,axu1t=%13.5e,ae1t=%13.5e,axu2t=%13.5e,ae2t=%13.5e\n",-axu1t*std::sqrt(ae1t), axu2t*std::sqrt(ae2t), mach_precision,axu1t,ae1t,axu2t,ae2t);
  
   if ( (-axu1t*std::sqrt(ae1t) <= mach_precision) ||  (axu2t*std::sqrt(ae2t) <= mach_precision)) {
     //fprintf(stdout,"    with flux i=%4i\n",i);
+
     afm =   fmg0
           + fmAbar
 #ifdef UNAVSTOKES
@@ -1707,7 +1752,9 @@ moments of the first term in eqn. (4.34) over a time step.
 #endif
           + fe1 + fe2; 
   }else{
+
     fprintf(stdout,"    without flux i=%4i il=%4i iu=%4i\n",i,il,iu);
+
     afm  = 0.0;
     afp  = 0.0;
     afpx = 0.0;
@@ -1716,13 +1763,14 @@ moments of the first term in eqn. (4.34) over a time step.
   }
 
 #ifdef DEBUG_ALL
+
   fprintf(stdout,"    allfluxes: Um,Up,Wl,Wr                  = %11.3e %11.3e %11.3e %11.3e \n",pmb->phydro->u(IDN,kdif,jdif,idif),pmb->phydro->u(IDN,k,j,i),wl(IDN,k,j,i),wr(IDN,k,j,i));
   fprintf(stdout,"    allfluxes: fmg0 ,fmAbar ,fm1 ,fm2 ,afm  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fmg0 /tau,fmAbar /tau,fm1 /tau,fm2 /tau,afm /tau);
   fprintf(stdout,"    allfluxes: fpg0 ,fpAbar ,fp1 ,fp2 ,afp  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpg0 /tau,fpAbar /tau,fp1 /tau,fp2 /tau,afp /tau);
   fprintf(stdout,"    allfluxes: fpxg0,fpxAbar,fpx1,fpx2,afpx = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpxg0/tau,fpxAbar/tau,fpx1/tau,fpx2/tau,afpx/tau);
   fprintf(stdout,"    allfluxes: fpzg0,fpzAbar,fpz1,fpz2,afpz = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpzg0/tau,fpzAbar/tau,fpz1/tau,fpz2/tau,afpz/tau);
   fprintf(stdout,"    allfluxes: feg0 ,feAbar ,fe1 ,fe2 ,afe  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",feg0 /tau,feAbar /tau,fe1 /tau,fe2 /tau,afe /tau);
-#endif
+
  
  
 // NOTE: Divison by tau (=pGrid->dt) to make consistent with Athena. 
@@ -1741,6 +1789,7 @@ moments of the first term in eqn. (4.34) over a time step.
 }
 return;
 }
+
 
 /*
 

@@ -38,6 +38,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) {
   w1.NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1);
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time","integrator","vl2");
+  BGK_c1 = pin->GetOrAddReal("time","BGK_c1",1000.);
+  BGK_c2 = pin->GetOrAddReal("time","BGK_c2",2);
   if (integrator == "ssprk5_4")
     // future extension may add "int nregister" to Hydro class
     u2.NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1);
