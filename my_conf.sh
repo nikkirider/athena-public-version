@@ -6,4 +6,5 @@ python3 configure.py\
 			 --nghost=2 \
 			 -hdf5 \
 			 --include /srv/analysis/local/hdf5/include \
-			 --hdf5_path=/srv/analysis/local/hdf5/
+			 --hdf5_path=/srv/analysis/local/hdf5/ \
+			 -debug

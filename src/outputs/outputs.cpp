@@ -70,6 +70,19 @@
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
 
+//Fix for to_string not being in std library:
+namespace patch
+{
+    template < typename T > std::string to_string( const T& n )
+    {
+        std::ostringstream stm ;
+        stm << n ;
+        return stm.str() ;
+    }
+}
+
+
+
 //----------------------------------------------------------------------------------------
 // OutputType constructor
 
@@ -496,7 +509,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
 			for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) {
 				pod = new OutputData;
 				pod->type = "SCALARS";
-				pod->name = "s" + std::to_string(n-NHYDRO+NSCALARS); 
+				pod->name = "s" + patch::to_string(n-NHYDRO+NSCALARS); 
 				pod->data.InitWithShallowSlice(phyd->u,4,n,1);
 				AppendOutputDataNode(pod);
 				num_vars_++; 

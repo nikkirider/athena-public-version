@@ -90,6 +90,9 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   // x1flux(IBZ) = (v1*b3 - v3*b1) =  EMFY
   RiemannSolver(kl,ku,jl,ju,is,ie+1,IVX,b1,wl,wr,x1flux,e3x1,e2x1);
 
+  //for (int i=is; i<=ie+1; ++i) {
+    //fprintf(stdout, "i=%3i d=%13.5e mx=%13.5e e=%13.5e\n", i,d,mx,
+
   // compute weights for GS07 CT algorithm
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=kl; k<=ku; ++k) {

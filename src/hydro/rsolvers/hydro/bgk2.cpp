@@ -35,7 +35,7 @@
 #define FLUXES_RECON
 #define FLUXES_G0
 #define FLUXES_ABAR
-//#define DEBUG_ALL
+#define DEBUG_ALL
 //
 
 //----------------------------------------------------------------------------------------
@@ -80,10 +80,10 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
 //#pragma distribute_point
+    fprintf(stdout,"j= %4i\n",j);
 //#pragma omp simd private(wli,wri,wroe,flxi,fl,fr)
   for (int i=il; i<=iu; ++i) {
 
-    Real dxx = pmy_block->pcoord->dx1v(i);
     Real x1f = pmy_block->pcoord->x1f(i);
 
 //Offsets in inactive coordinates introduced for conservative variables in cell walls.
@@ -331,12 +331,7 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
 //    This assumes a uniform grid.
   //pcoord will give us dx1/dx2/dx3
     
-  Real dx1,dx2,dx3;
-  dx1=pmy_block->pcoord->dx1v(i);
-  dx2=pmy_block->pcoord->dx2v(j);
-  dx3=pmy_block->pcoord->dx3v(k);
-  //Temporary change bc 1D. Change actual dxx for different directions
-  Real dxx=dx1;
+  Real dxx = pmy_block->pcoord->dx1v(i);
 
 #ifdef FLUXES_RECON
   aw11  = 2.0*(ade1-ad[0])/dxx;
@@ -353,8 +348,8 @@ Maxwellians "g_l" and "g_r" constructed on each side of the wall
 
     
 #ifdef DEBUG_ALL
-  fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw11=%13.5e bxw11=%13.5e byw11=%13.5e bzw11=%13.5e cw11=%13.5e\n",i,x1f,aw11,bxw11,byw11,bzw11,cw11);
-  fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw22=%13.5e bxw22=%13.5e byw22=%13.5e bzw22=%13.5e cw22=%13.5e\n",i,x1f,aw22,bxw22,byw22,bzw22,cw22);
+  fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw11=%13.5e bxw11=%13.5e byw11=%13.5e bzw11=%13.5e cw11=%13.5e DXX=%13.5e\n",i,x1f,aw11,bxw11,byw11,bzw11,cw11,dxx);
+  fprintf(stdout,"    fluxesrec: i=%4i x1f=%13.5e aw22=%13.5e bxw22=%13.5e byw22=%13.5e bzw22=%13.5e cw22=%13.5e DXX=%13.5e\n" ,i,x1f,aw22,bxw22,byw22,bzw22,cw22,dxx);
 #endif
 
 #else
@@ -842,15 +837,16 @@ discontinuities.
  // Real BGK_c1 = pin->GetReal("hydro","BGK_c1");
  // Real BGK_c2 = pin->GetReal("hydro","BGK_c2");
 
-  te = bgkc1*tau + tau*std::min(1.0,bgkc2*(fabs(aa1-aa2)/(aa1+aa2)));
+//  te = bgkc1*tau + tau*std::min(1.0,bgkc2*(fabs(aa1-aa2)/(aa1+aa2)));
 
 //}else if(ieuler == 2) // Navier Stokes with diffusivity nu=c_1
 //{
 //    te = 2.0*c_1*ae0 + c_2*tau*(fabs(aa1-aa2)/(aa1+aa2));
 //}else if(ieuler == 3) // Kun's suggestion
 //{
-//    te = c_1*sqrt(ae0)/ade*dxx + c_2*tau*(fabs(aa1-aa2)/(aa1+aa2));
-//    te = MAX(0.01*tau,MIN(te,10.0*tau));
+    te = bgkc1*sqrt(ae0)/ade*dxx + bgkc2*tau*(fabs(aa1-aa2)/(aa1+aa2));
+    te = std::max(0.01*tau,std::min(1.0*te,10.0*tau));
+//    fprintf(stdout, "TAU=%13.5e\n",te);
 //}else if(ieuler == 4) // Attempt to include heat conduction
 //{
 //    pfrac = fabs(aa1-aa2)/(aa1+aa2);
@@ -954,6 +950,8 @@ discontinuities.
         + set1*2.0*gra1*ade1*ae1*(teu[2]-axu1*teu[1])
 #endif
         ;
+fprintf(stdout,"ade1=%11.3e,se1=%11.3e,teu[1]=%11.3e,set1=%11.3e,te=%11.3e,teu[2]=%11.3e,y1=%11.3e,teu[3]=%11.3e,yx1=%11.3e,teu2y1=%11.3e,zx1=%11.3e,teu2z1=%11.3e,z1=%11.3e,teu[4]=%11.3e,teu2y2=%11.3e,teu2z2=%11.3e,teu2i2=%11.3e\n",ade1,se1,teu[1],set1,te,teu[2],y1,teu[3],yx1,teu2y1,zx1,teu2z1,z1,teu[4],teu2y2,teu2z2,teu2i2);
+
   fp1 =   ade1*se1*teu[2]  
 #ifdef FLUXES_RECON
         - (set1+se1*te)*(x1*teu[3]+y1*teu[4]+yx1*teu3y1+zx1*teu3z1+z1*(teu[5]+teu3y2+teu3z2+teu3i2)) 
@@ -1150,6 +1148,9 @@ AND time.
   bywr = 2.0*(ay[1]-aym)/dxx;
   bzwr = 2.0*(az[1]-azm)/dxx;
   cwr  = 2.0*(ae[1]-aen)/dxx;
+
+//  fprintf(stdout,"  dxx=%13.5e awl=%13.5e bxwl=%13.5e bywl=%13.5e bzwl=%13.5e cwl=%13.5e\n", dxx,awl,bxwl,bywl,bzwl,cwl);
+//  fprintf(stdout,"  dxx=%13.5e awr=%13.5e bxwr=%13.5e bywr=%13.5e bzwr=%13.5e cwr=%13.5e\n", dxx,awr,bxwr,bywr,bzwr,cwr); 
 
   dxe3d(axu0,ayu0,azu0,ae0,awl,bxwl,bywl,bzwl,cwl,&x1,&y1,&yx1,&zx1,&z1,ck,ddim);
   dxe3d(axu0,ayu0,azu0,ae0,awr,bxwr,bywr,bzwr,cwr,&x2,&y2,&yx2,&zx2,&z2,ck,ddim);
@@ -1771,7 +1772,7 @@ moments of the first term in eqn. (4.34) over a time step.
   fprintf(stdout,"    allfluxes: fpzg0,fpzAbar,fpz1,fpz2,afpz = %11.3e %11.3e %11.3e %11.3e %11.3e\n",fpzg0/tau,fpzAbar/tau,fpz1/tau,fpz2/tau,afpz/tau);
   fprintf(stdout,"    allfluxes: feg0 ,feAbar ,fe1 ,fe2 ,afe  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",feg0 /tau,feAbar /tau,fe1 /tau,fe2 /tau,afe /tau);
 
- 
+#endif 
  
 // NOTE: Divison by tau (=pGrid->dt) to make consistent with Athena. 
 // bgk2 calculates absolute changes (F(W)*dt), Athena expects F(W).

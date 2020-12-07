@@ -89,7 +89,7 @@ parser.add_argument('--eos',
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
-                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'bgk2'],
+                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'bgk2','bgk2n'],
                     help='select Riemann solver')
 
 # --fluxcl=[name] argument
@@ -165,7 +165,7 @@ parser.add_argument('-debug',
 # -float argument
 parser.add_argument('-float',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='enable single precision')
 
 # -mpi argument
@@ -287,6 +287,8 @@ if args['flux'] == 'hllc' and args['b']:
 if args['flux'] == 'hlld' and not args['b']:
     raise SystemExit('### CONFIGURE ERROR: HLLD flux can only be used with MHD')
 if args['flux'] == 'bgk2' and args['eos'] == 'isothermal':
+    raise SystemExit('### CONFIGURE ERROR: BGK2 flux cannot be used with isothemal EOS')
+if args['flux'] == 'bgk2n' and args['eos'] == 'isothermal':
     raise SystemExit('### CONFIGURE ERROR: BGK2 flux cannot be used with isothemal EOS')
 
 # Check relativity
