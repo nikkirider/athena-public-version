@@ -15,6 +15,7 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 // Athena++ headers
 #include "../athena.hpp"

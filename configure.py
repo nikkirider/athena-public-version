@@ -165,7 +165,7 @@ parser.add_argument('-debug',
 # -float argument
 parser.add_argument('-float',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='enable single precision')
 
 # -mpi argument
@@ -702,6 +702,7 @@ with open(makefile_output, 'w') as current_file:
     current_file.write(makefile_template)
 
 # Finish with diagnostic output
+print(args['float'])
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:       ' + args['prob'])
 print('  Coordinate system:       ' + args['coord'])
