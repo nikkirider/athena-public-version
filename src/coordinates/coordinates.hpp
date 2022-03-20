@@ -19,7 +19,7 @@
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
-
+#include "../expansion/expansion.hpp"
 // forward declarations
 class MeshBlock;
 class ParameterInput;
@@ -30,6 +30,7 @@ class ParameterInput;
 
 class Coordinates {
 public:
+  friend class Expansion;
   friend class HydroSourceTerms;
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
   virtual ~Coordinates();
@@ -115,8 +116,8 @@ public:
                              AthenaArray<Real> &u);
 	// ...to compute geometrical source terms for collisionless variables 
   virtual void CoordSrcTermsCL(const Real dt, const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim,
-                               AthenaArray<Real> &u);
+															 const AthenaArray<Real> &prim,
+															 AthenaArray<Real> &u);
 
   // ...to determine if index is a pole
   bool IsPole(int j);

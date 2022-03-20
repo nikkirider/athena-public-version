@@ -158,9 +158,9 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       flx(IEN,k,j,i) = flxi[IEN];
       if (DUAL_ENERGY) {
         if (flxi[IDN] >= 0.0) {
-          flx(IIE,k,j,i) = flxi[IDN]*wli[IGE];
+          flx(IIE,k,j,i) = (flxi[IDN]*wli[IGE]/wli[IDN])/gm1;
         } else {
-          flx(IIE,k,j,i) = flxi[IDN]*wri[IGE]; 
+          flx(IIE,k,j,i) = (flxi[IDN]*wri[IGE]/wri[IDN])/gm1; 
         }
       }
      }

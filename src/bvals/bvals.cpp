@@ -260,11 +260,11 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, enum BoundaryFlag *input_bcs,
     InitBoundaryData(bd_field_, BNDRY_FIELD);
     InitBoundaryData(bd_emfcor_, BNDRY_EMFCOR);
   }
-	if (CLESS_ENABLED) {
-		InitBoundaryData(bd_cless_, BNDRY_CLESS);
-		if (pmy_mesh_->multilevel==true)
-			InitBoundaryData(bd_flcorcl_, BNDRY_FLCORCL); 
-	}
+  if (CLESS_ENABLED) {
+    InitBoundaryData(bd_cless_, BNDRY_CLESS);
+    if (pmy_mesh_->multilevel==true)
+      InitBoundaryData(bd_flcorcl_, BNDRY_FLCORCL); 
+  }
 
   if (num_north_polar_blocks_ > 0) {
     emf_north_send_ = new Real *[num_north_polar_blocks_];
@@ -541,11 +541,11 @@ BoundaryValues::~BoundaryValues() {
     DestroyBoundaryData(bd_field_);
     DestroyBoundaryData(bd_emfcor_);
   }
-	if (CLESS_ENABLED) {
-		DestroyBoundaryData(bd_cless_);
-	if (pmy_mesh_->multilevel==true) 
-		DestroyBoundaryData(bd_flcorcl_); 
-	}
+  if (CLESS_ENABLED) {
+    DestroyBoundaryData(bd_cless_);
+    if (pmy_mesh_->multilevel==true) 
+      DestroyBoundaryData(bd_flcorcl_); 
+  }
 
   if (MAGNETIC_FIELDS_ENABLED) {
     if (num_north_polar_blocks_ > 0) {
@@ -1147,41 +1147,41 @@ void BoundaryValues::Initialize(void) {
         }
       }
 
-			if (CLESS_ENABLED) {
-				if (nb.level==mylevel) { // same
-					ssize=rsize=((nb.ox1==0)?pmb->block_size.nx1:NGHOST)
-										 *((nb.ox2==0)?pmb->block_size.nx2:NGHOST)
-										 *((nb.ox3==0)?pmb->block_size.nx3:NGHOST);
-				} else if (nb.level<mylevel) { // coarser
-					ssize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
-							 *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
-							 *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
-					rsize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng1)
-							 *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng2)
-							 *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng3);
-				} else { // finer
-					ssize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng1)
-							 *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng2)
-							 *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng3);
-					rsize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
-							 *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
-							 *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
-				}
-				ssize*=NCLESS; rsize*=NCLESS;
-				// specify the offsets in the view point of the target block: flip ox? signs
-				tag=CreateBvalsMPITag(nb.lid, TAG_CLESS, nb.targetid);
-				if (bd_cless_.req_send[nb.bufid]!=MPI_REQUEST_NULL)
-					MPI_Request_free(&bd_cless_.req_send[nb.bufid]);
-				MPI_Send_init(bd_cless_.send[nb.bufid],ssize,MPI_ATHENA_REAL,
-											nb.rank,tag,MPI_COMM_WORLD,&(bd_cless_.req_send[nb.bufid]));
-				tag=CreateBvalsMPITag(pmb->lid, TAG_CLESS, nb.bufid);
-				if (bd_cless_.req_recv[nb.bufid]!=MPI_REQUEST_NULL)
-					MPI_Request_free(&bd_cless_.req_recv[nb.bufid]);
-				MPI_Recv_init(bd_cless_.recv[nb.bufid],rsize,MPI_ATHENA_REAL,
-											nb.rank,tag,MPI_COMM_WORLD,&(bd_cless_.req_recv[nb.bufid]));
-			}
-		}
-	}
+      if (CLESS_ENABLED) {
+        if (nb.level==mylevel) { // same
+          ssize=rsize=((nb.ox1==0)?pmb->block_size.nx1:NGHOST)
+                     *((nb.ox2==0)?pmb->block_size.nx2:NGHOST)
+                     *((nb.ox3==0)?pmb->block_size.nx3:NGHOST);
+        } else if (nb.level<mylevel) { // coarser
+          ssize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
+                *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
+                *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
+          rsize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng1)
+                *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng2)
+                *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng3);
+        } else { // finer
+          ssize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng1)
+               *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng2)
+               *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng3);
+          rsize=((nb.ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
+               *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
+               *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
+        }
+        ssize*=NCLESS; rsize*=NCLESS;
+        // specify the offsets in the view point of the target block: flip ox? signs
+        tag=CreateBvalsMPITag(nb.lid, TAG_CLESS, nb.targetid);
+        if (bd_cless_.req_send[nb.bufid]!=MPI_REQUEST_NULL)
+          MPI_Request_free(&bd_cless_.req_send[nb.bufid]);
+        MPI_Send_init(bd_cless_.send[nb.bufid],ssize,MPI_ATHENA_REAL,
+                      nb.rank,tag,MPI_COMM_WORLD,&(bd_cless_.req_send[nb.bufid]));
+        tag=CreateBvalsMPITag(pmb->lid, TAG_CLESS, nb.bufid);
+        if (bd_cless_.req_recv[nb.bufid]!=MPI_REQUEST_NULL)
+          MPI_Request_free(&bd_cless_.req_recv[nb.bufid]);
+        MPI_Recv_init(bd_cless_.recv[nb.bufid],rsize,MPI_ATHENA_REAL,
+                      nb.rank,tag,MPI_COMM_WORLD,&(bd_cless_.req_recv[nb.bufid]));
+      }
+    }
+  }
 
   // Initialize polar neighbor communications to other ranks
   if (MAGNETIC_FIELDS_ENABLED) {
@@ -1292,12 +1292,12 @@ void BoundaryValues::StartReceivingForInit(bool cons_and_field) {
         MPI_Start(&(bd_hydro_.req_recv[nb.bufid]));
         if (MAGNETIC_FIELDS_ENABLED)
           MPI_Start(&(bd_field_.req_recv[nb.bufid]));
-				if (CLESS_ENABLED)
-					MPI_Start(&(bd_cless_.req_recv[nb.bufid]));
+        if (CLESS_ENABLED)
+          MPI_Start(&(bd_cless_.req_recv[nb.bufid]));
       } else { // must be primitive initialization
         MPI_Start(&(bd_hydro_.req_recv[nb.bufid]));
-				if (CLESS_ENABLED)
-					MPI_Start(&(bd_cless_.req_recv[nb.bufid]));
+        if (CLESS_ENABLED)
+          MPI_Start(&(bd_cless_.req_recv[nb.bufid]));
       }
     }
   }
@@ -1335,11 +1335,11 @@ void BoundaryValues::StartReceivingAll(const Real time) {
            MPI_Start(&(bd_emfcor_.req_recv[nb.bufid]));
         }
       }
-			if (CLESS_ENABLED) {
-				MPI_Start(&(bd_cless_.req_recv[nb.bufid]));
-				if (nb.type==NEIGHBOR_FACE && nb.level>mylevel)
-					MPI_Start(&(bd_flcorcl_.req_recv[nb.bufid]));
-			}
+      if (CLESS_ENABLED) {
+        MPI_Start(&(bd_cless_.req_recv[nb.bufid]));
+        if (nb.type==NEIGHBOR_FACE && nb.level>mylevel)
+          MPI_Start(&(bd_flcorcl_.req_recv[nb.bufid]));
+      }
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
@@ -1433,8 +1433,8 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
       bd_field_.flag[nb.bufid] = BNDRY_WAITING;
     if (GENERAL_RELATIVITY and pmy_mesh_->multilevel)
       bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
-		if (CLESS_ENABLED)
-			bd_cless_.flag[nb.bufid] = BNDRY_WAITING; 
+    if (CLESS_ENABLED)
+      bd_cless_.flag[nb.bufid] = BNDRY_WAITING; 
 #ifdef MPI_PARALLEL
     if (nb.rank!=Globals::my_rank) {
       if (cons_and_field) {  // normal case
@@ -1442,13 +1442,13 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
         MPI_Wait(&(bd_hydro_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
         if (MAGNETIC_FIELDS_ENABLED)
           MPI_Wait(&(bd_field_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
-				if (CLESS_ENABLED) 
-					MPI_Wait(&(bd_cless_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
+        if (CLESS_ENABLED) 
+          MPI_Wait(&(bd_cless_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
       } else {  // must be primitive initialization
         if (GENERAL_RELATIVITY and pmy_mesh_->multilevel)
           MPI_Wait(&(bd_hydro_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
-				if (CLESS_ENABLED)
-					MPI_Wait(&(bd_cless_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
+        if (CLESS_ENABLED)
+          MPI_Wait(&(bd_cless_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
       }
     }
 #endif
@@ -1475,11 +1475,11 @@ void BoundaryValues::ClearBoundaryAll(void) {
       if ((nb.type==NEIGHBOR_FACE) || (nb.type==NEIGHBOR_EDGE))
         bd_emfcor_.flag[nb.bufid] = BNDRY_WAITING;
     }
-		if (CLESS_ENABLED) {
-			bd_cless_.flag[nb.bufid] = BNDRY_WAITING; 
-			if (nb.type==NEIGHBOR_FACE) 
-				bd_flcorcl_.flag[nb.bufid] = BNDRY_WAITING;
-		}
+    if (CLESS_ENABLED) {
+      bd_cless_.flag[nb.bufid] = BNDRY_WAITING; 
+      if (nb.type==NEIGHBOR_FACE) 
+      bd_flcorcl_.flag[nb.bufid] = BNDRY_WAITING;
+    }
 #ifdef MPI_PARALLEL
     if (nb.rank!=Globals::my_rank) {
       // Wait for Isend
@@ -1496,12 +1496,12 @@ void BoundaryValues::ClearBoundaryAll(void) {
             MPI_Wait(&(bd_emfcor_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
         }
       }
-			if (CLESS_ENABLED) {
-				MPI_Wait(&(bd_cless_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
+      if (CLESS_ENABLED) {
+        MPI_Wait(&(bd_cless_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
 			
-				if (nb.type==NEIGHBOR_FACE && nb.level<pmb->loc.level)
-				  MPI_Wait(&(bd_flcorcl_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
-			}
+        if (nb.type==NEIGHBOR_FACE && nb.level<pmb->loc.level)
+          MPI_Wait(&(bd_flcorcl_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
+      }
     }
 #endif
   }

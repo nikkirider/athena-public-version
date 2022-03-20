@@ -391,7 +391,7 @@ void Cylindrical::CoordSrcTerms(const Real dt, const AthenaArray<Real> *flux,
 
         // src term for internal energy -v_R*P/r 
         if (DUAL_ENERGY) {
-          u(IIE,k,j,i) -= dt*prim(IPR,k,j,i)*prim(IVX,k,j,i)*coord_src1_i_(i); 
+          u(IIE,k,j,i) -= dt*prim(IGE,k,j,i)*prim(IVX,k,j,i)*coord_src1_i_(i); 
         }
       }
     }

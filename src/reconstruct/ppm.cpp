@@ -81,6 +81,7 @@ void Reconstruction::PiecewiseParabolicX1(MeshBlock *pmb,
   dqf_plus.InitWithShallowCopy(pmb->precon->scr13_i_);
   dqf_minus.InitWithShallowCopy(pmb->precon->scr14_i_);
 
+
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
     // cache the x1-sliced primitive states for eigensystem calculation
@@ -326,13 +327,30 @@ void Reconstruction::PiecewiseParabolicX1(MeshBlock *pmb,
 
     // compute ql_(i+1/2) and qr_(i-1/2)
     for (int n=0; n<(NWAVE+NINT+NSCALARS); ++n) {
-#pragma omp simd
+//#pragma omp simd private(XARR,PRIMS)
+#pragma omp simd 
       for (int i=il-1; i<=iu; ++i) {
-        wl(n,k,j,i+1) = ql_iph(n,i);
-        wr(n,k,j,i  ) = qr_imh(n,i);
-        // Reapply EOS floors to both L/R reconstructed primitive states
-        pmb->peos->ApplyPrimitiveFloors(wl, k, j, i+1);
-        pmb->peos->ApplyPrimitiveFloors(wr, k, j, i);
+        if (DUAL_ENERGY) {
+          //dual energy does not use floors. Switch to constant states if 
+          //reconstruction yields negative densities
+          if ((ql_iph(IDN,i) <= 0.0) || (ql_iph(IPR,i) <= 0.0) || isnan(ql_iph(IPR,i))) {
+            wl(n,k,j,i+1) = w(n,k,j,i);
+          } else {
+            wl(n,k,j,i+1) = ql_iph(n,i);
+          }
+          if ((qr_imh(IDN,i) <= 0.0) || (qr_imh(IPR,i) <= 0.0) || isnan(qr_imh(IPR,i))) {
+            wr(n,k,j,i  ) = w(n,k,j,i);
+          } else {
+            wr(n,k,j,i  ) = qr_imh(n,i);
+          }
+        } else { // original branch w/o dual energy: apply floors if necessary
+          wl(n,k,j,i+1) = ql_iph(n,i);
+          wr(n,k,j,i  ) = qr_imh(n,i);
+
+          // Reapply EOS floors to both L/R reconstructed primitive states
+          pmb->peos->ApplyPrimitiveFloors(wl, k, j, i+1);
+          pmb->peos->ApplyPrimitiveFloors(wr, k, j, i);
+        }
       }
     }
   }}
@@ -384,6 +402,7 @@ void Reconstruction::PiecewiseParabolicX2(MeshBlock *pmb,
   qminus.InitWithShallowCopy(pmb->precon->scr12_i_);
   dqf_plus.InitWithShallowCopy(pmb->precon->scr13_i_);
   dqf_minus.InitWithShallowCopy(pmb->precon->scr14_i_);
+
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl-1; j<=ju; ++j) {
@@ -629,13 +648,30 @@ void Reconstruction::PiecewiseParabolicX2(MeshBlock *pmb,
 
     // compute ql_(j+1/2) and qr_(j-1/2)
     for (int n=0; n<(NWAVE+NINT+NSCALARS); ++n) {
+//#pragma omp simd private(XARR,PRIMS)
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-        wl(n,k,j+1,i) = ql_jph(n,i);
-        wr(n,k,j  ,i) = qr_jmh(n,i);
-        // Reapply EOS floors to both L/R reconstructed primitive states
-        pmb->peos->ApplyPrimitiveFloors(wl, k, j+1, i);
-        pmb->peos->ApplyPrimitiveFloors(wr, k, j, i);
+        if (DUAL_ENERGY) {
+          //dual energy does not use floors. Switch to constant states if 
+          //reconstruction yields negative densities
+          if ((ql_jph(IDN,i) <= 0.0) || (ql_jph(IPR,i) <= 0.0) || isnan(ql_jph(IPR,i))) {
+            wl(n,k,j+1,i) = w(n,k,j,i);
+          } else {
+            wl(n,k,j+1,i) = ql_jph(n,i);
+          }
+          if ((qr_jmh(IDN,i) <= 0.0) || (qr_jmh(IPR,i) <= 0.0) || isnan(qr_jmh(IPR,i))) {
+            wr(n,k,j  ,i) = w(n,k,j,i);
+          } else {
+            wr(n,k,j  ,i) = qr_jmh(n,i);
+          }
+        } else { // original branch
+          wl(n,k,j+1,i) = ql_jph(n,i);
+          wr(n,k,j  ,i) = qr_jmh(n,i);
+
+          // Reapply EOS floors to both L/R reconstructed primitive states
+          pmb->peos->ApplyPrimitiveFloors(wl, k, j+1, i);
+          pmb->peos->ApplyPrimitiveFloors(wr, k, j, i);
+        }
       }
     }
   }}
@@ -687,6 +723,7 @@ void Reconstruction::PiecewiseParabolicX3(MeshBlock *pmb,
   qminus.InitWithShallowCopy(pmb->precon->scr12_i_);
   dqf_plus.InitWithShallowCopy(pmb->precon->scr13_i_);
   dqf_minus.InitWithShallowCopy(pmb->precon->scr14_i_);
+
 
   for (int k=kl-1; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
@@ -935,13 +972,28 @@ void Reconstruction::PiecewiseParabolicX3(MeshBlock *pmb,
 
     // compute ql_(k+1/2) and qr_(k-1/2)
     for (int n=0; n<(NWAVE+NINT+NSCALARS); ++n) {
+//#pragma omp simd private(XARR,PRIMS)
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-        wl(n,k+1,j,i) = ql_kph(n,i);
-        wr(n,k  ,j,i) = qr_kmh(n,i);
-        // Reapply EOS floors to both L/R reconstructed primitive states
-        pmb->peos->ApplyPrimitiveFloors(wl, k+1, j, i);
-        pmb->peos->ApplyPrimitiveFloors(wr, k, j, i);
+        if (DUAL_ENERGY) {
+          if ((ql_kph(IDN,i) <= 0.0) || (ql_kph(IPR,i) <= 0.0) || isnan(ql_kph(IPR,i))) {
+            wl(n,k+1,j,i) = w(n,k,j,i);
+          } else {
+            wl(n,k+1,j,i) = ql_kph(n,i);
+          }
+          if ((qr_kmh(IDN,i) <= 0.0) || (qr_kmh(IPR,i) <= 0.0) || isnan(qr_kmh(IPR,i))) {
+            wr(n,k  ,j,i) = w(n,k,j,i);
+          } else {
+            wr(n,k  ,j,i) = qr_kmh(n,i);
+          }
+        } else { // original branch
+          wl(n,k+1,j,i) = ql_kph(n,i);
+          wr(n,k  ,j,i) = qr_kmh(n,i);
+
+          // Reapply EOS floors to both L/R reconstructed primitive states
+          pmb->peos->ApplyPrimitiveFloors(wl, k+1, j, i);
+          pmb->peos->ApplyPrimitiveFloors(wr, k, j, i);
+        }
       }
     }
   }}

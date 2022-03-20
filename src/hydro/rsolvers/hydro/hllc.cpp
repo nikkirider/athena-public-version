@@ -24,6 +24,8 @@
 #include "../../../athena_arrays.hpp"
 #include "../../../eos/eos.hpp"
 
+
+
 //----------------------------------------------------------------------------------------
 //! \fn void Hydro::RiemannSolver
 //! \brief The HLLC Riemann solver for adiabatic hydrodynamics (use HLLE for isothermal)
@@ -40,10 +42,27 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
   Real igm1 = 1.0/gm1;
 
+
+  Expansion *ex = pmy_block->pex;
+  AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];
+  AthenaArray<Real> &eVel = ex->vf[(ivx-1)];
+  bool move = false;
+  if ((ivx == IVX)&&(ex->x1Move)){
+    move = true;
+  } else if ((ivx == IVY)&&(ex->x2Move)) {
+    move = true;
+  } else if ((ivx == IVZ)&&(ex->x3Move)){
+    move = true;
+  }
+
+  int n;
+  Real wi[(NHYDRO)];
+  Real wallV = 0.0;
+  Real e;
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
 #pragma distribute_point
-#pragma omp simd private(wli,wri,wroe,flxi,fl,fr)
+#pragma omp simd private(n,wli,wri,wroe,flxi,fl,fr,wi,wallV,e)
   for (int i=il; i<=iu; ++i) {
 
 //--- Step 1.  Load L/R states into local variables
@@ -53,14 +72,29 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IVY]=wl(ivy,k,j,i);
     wli[IVZ]=wl(ivz,k,j,i);
     wli[IPR]=wl(IPR,k,j,i);
-    if (DUAL_ENERGY) wli[IGE]=wl(IGE,k,j,i);
+    if (DUAL_ENERGY) 
+      wli[IGE]=wl(IGE,k,j,i);
+    // not sure that works with pragma
+    if (NSCALARS > 0) { 
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        wli[n] = wl(n,k,j,i); 
+      }
+    }
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
     wri[IVY]=wr(ivy,k,j,i);
     wri[IVZ]=wr(ivz,k,j,i);
     wri[IPR]=wr(IPR,k,j,i);
-    if (DUAL_ENERGY) wri[IGE]=wr(IGE,k,j,i);
+    if (DUAL_ENERGY) 
+      wri[IGE]=wr(IGE,k,j,i);
+    // not sure that works with pragma
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        wri[n] = wr(n,k,j,i);
+      }
+    }
+
 
 //--- Step2.  Compute Roe-averaged state
 
@@ -161,40 +195,125 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     flx(ivy,k,j,i) = flxi[IVY];
     flx(ivz,k,j,i) = flxi[IVZ];
     flx(IEN,k,j,i) = flxi[IEN];
-    if (DUAL_ENERGY) {
-      if (flxi[IDN]  >= 0) {
-        flx(IIE,k,j,i) = flxi[IDN]*wli[IGE];
-      }
-      else {
-        flx(IIE,k,j,i) = flxi[IDN]*wri[IGE];
-      }
+
+    if (DUAL_ENERGY) { // needs to change bc not T any more fh211001. Similar to scalar flux
+                       // IGE now needs to be divided by density, bc fd is density flux.
+      flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
     }
+
+    //if (DUAL_ENERGY) {
+    //  if (flxi[IDN]  >= 0) {
+    //    flx(IIE,k,j,i) = flxi[IDN]*wli[IGE];
+    //  }
+    //  else {
+    //    flx(IIE,k,j,i) = flxi[IDN]*wri[IGE];
+    //  }
+    //}
+    
+    // not sure that works with pragma...
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
+      } 
+    }
+
+    //For Time Dependent grid, account for Wall Flux
+    if ((EXPANDING) && (move)) {
+      //--- Step 1. Determine Flux Direction
+      if (ivx == IVX){
+        wallV = eVel(i);
+      } else if (ivx == IVY) {
+        wallV = eVel(j);
+      } else if (ivx == IVZ){
+        wallV = eVel(k);
+      } else {
+        wallV = 0.0;
+      }
+      //--- Step 2. Load primitive Variables
+      if (wallV > 0.0) {
+        wi[IDN]=wr(IDN,k,j,i);//eWri(IDN,k,j,i);
+        wi[IVX]=wr(ivx,k,j,i);//eWri(ivx,k,j,i);
+        wi[IVY]=wr(ivy,k,j,i);//eWri(ivy,k,j,i);
+        wi[IVZ]=wr(ivz,k,j,i);//eWri(ivz,k,j,i);
+        wi[IPR]=wr(IPR,k,j,i);//eWri(IPR,k,j,i);
+        if (DUAL_ENERGY) 
+          wi[IGE]=wr(IGE,k,j,i);//eWri(IGE,k,j,i);
+        if (NSCALARS > 0) {
+          for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+            wi[n] = wr(n,k,j,i);
+          }
+        }
+      } else if (wallV < 0.0) {
+        wi[IDN]=wl(IDN,k,j,i);//eWli(IDN,k,j,i);
+        wi[IVX]=wl(ivx,k,j,i);//eWli(ivx,k,j,i);
+        wi[IVY]=wl(ivy,k,j,i);//eWli(ivy,k,j,i);
+        wi[IVZ]=wl(ivz,k,j,i);//eWli(ivz,k,j,i);
+        wi[IPR]=wl(IPR,k,j,i);//eWli(IPR,k,j,i);
+        if (DUAL_ENERGY) 
+          wi[IGE]=wl(IGE,k,j,i);//eWli(IGE,k,j,i);
+        if (NSCALARS > 0) {
+          for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+            wi[n] = wl(n,k,j,i);
+          }
+        } 
+      } else {
+        wi[IDN]=0.0;
+        wi[IVX]=0.0;
+        wi[IVY]=0.0;
+        wi[IVZ]=0.0;
+        wi[IPR]=0.0;
+        if (DUAL_ENERGY) 
+          wi[IGE]=0.0;
+        if (NSCALARS > 0) {
+          for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+            wi[n] = 0.0;
+          }
+        }
+      }
+      e = wi[IPR]*igm1 + 0.5*wi[IDN]*(SQR(wi[IVX]) + SQR(wi[IVY]) + SQR(wi[IVZ]));
+      eFlx(IDN,k,j,i) = wi[IDN]*wallV;
+      eFlx(ivx,k,j,i) = wi[IDN]*wi[IVX]*wallV;
+      eFlx(ivy,k,j,i) = wi[IDN]*wi[IVY]*wallV;
+      eFlx(ivz,k,j,i) = wi[IDN]*wi[IVZ]*wallV;
+      eFlx(IEN,k,j,i) = e*wallV;
+      if (DUAL_ENERGY) {
+        //eFlx(IIE,k,j,i) = wi[IDN]*wallV*wi[IGE];
+        eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is p, not T/(gamma-1)
+      }
+      if (NSCALARS > 0) {
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+          eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
+        }
+      }
+    } //End Expanding
   }
   }}
 
   // There seems no other way. OMP within the n loop leads to failure for
   // more than one scalar.
-  if (NSCALARS > 0) {
-    for (int k=kl; k<=ku; k++) {
-      for (int j=jl; j<=ju; j++) {
-#pragma omp simd
-        for (int i=il; i<=iu; i++) {
-          Real fd = flx(IDN,k,j,i);
-          flx(IS0,k,j,i)   = (fd >= 0 ? fd*wl(IS0,k,j,i) : fd*wr(IS0,k,j,i));
-          if (NSCALARS > 1) 
-            flx(IS1,k,j,i) = (fd >= 0 ? fd*wl(IS1,k,j,i) : fd*wr(IS1,k,j,i));  
-          if (NSCALARS > 2) 
-            flx(IS2,k,j,i) = (fd >= 0 ? fd*wl(IS2,k,j,i) : fd*wr(IS2,k,j,i));
-          if (NSCALARS > 3) 
-            flx(IS3,k,j,i) = (fd >= 0 ? fd*wl(IS3,k,j,i) : fd*wr(IS3,k,j,i));
-          if (NSCALARS > 4) 
-            flx(IS4,k,j,i) = (fd >= 0 ? fd*wl(IS4,k,j,i) : fd*wr(IS4,k,j,i));
-          if (NSCALARS > 5) 
-            flx(IS5,k,j,i) = (fd >= 0 ? fd*wl(IS5,k,j,i) : fd*wr(IS5,k,j,i));
-        }
-      }
-    }
-  }
+  // BUT: THIS SHOULD MOVE INTO THE MAIN LOOP, BC OTHERWISE WE'LL HAVE
+  // TO RECALCULATE ALL THE EXPANDING VARIABLES.
+  //if (NSCALARS > 0) {
+  //  for (int k=kl; k<=ku; k++) {
+  //    for (int j=jl; j<=ju; j++) {
+//#pragma omp simd
+  //      for (int i=il; i<=iu; i++) {
+  //        Real fd = flx(IDN,k,j,i);
+  //        flx(IS0,k,j,i)   = (fd >= 0 ? fd*wl(IS0,k,j,i) : fd*wr(IS0,k,j,i));
+  //        if (NSCALARS > 1)
+  //          flx(IS1,k,j,i) = (fd >= 0 ? fd*wl(IS1,k,j,i) : fd*wr(IS1,k,j,i));
+  //        if (NSCALARS > 2)
+  //          flx(IS2,k,j,i) = (fd >= 0 ? fd*wl(IS2,k,j,i) : fd*wr(IS2,k,j,i));
+  //        if (NSCALARS > 3)
+  //          flx(IS3,k,j,i) = (fd >= 0 ? fd*wl(IS3,k,j,i) : fd*wr(IS3,k,j,i));
+  //        if (NSCALARS > 4)
+  //          flx(IS4,k,j,i) = (fd >= 0 ? fd*wl(IS4,k,j,i) : fd*wr(IS4,k,j,i));
+  //        if (NSCALARS > 5)
+  //          flx(IS5,k,j,i) = (fd >= 0 ? fd*wl(IS5,k,j,i) : fd*wr(IS5,k,j,i));
+  //      }
+  //    }
+  //  }
+  //}
 
   return;
 }

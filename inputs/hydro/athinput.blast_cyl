@@ -1,7 +1,7 @@
 <comment>
 problem   = spherical blast wave in cylindrical coordinates
 reference = Gardiner. T.A. & Stone, J.M., JCP, 205, 509 (2005) (for MHD version of test)
-configure = --prob=blast --coord=cylindrical --include=/srv/analysis/local/openmpi/include --lib=/srv/analysis/local/openmpi/lib -lhdf5
+configure = --prob=blast --coord=cylindrical
 
 <job>
 problem_id = Blast      # problem ID: basename of output filenames

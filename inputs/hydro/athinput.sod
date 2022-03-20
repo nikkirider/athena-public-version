@@ -25,8 +25,6 @@ tlim        = 0.25      # time limit
 integrator  = vl2       # time integration algorithm
 xorder      = 2         # order of spatial reconstruction
 ncycle_out  = 1         # interval for stdout summary info
-BGK_c1      = 1000.     # number of collisions per timestep
-BGK_c2      = 2         # number of cells for discontinuity spread
 
 <mesh>
 nx1         = 256       # Number of zones in X1-direction

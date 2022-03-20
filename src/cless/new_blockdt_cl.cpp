@@ -40,16 +40,16 @@ Real Cless::NewBlockTimeStepCL(void) {
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   AthenaArray<Real> w,bcc,b_x1f,b_x2f,b_x3f, wcl;
 
-	if (CLESS_ENABLED) {
-		wcl.InitWithShallowCopy(pmb->pcless->w); 
-	}
+  if (CLESS_ENABLED) {
+    wcl.InitWithShallowCopy(pmb->pcless->w); 
+  }
 
   AthenaArray<Real> dt1, dt2, dt3;
   dt1.InitWithShallowCopy(dt1_);
   dt2.InitWithShallowCopy(dt2_);
   dt3.InitWithShallowCopy(dt3_);
   Real wi[(NWAVE+NINT)];
-	Real wicl[(NWAVECL)]; 
+  Real wicl[(NWAVECL)]; 
 
   Real min_dt = (FLT_MAX);
 
@@ -59,25 +59,25 @@ Real Cless::NewBlockTimeStepCL(void) {
       pmb->pcoord->CenterWidth2(k,j,is,ie,dt2);
       pmb->pcoord->CenterWidth3(k,j,is,ie,dt3);
 #pragma ivdep
-			for (int i=is; i<=ie; ++i) {
-				Real c1f, c2f, c3f; 
-				wicl[IDN ] = wcl(IDN ,k,j,i);
-				wicl[IVX ] = wcl(IVX ,k,j,i);
-				wicl[IVY ] = wcl(IVY ,k,j,i);
-				wicl[IVZ ] = wcl(IVZ ,k,j,i);
-				wicl[IP11] = wcl(IP11,k,j,i);
-				wicl[IP22] = wcl(IP22,k,j,i);
-				wicl[IP33] = wcl(IP33,k,j,i);
-				wicl[IP12] = wcl(IP12,k,j,i);
-				wicl[IP13] = wcl(IP13,k,j,i);
-				wicl[IP23] = wcl(IP23,k,j,i);
+      for (int i=is; i<=ie; ++i) {
+        Real c1f, c2f, c3f; 
+        wicl[IDN ] = wcl(IDN ,k,j,i);
+        wicl[IVX ] = wcl(IVX ,k,j,i);
+        wicl[IVY ] = wcl(IVY ,k,j,i);
+        wicl[IVZ ] = wcl(IVZ ,k,j,i);
+        wicl[IP11] = wcl(IP11,k,j,i);
+        wicl[IP22] = wcl(IP22,k,j,i);
+        wicl[IP33] = wcl(IP33,k,j,i);
+        wicl[IP12] = wcl(IP12,k,j,i);
+        wicl[IP13] = wcl(IP13,k,j,i);
+        wicl[IP23] = wcl(IP23,k,j,i);
 
-				pmb->peos->SoundSpeedsCL(wicl,&c1f,&c2f,&c3f); 
+        pmb->peos->SoundSpeedsCL(wicl,&c1f,&c2f,&c3f); 
 
-				dt1(i) /= fabs(wicl[IVX] + c1f);
-				dt2(i) /= fabs(wicl[IVY] + c2f);
-				dt3(i) /= fabs(wicl[IVZ] + c3f); 
-			}
+        dt1(i) /= fabs(wicl[IVX] + c1f);
+        dt2(i) /= fabs(wicl[IVY] + c2f);
+        dt3(i) /= fabs(wicl[IVZ] + c3f); 
+      }
 
       // compute minimum of (v1 +/- C)
       for (int i=is; i<=ie; ++i) {

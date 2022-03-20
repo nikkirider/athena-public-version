@@ -152,8 +152,8 @@ void BoundaryValues::SendFluxCorrection(enum FluxCorrectionType type) {
         pbl=pmb->pmy_mesh->FindMeshBlock(nb.gid);
         if (type==FLUX_HYDRO)
           ptarget=&(pbl->pbval->bd_flcor_);
-				if (type==FLUX_CLESS)
-					ptarget=&(pbl->pbval->bd_flcorcl_); 
+        if (type==FLUX_CLESS)
+          ptarget=&(pbl->pbval->bd_flcorcl_); 
         std::memcpy(ptarget->recv[nb.targetid], sbuf, p*sizeof(Real));
         ptarget->flag[nb.targetid]=BNDRY_ARRIVED;
       }
@@ -187,7 +187,7 @@ bool BoundaryValues::ReceiveFluxCorrection(enum FluxCorrectionType type) {
   }
 
   if (type==FLUX_CLESS) {
-		pbd=&bd_flcorcl_; 
+    pbd=&bd_flcorcl_; 
     ns=0, ne=NCLESS-1;
     x1flux.InitWithShallowCopy(pmb->pcless->flux[X1DIR]);
     x2flux.InitWithShallowCopy(pmb->pcless->flux[X2DIR]);

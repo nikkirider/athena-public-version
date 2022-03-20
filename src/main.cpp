@@ -389,8 +389,18 @@ int main(int argc, char *argv[]) {
         pmesh->pfgrd->Solve(stage, 0);
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
+      
+      if (EXPANDING) {
+        pmesh->CalcGridData_(pmesh); 
+      }
       ptlist->DoTaskListOneStage(pmesh, stage);
+      if (EXPANDING) {
+        pmesh->SetMeshSize(pmesh); 
+      }
+      
     }
+
+    pmesh->UserWorkInLoop();
 
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;

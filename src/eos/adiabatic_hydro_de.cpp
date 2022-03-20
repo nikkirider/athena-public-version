@@ -6,10 +6,17 @@
 //========================================================================================
 //! \file adiabatic_hydro.cpp
 //  \brief implements functions in class EquationOfState for adiabatic hydrodynamics`
+//    Version for dual energy
 
 // C/C++ headers
 #include <cmath>   // sqrt()
 #include <cfloat>  // FLT_MIN
+#include <stdexcept>
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+
 
 // Athena++ headers
 #include "eos.hpp"
@@ -19,6 +26,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../field/field.hpp"
+#include "../globals.hpp"
 
 // EquationOfState constructor
 
@@ -57,18 +65,19 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       Real& u_m1 = cons(IM1,k,j,i);
       Real& u_m2 = cons(IM2,k,j,i);
       Real& u_m3 = cons(IM3,k,j,i);
-      Real& u_e  = cons(IEN,k,j,i);
-      Real& u_ie = cons(IIE,k,j,i);
+      Real& u_e  = cons(IEN,k,j,i); // total energy
+      Real& u_ie = cons(IIE,k,j,i); // internal energy
 
       Real& w_d  = prim(IDN,k,j,i);
       Real& w_vx = prim(IVX,k,j,i);
       Real& w_vy = prim(IVY,k,j,i);
       Real& w_vz = prim(IVZ,k,j,i);
-      Real& w_p  = prim(IPR,k,j,i);
-      Real& w_ge = prim(IGE,k,j,i);
+      Real& w_p  = prim(IPR,k,j,i); // pressure, from total energy
+      Real& w_ge = prim(IGE,k,j,i); // pressure, pdV track
 				
       // apply density floor, without changing momentum or energy
-      u_d = (u_d > density_floor_) ?  u_d : density_floor_;
+      // fh211001: Do not apply floors when using dual energy
+      //u_d = (u_d > density_floor_) ?  u_d : density_floor_;
       w_d = u_d;
 
       Real di = 1.0/u_d;
@@ -78,10 +87,11 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
       Real ke = 0.5*di*(SQR(u_m1) + SQR(u_m2) + SQR(u_m3));
       w_p = gm1*(u_e - ke);
-      w_ge = u_ie*di;
+      //w_ge = u_ie*di; Do not use temperature (fh211001)
+      w_ge = gm1*u_ie; // use pressure instead (same as standard energy)
 
       // Use dual-energy 
-      if (((w_p/u_e) < i1) || (u_e <= 0.0) || (w_p <= 0.0)) {
+      if (((w_p/u_e) < i1) || (u_e <= 0.0) || (w_p <= 0.0) || isnan(w_p)) {
         w_p = gm1*u_ie; 
         u_e = u_ie + ke; 
       }
@@ -145,7 +155,8 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
       u_m2 = w_vy*w_d;
       u_m3 = w_vz*w_d;
       u_e  = w_p*igm1 + 0.5*w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz));
-      u_ie = w_ge*w_d; 
+      //u_ie = w_ge*w_d;  // IGE is pressure. Do not use temperature
+      u_ie = w_ge*igm1; // use pressure instead 
     }
   }}
 
@@ -166,6 +177,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
       }
     }
   }
+
   return;
 }
 
@@ -174,22 +186,24 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 // \brief returns adiabatic sound speed given vector of primitive variables
 
 Real EquationOfState::SoundSpeed(const Real prim[NHYDRO]) {
-  return std::sqrt(gamma_*(gamma_-1.0)*prim[IGE]);
+  //return std::sqrt(gamma_*(gamma_-1.0)*prim[IGE]); # Do not use T/(gamma-1) for IGE.
+  return std::sqrt(gamma_*prim[IPR]/prim[IDN]); // use pressure instead
 }
 
 //---------------------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
 //           int k, int j, int i)
 // \brief Apply density and pressure floors to reconstructed L/R cell interface states
+//   Should not be applied when using dual energy. (fh211001)
 
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
-  Real& w_d  = prim(IDN,k,j,i);
-  Real& w_p  = prim(IPR,k,j,i);
+  //Real& w_d  = prim(IDN,k,j,i);
+  //Real& w_p  = prim(IPR,k,j,i);
 
   // apply density floor
-  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  //w_d = (w_d > density_floor_) ?  w_d : density_floor_;
   // apply pressure floor
-  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+  //w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
 
   return;
 }

@@ -31,6 +31,14 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 
+//========================================================================================
+//! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin)
+//  \brief Calculate L1 errors in Sod (hydro) and RJ2a (MHD) tests
+//========================================================================================
+
+void Mesh::UserWorkInLoop(void) {
+  return;
+}
 
 //========================================================================================
 //! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin)

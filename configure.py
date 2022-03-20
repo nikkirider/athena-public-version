@@ -149,6 +149,12 @@ parser.add_argument('-shear',
                     action='store_true',
                     default=False,
                     help='enable shearing box')
+# -exp argument
+parser.add_argument('-exp',
+    		    default=False,
+    		    action='store_true',
+    		    help='Make Grid expand'
+)
 
 # -de argument
 parser.add_argument('-de',
@@ -161,6 +167,12 @@ parser.add_argument('-debug',
                     action='store_true',
                     default=False,
                     help='enable debug flags; override other compiler options')
+
+# -tsi argument
+parser.add_argument('-tsi',
+                    action='store_true',
+                    default=False,
+                    help='enable detailed timestep information')
 
 # -float argument
 parser.add_argument('-float',
@@ -195,13 +207,13 @@ parser.add_argument('-fft',
 # --fftw_path argument
 parser.add_argument('--fftw_path',
                     type=str,
-                    default='/srv/analysis/local/fftw',
+                    default='',
                     help='path to FFTW libraries')
 
 # -hdf5 argument
 parser.add_argument('-hdf5',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='enable HDF5 Output')
 
 # -h5double argument
@@ -212,7 +224,7 @@ parser.add_argument('-h5double',
 
 # --hdf5_path argument
 parser.add_argument('--hdf5_path',
-                    default='/srv/analysis/local/hdf5',
+                    default='',
                     help='path to HDF5 libraries')
 
 # --cxx=[name] argument
@@ -245,7 +257,7 @@ parser.add_argument('--cflag',
 # --include=[name] arguments
 parser.add_argument(
     '--include',
-    default=['/srv/analysis/local/openmpi/include'],
+    default=[],
     action='append',
     help=('extra path for included header files (-I<path>); can be specified multiple '
           'times')
@@ -253,11 +265,13 @@ parser.add_argument(
 # --lib=[name] arguments
 parser.add_argument(
     '--lib',
-    default=['/srv/analysis/local/openmpi/lib'],
+    default=[],
     action='append',
     help=('extra path for linked library files (-L<path>); can be specified multiple '
           'times')
 )
+
+
 
 # Parse command-line inputs
 args = vars(parser.parse_args())
@@ -286,8 +300,6 @@ if args['flux'] == 'hllc' and args['b']:
     raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with MHD')
 if args['flux'] == 'hlld' and not args['b']:
     raise SystemExit('### CONFIGURE ERROR: HLLD flux can only be used with MHD')
-if args['flux'] == 'bgk2' and args['eos'] == 'isothermal':
-    raise SystemExit('### CONFIGURE ERROR: BGK2 flux cannot be used with isothemal EOS')
 
 # Check relativity
 if args['s'] and args['g']:
@@ -359,6 +371,14 @@ else:
     definitions['NCLESS_VARIABLES'] = '0' 
     definitions['NWAVE_CLESS'] = '0'
     definitions['CLESS_ONLY_MODE'] = '0'
+
+#Set Expanding Frame
+if args['exp']:
+    definitions['EXPANDING'] = '1'
+else:
+    definitions['EXPANDING'] = '0'
+
+
 
 # --flux=[name] argument
 definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
@@ -553,6 +573,13 @@ if args['debug']:
 else:
     definitions['DEBUG'] = 'NOT_DEBUG'
 
+# -tsi argument
+# detailed timestep info
+if args['tsi']:
+    definitions['TIMESTEPINFO_ENABLED'] = '1'
+else:
+    definitions['TIMESTEPINFO_ENABLED'] = '0'
+
 # -mpi argument
 if args['mpi']:
     definitions['MPI_OPTION'] = 'MPI_PARALLEL'
@@ -659,7 +686,7 @@ if args['ccmd'] is not None:
 
 # --cflag=[string] argument
 if args['cflag'] is not None:
-    makefile_options['COMPILER_FLAGS'] += ' '+args['cflag']
+    makefile_options['COMPILER_FLAGS'] += ' -'+args['cflag']
 
 # --include=[name] arguments
 for include_path in args['include']:
@@ -702,7 +729,6 @@ with open(makefile_output, 'w') as current_file:
     current_file.write(makefile_template)
 
 # Finish with diagnostic output
-print(args['float'])
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:       ' + args['prob'])
 print('  Coordinate system:       ' + args['coord'])
@@ -712,13 +738,15 @@ print('  CL Riemann solver:       ' + args['fluxcl'])
 print('  Self Gravity:            ' + ('OFF' if args['grav'] == 'none' else args['grav']))
 print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Collisionless solver:    ' + ('ON' if args['cl'] else 'OFF'))
-print('  COllisionless only mode: ' + ('ON' if args['clo'] else 'OFF'))
+print('  Collisionless only mode: ' + ('ON' if args['clo'] else 'OFF'))
+print('  Expanding Frame:         ' + ('ON' if args['exp'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
 print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Dual-Energy:             ' + ('ON' if args['de'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))
+print('  Timestep Information:    ' + ('ON' if args['tsi'] else 'OFF'))
 print('  Linker flags:            ' + makefile_options['LINKER_FLAGS'] + ' '
       + makefile_options['LIBRARY_FLAGS'])
 print('  Precision:               ' + ('single' if args['float'] else 'double'))

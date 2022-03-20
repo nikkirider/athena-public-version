@@ -57,9 +57,18 @@ Real Hydro::NewBlockTimeStep(void) {
   dt2.InitWithShallowCopy(dt2_);
   dt3.InitWithShallowCopy(dt3_);
   Real wi[(NWAVE+NINT)];
-	Real wicl[(NWAVECL)]; 
+  Real wicl[(NWAVECL)]; 
 
   Real min_dt = (FLT_MAX);
+  if (TIMESTEPINFO_ENABLED) {
+    for (int l=0; l<pmb->ndt; l++) {
+      pmb->all_min_dts(l) = (FLT_MAX); 
+      for (int m=0; m<3; m++) {
+        pmb->all_min_loc(l,m) = -1e60;
+        pmb->all_min_ind(l,m) = -1;
+      }
+    }
+  }
 
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
@@ -123,6 +132,46 @@ Real Hydro::NewBlockTimeStep(void) {
           else { // hydro only 
 
             Real cs = pmb->peos->SoundSpeed(wi);
+
+            if (TIMESTEPINFO_ENABLED) {
+              if (dt1(i)/cs < pmb->all_min_dts(0)) { // sound speed
+                pmb->all_min_dts(0)   = dt1(i)/cs; 
+                pmb->all_min_loc(0,0) = pmb->pcoord->x1v(i);
+                pmb->all_min_loc(0,1) = pmb->pcoord->x2v(j);
+                pmb->all_min_loc(0,2) = pmb->pcoord->x3v(k);
+                pmb->all_min_ind(0,0) = i;
+                pmb->all_min_ind(0,1) = j;
+                pmb->all_min_ind(0,2) = k;
+              }
+              if (fabs(dt1(i)/wi[IVX]) < pmb->all_min_dts(1)) { // x1-velocity
+                pmb->all_min_dts(1)   = fabs(dt1(i)/wi[IVX]); 
+                pmb->all_min_loc(1,0) = pmb->pcoord->x1v(i);
+                pmb->all_min_loc(1,1) = pmb->pcoord->x2v(j);
+                pmb->all_min_loc(1,2) = pmb->pcoord->x3v(k);
+                pmb->all_min_ind(1,0) = i;
+                pmb->all_min_ind(1,1) = j;
+                pmb->all_min_ind(1,2) = k;
+              }
+              if (fabs(dt2(i)/wi[IVY]) < pmb->all_min_dts(2)) { // x2-velocity
+                pmb->all_min_dts(2)   = fabs(dt2(i)/wi[IVY]);
+                pmb->all_min_loc(2,0) = pmb->pcoord->x1v(i);
+                pmb->all_min_loc(2,1) = pmb->pcoord->x2v(j);
+                pmb->all_min_loc(2,2) = pmb->pcoord->x3v(k);
+                pmb->all_min_ind(2,0) = i;
+                pmb->all_min_ind(2,1) = j;
+                pmb->all_min_ind(2,2) = k;
+              }
+              if (fabs(dt3(i)/wi[IVZ]) < pmb->all_min_dts(3)) { // x3-velocity
+                pmb->all_min_dts(3)   = fabs(dt3(i)/wi[IVZ]);
+                pmb->all_min_loc(3,0) = pmb->pcoord->x1v(i);
+                pmb->all_min_loc(3,1) = pmb->pcoord->x2v(j);
+                pmb->all_min_loc(3,2) = pmb->pcoord->x3v(k);
+                pmb->all_min_ind(3,0) = i;
+                pmb->all_min_ind(3,1) = j;
+                pmb->all_min_ind(3,2) = k;
+              }
+            }
+
             dt1(i) /= (fabs(wi[IVX]) + cs);
             dt2(i) /= (fabs(wi[IVY]) + cs);
             dt3(i) /= (fabs(wi[IVZ]) + cs);
@@ -171,12 +220,20 @@ Real Hydro::NewBlockTimeStep(void) {
     min_dt = std::min(min_dt,mindt_oa);
     min_dt = std::min(min_dt,mindt_h);
   } // field diffusion
-
+  
   min_dt *= pmb->pmy_mesh->cfl_number;
+
+  //fprintf(stdout,"[NewBlockTimeStep]: min_dt before = %13.5e\n",min_dt);
 
   if (UserTimeStep_!=NULL) {
     min_dt = std::min(min_dt, UserTimeStep_(pmb));
   }
+  if (EXPANDING) {
+    min_dt = std::min(min_dt, pmb->pex->GridTimeStep(pmb));
+  }
+
+  //fprintf(stdout,"[NewBlockTimeStep]: min_dt after  = %13.5e\n",min_dt);
+
 
   pmb->new_block_dt=min_dt;
   return min_dt;

@@ -573,7 +573,7 @@ void SphericalPolar::CoordSrcTerms(const Real dt, const AthenaArray<Real> *flux,
         }
         // src term for internal energy -2*v_R*P/r. fh++
         if (DUAL_ENERGY) {
-          u(IIE,k,j,i) -= -2.0*dt*prim(IPR,k,j,i)*prim(IVX,k,j,i)*coord_src1_i_(i); 
+          u(IIE,k,j,i) -= -2.0*dt*prim(IGE,k,j,i)*prim(IVX,k,j,i)*coord_src1_i_(i); 
         }
       }
     }

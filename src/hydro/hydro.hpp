@@ -37,8 +37,6 @@ public:
   AthenaArray<Real> u2;       // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
-  Real BGK_c1, BGK_c2;
-  
   AthenaArray<Real> flux[3];  // face-averaged flux vector
 
   HydroSourceTerms *psrc;
@@ -61,9 +59,9 @@ public:
   void AddGravityFluxWithGflx(void);
   void CalculateGravityFlux(AthenaArray<Real> &phi_in);
   void CorrectGravityFlux(void);
-	// dual-energy functions 
-	void SyncEint(AthenaArray<Real> &u); 
-	void CheckEint(AthenaArray<Real> &u); 
+  // dual-energy functions 
+  void SyncEint(AthenaArray<Real> &u); 
+  void CheckEint(AthenaArray<Real> &u); 
 
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep

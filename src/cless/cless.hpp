@@ -37,8 +37,8 @@ public:
 
   ClessSourceTerms *psrc;
   
-	// functions
-	Real NewBlockTimeStepCL(void); // computes new timestep for CLESS_ONLY mode 
+  // functions
+  Real NewBlockTimeStepCL(void); // computes new timestep for CLESS_ONLY mode 
   void WeightedAveUCL(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
     AthenaArray<Real> &u_in2, const Real wght[3]);
   void AddFluxDivergenceToAverageCL(AthenaArray<Real> &w,
@@ -46,7 +46,7 @@ public:
   void CalculateFluxesCL(AthenaArray<Real> &w, int order);
   void RiemannSolverCL(const int kl, const int ku, const int jl, const int ju,
     const int il, const int iu, const int ivx, const int ip12, 
-    AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx);
+  AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx);
 
   void AddGravityFluxCL(void);
   void AddGravityFluxWithGflxCL(void);
@@ -54,7 +54,7 @@ public:
   void CorrectGravityFluxCL(void);
 
 private:
-	AthenaArray<Real> dt1_,dt2_,dt3_; 
+  AthenaArray<Real> dt1_,dt2_,dt3_; 
   // scratch space used to compute fluxes
   AthenaArray<Real> wl_, wr_;
   AthenaArray<Real> dxw_;

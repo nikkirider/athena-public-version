@@ -71,7 +71,7 @@ void Cless::CalculateFluxesCL(AthenaArray<Real> &w, int order) {
     // set the loop limits
     il=is, iu=ie, kl=ks, ku=ke;
     
-		// reconstruct L/R states at j
+    // reconstruct L/R states at j
     if (order == 1) {
       pmb->precon->DonorCellCLX2(pmb,kl,ku,js,je+1,il,iu,w,wl,wr);
     } else if (order == 2) {
@@ -111,5 +111,5 @@ void Cless::CalculateFluxesCL(AthenaArray<Real> &w, int order) {
 
   if (SELF_GRAVITY_ENABLED) AddGravityFluxCL(); // add gravity flux directly
   
-	return;
+  return;
 }

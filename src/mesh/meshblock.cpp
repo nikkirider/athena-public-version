@@ -37,6 +37,7 @@
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "mesh.hpp"
+#include "../expansion/expansion.hpp"
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -138,6 +139,15 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   InitUserMeshBlockData(pin);
   // Initialize OTF output if necessary.
   InitOTFOutput(pin);
+
+  pex = new Expansion(this,pin);
+
+  if (TIMESTEPINFO_ENABLED) { 
+    ndt = 12;
+    all_min_dts.NewAthenaArray(ndt); // v1,v2,v3,cs,b1,b2,b3,cond,usr,exp
+    all_min_loc.NewAthenaArray(ndt,3);
+    all_min_ind.NewAthenaArray(ndt,3);
+  }
 
   return;
 }
@@ -286,6 +296,13 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os+=ruser_meshblock_data[n].GetSizeInBytes();
   }
 
+  if (TIMESTEPINFO_ENABLED) {
+    ndt = 12;
+    all_min_dts.NewAthenaArray(ndt); // v1,v2,v3,cs,b1,b2,b3,cond,usr,exp
+    all_min_loc.NewAthenaArray(ndt,3);
+    all_min_ind.NewAthenaArray(ndt,3);
+  }
+
   return;
 }
 
@@ -320,6 +337,12 @@ MeshBlock::~MeshBlock() {
   for (int n=0; n<nint_user_meshblock_data_; n++)
     iuser_meshblock_data[n].DeleteAthenaArray();
   if (nint_user_meshblock_data_>0) delete [] iuser_meshblock_data;
+
+  if (TIMESTEPINFO_ENABLED) {
+    all_min_dts.DeleteAthenaArray();
+    all_min_loc.DeleteAthenaArray();
+    all_min_ind.DeleteAthenaArray();
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -425,22 +448,3 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
 
   return size;
 }
-
-//----------------------------------------------------------------------------------------
-//! \fn Real GetMeanDensity(void)
-//  \brief Calculates the total mass of one meshblock. 
-//  Used by Mesh to calculate mean density
-
-Real MeshBlock::GetMeanDensity() {
-  Real mass = 0.0;
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        Real dv  = pcoord->GetCellVolume(k,j,i);
-        mass    += phydro->u(IDN,k,j,i)*dv;
-      }
-    }
-  }
-  return mass;
-}
-

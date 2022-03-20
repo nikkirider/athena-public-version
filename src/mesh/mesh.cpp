@@ -641,8 +641,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
 
   for (int dir=0; dir<6; dir++) {
     BoundaryFunction_[dir]=NULL;
-    BoundaryFunctionCL_[dir]=NULL; 
-  }
+		BoundaryFunctionCL_[dir]=NULL; 
+	}
   AMRFlag_=NULL;
   UserSourceTerm_=NULL;
   StaticGravPot_=NULL;
@@ -1022,47 +1022,237 @@ void Mesh::OutputMeshStructure(int dim) {
 
 void Mesh::NewTimeStep(void) {
   MeshBlock *pmb = pblock;
-  Real min_dt=pmb->new_block_dt;
-  pmb=pmb->next;
-  while (pmb != NULL)  {
-    min_dt=std::min(min_dt,pmb->new_block_dt);
-    pmb=pmb->next;
-  }
+  Real min_dt;
+
+  if (TIMESTEPINFO_ENABLED) {
+    int ndt = pmb->ndt;  
+    AthenaArray<Real> all_min_dts, all_min_loc;
+    AthenaArray<int> all_min_ind, all_min_prc;
 #ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE,&min_dt,1,MPI_ATHENA_REAL,MPI_MIN,MPI_COMM_WORLD);
+    int ierr;
+    Real *buf_in, *buf_out;
+    buf_in  = (Real*) malloc(sizeof(Real)*ndt*7);
+    buf_out = (Real*) malloc(sizeof(Real)*ndt*7*Globals::nranks);
 #endif
+    all_min_dts.NewAthenaArray(ndt);
+    all_min_loc.NewAthenaArray(ndt,3);
+    all_min_ind.NewAthenaArray(ndt,3);
+    all_min_prc.NewAthenaArray(ndt);
+    
+    min_dt=pmb->new_block_dt;
+    for (int l=0; l<ndt; l++) {
+      all_min_dts(l) = pmb->all_min_dts(l);
+      for (int m=0; m<3; m++) {
+        all_min_loc(l,m) = pmb->all_min_loc(l,m);
+        all_min_ind(l,m) = pmb->all_min_ind(l,m);       
+      }
+    }
+    pmb=pmb->next;
+    while (pmb != NULL) {
+      min_dt=std::min(min_dt,pmb->new_block_dt);
+      for (int l=0; l<ndt; l++) {
+        if (pmb->all_min_dts(l) < all_min_dts(l)) {
+          all_min_dts(l) = pmb->all_min_dts(l);
+          for (int m=0; m<3; m++) {
+            all_min_loc(l,m) = pmb->all_min_loc(l,m);
+            all_min_ind(l,m) = pmb->all_min_ind(l,m);
+          }
+        }
+      }
+      pmb=pmb->next;
+    }
+#ifdef MPI_PARALLEL
+    for (int l=0; l<ndt; l++) {
+      buf_in[l*7+0] = all_min_dts(l);
+//#pragma omp simd
+      for (int m=0; m<3; m++) {
+        buf_in[l*7+m]   = all_min_loc(l,m);
+        buf_in[l*7+4+m] = ((Real) all_min_ind(l,m)) + 0.01;
+      }
+    }
+    ierr = MPI_Gather(buf_in,7*ndt,MPI_ATHENA_REAL,buf_out,7*ndt,MPI_DOUBLE,0,MPI_COMM_WORLD);
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
+
+    if (Globals::my_rank == 0) { // from here on, just master 
+      int pmax = -1;
+      AthenaArray<Real> mindt_proc;
+      mindt_proc.NewAthenaArray(Globals::nranks);
+      for (int l=0; l<ndt; l++) { 
+//#pragma omp simd
+        for (int p=0; p<Globals::nranks; p++) {
+          mindt_proc(p) = buf_out[7*ndt*p+7*l+0]; // copy min_dt from each processor p, for each timestep type l
+        }
+        all_min_dts(l) = (FLT_MAX);
+        for (int p=0; p<Globals::nranks; p++) {
+          if (mindt_proc(p) < all_min_dts(l)) {
+            all_min_dts(l) = mindt_proc(p);
+            pmax = p;
+          }
+        }
+//#pragma omp simd
+        for (int m=0; m<3; m++) {
+          all_min_loc(l,m) = buf_out[7*ndt*pmax+7*l+1+m];
+          all_min_ind(l,m) = (int) buf_out[7*ndt*pmax+7*l+4+m];
+          all_min_prc(l)   = pmax; 
+        }
+      }
+      mindt_proc.DeleteAthenaArray();
+    }
+    free(buf_in);
+    free(buf_out);
+#endif // MPI_PARALLEL
+
+    if (Globals::my_rank == 0) {
+      std::cout << "[Mesh::NewTimeStep]: dtcs = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(0) 
+                <<                    "  p = " << std::setw(5) << all_min_prc(0)
+                <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(0,0)
+                <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(0,1)
+                <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(0,2)
+                <<                    "  i = " << std::setw(5) << all_min_ind(0,0)
+                <<                    "  j = " << std::setw(5) << all_min_ind(0,1)
+                <<                    "  k = " << std::setw(5) << all_min_ind(0,2)
+                << std::endl;
+      std::cout << "[Mesh::NewTimeStep]: dtv1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(1)
+                <<                    "  p = " << std::setw(5) << all_min_prc(1)
+                <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(1,0)
+                <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(1,1)
+                <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(1,2)
+                <<                    "  i = " << std::setw(5) << all_min_ind(1,0)
+                <<                    "  j = " << std::setw(5) << all_min_ind(1,1)
+                <<                    "  k = " << std::setw(5) << all_min_ind(1,2)
+                << std::endl;
+      if (pblock->js < pblock->je) {
+        std::cout << "[Mesh::NewTimeStep]: dtv2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(2)
+                  <<                    "  p = " << std::setw(5) << all_min_prc(2)
+                  <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(2,0)
+                  <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(2,1)
+                  <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(2,2)
+                  <<                    "  i = " << std::setw(5) << all_min_ind(2,0)
+                  <<                    "  j = " << std::setw(5) << all_min_ind(2,1)
+                  <<                    "  k = " << std::setw(5) << all_min_ind(2,2)
+                  << std::endl;
+      }
+      if (pblock->ks < pblock->ke) {
+        std::cout << "[Mesh::NewTimeStep]: dtv3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(3)
+                  <<                    "  p = " << std::setw(5) << all_min_prc(3)
+                  <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(3,0)
+                  <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(3,1)
+                  <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(3,2)
+                  <<                    "  i = " << std::setw(5) << all_min_ind(3,0)
+                  <<                    "  j = " << std::setw(5) << all_min_ind(3,1)
+                  <<                    "  k = " << std::setw(5) << all_min_ind(3,2)
+                  << std::endl;
+      }
+      if (MAGNETIC_FIELDS_ENABLED) {
+        std::cout << "[Mesh::NewTimeStep]: dta1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(4)
+                  <<                    "  p = " << std::setw(5) << all_min_prc(4)
+                  <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(4,0)
+                  <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(4,1)
+                  <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(4,2)
+                  <<                    "  i = " << std::setw(5) << all_min_ind(4,0)
+                  <<                    "  j = " << std::setw(5) << all_min_ind(4,1)
+                  <<                    "  k = " << std::setw(5) << all_min_ind(4,2)
+                  << std::endl;
+        if (pblock->js < pblock->je) {
+          std::cout << "[Mesh::NewTimeStep]: dta2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(5)
+                    <<                    "  p = " << std::setw(5) << all_min_prc(5)
+                    <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(5,0)
+                    <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(5,1)
+                    <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(5,2)
+                    <<                    "  i = " << std::setw(5) << all_min_ind(5,0)
+                    <<                    "  j = " << std::setw(5) << all_min_ind(5,1)
+                    <<                    "  k = " << std::setw(5) << all_min_ind(5,2)
+                    << std::endl;
+        }
+        if (pblock->ks < pblock->ke) {
+          std::cout << "[Mesh::NewTimeStep]: dta3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(6)
+                    <<                    "  p    = " << std::setw(5) << all_min_prc(6)
+                    <<                    "  x1   = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(6,0)
+                    <<                    "  x2   = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(6,1)
+                    <<                    "  x3   = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(6,2)
+                    <<                    "  i    = " << std::setw(5) << all_min_ind(6,0)
+                    <<                    "  j    = " << std::setw(5) << all_min_ind(6,1)
+                    <<                    "  k    = " << std::setw(5) << all_min_ind(6,2)
+                    << std::endl;
+        }
+      }
+      if (pblock->phydro->phdif->hydro_diffusion_defined) {
+        std::cout << "[Mesh::NewTimeStep]: dtcnd= " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(7)
+                  <<                    "  p = " << std::setw(5) << all_min_prc(7)
+                  <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(7,0)
+                  <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(7,1)
+                  <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(7,2)
+                  <<                    "  i = " << std::setw(5) << all_min_ind(7,0)
+                  <<                    "  j = " << std::setw(5) << all_min_ind(7,1)
+                  <<                    "  k = " << std::setw(5) << all_min_ind(7,2)
+                  << std::endl;
+      }
+      if (UserSourceTerm_ != NULL) {
+        std::cout << "[Mesh::NewTimeStep]: dtusr= " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(8)
+                  <<                    "  p = " << std::setw(5) << all_min_prc(8)
+                  <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(8,0)
+                  <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(8,1)
+                  <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(8,2)
+                  <<                    "  i = " << std::setw(5) << all_min_ind(8,0)
+                  <<                    "  j = " << std::setw(5) << all_min_ind(8,1)
+                  <<                    "  k = " << std::setw(5) << all_min_ind(8,2)
+                  << std::endl;
+      }
+      if (EXPANDING) {
+        if (pblock->pex->x1Move) {
+          std::cout << "[Mesh::NewTimeStep]: dtex1= " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(9)
+                    <<                    "  p = " << std::setw(5) << all_min_prc(9)
+                    <<                    "  x1 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(9,0)
+                    <<                    std::setw(20) << " "
+                    <<                    std::setw(20) << " "
+                    <<                    "  i = " << std::setw(5) << all_min_ind(9,0)
+                    << std::endl;
+        }
+        if (pblock->pex->x2Move) {
+          std::cout << "[Mesh::NewTimeStep]: dtex2= " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(10)
+                    <<                    "  p = " << std::setw(5) << all_min_prc(10)
+                    <<                    std::setw(20) << " "
+                    <<                    "  x2 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(10,1)
+                    <<                    std::setw(20) << " "
+                    <<                    std::setw(11) << " "
+                    <<                    "  j = " << std::setw(5) << all_min_ind(10,1)
+                    << std::endl;
+        }
+        if (pblock->pex->x3Move) {
+          std::cout << "[Mesh::NewTimeStep]: dtex3= " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(11)
+                    <<                    "  p = " << std::setw(5) << all_min_prc(11)
+                    <<                    std::setw(20) << " "
+                    <<                    std::setw(20) << " "
+                    <<                    "  x3 = " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_loc(11,2)
+                    <<                    std::setw(11) << " "
+                    <<                    std::setw(11) << " "
+                    <<                    "  k = " << std::setw(5) << all_min_ind(11,2)
+                    << std::endl;
+        }
+      }
+    }
+
+    all_min_dts.DeleteAthenaArray();
+    all_min_loc.DeleteAthenaArray();   
+    all_min_ind.DeleteAthenaArray();   
+    all_min_prc.DeleteAthenaArray();
+  } else { // old branch 
+    min_dt=pmb->new_block_dt;
+    pmb=pmb->next;
+    while (pmb != NULL)  {
+      min_dt=std::min(min_dt,pmb->new_block_dt);
+      pmb=pmb->next;
+    }
+#ifdef MPI_PARALLEL
+    MPI_Allreduce(MPI_IN_PLACE,&min_dt,1,MPI_ATHENA_REAL,MPI_MIN,MPI_COMM_WORLD);
+#endif
+  }
+
   // set it
+  //if (Globals::my_rank == 0) fprintf(stdout,"[mesh::NewTimeStep]: dt=%13.5e min_dt=%13.5e\n",dt,min_dt);
   dt=std::min(min_dt,static_cast<Real>(2.0)*dt);
   if (time < tlim && tlim-time < dt)  // timestep would take us past desired endpoint
     dt = tlim-time;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void Mesh::GetMeanDens(void)
-// \brief function that loops over all MeshBlocks and finds mean density
-// This assumes a fixed grid (no AMR). For AMR, restrict to coarsest level.
-// In the current form, this should only be used for initialization or restarts,
-// because of global MPI operation. 
-
-void Mesh::GetMeanDensity(void) {
-  MeshBlock *pmb = pblock;
-  Real mass = 0.0;
-  while (pmb != NULL)  {
-    mass += pmb->GetMeanDensity();
-    pmb       =pmb->next;
-  }
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE,&mass,1,MPI_ATHENA_REAL,MPI_SUM,MPI_COMM_WORLD);
-#endif 
-  Real dvol = mesh_size.x1max-mesh_size.x1min;
-  if (mesh_size.nx2 > 1)
-    dvol *= (mesh_size.x2max-mesh_size.x2min); 
-  if (mesh_size.nx3 > 1)
-    dvol *= (mesh_size.x3max-mesh_size.x3min);
-  mass /= dvol;
-  //std::cout << "[Mesh::GetMeanDensity]: " << mass << std::endl; 
-  SetMeanDensity(mass);
   return;
 }
 
@@ -1322,15 +1512,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pmb->pbval->CheckBoundary();
       }
     }
-    // fh200819: Calculate grav_mean_rho if not provided.
-    // GetMeanDensity sets grav_mean_rho_.
-    // The default value is grav_mean_rho_=-1.0.
-    // When using GetMeanDensity, use SetMeanDensity(0.0) in InitUserData.
-    if (SELF_GRAVITY_ENABLED == 1) {
-      if (grav_mean_rho_ == 0.0) { 
-        GetMeanDensity();
-      }
-    }
 
     // add initial perturbation for decaying or impulsive turbulence
     if (((turb_flag == 1) || (turb_flag == 2)) && (res_flag == 0))
@@ -1346,7 +1527,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 {
     MeshBlock *pmb;
     Hydro *phydro;
-    Cless *pcless;
+		Cless *pcless;
     Field *pfield;
     BoundaryValues *pbval;
 
@@ -1365,9 +1546,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, HYDRO_CONS);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->SendFieldBoundaryBuffers(pmb->pfield->b);
-      if (CLESS_ENABLED) 
-        pbval->SendCellCenteredBoundaryBuffers(pmb->pcless->u, CLESS_CONS);
-    }
+			if (CLESS_ENABLED) 
+				pbval->SendCellCenteredBoundaryBuffers(pmb->pcless->u, CLESS_CONS);
+		}
 		
     // wait to receive conserved variables
 #pragma omp for private(pmb,pbval)
@@ -1379,8 +1560,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // send and receive shearingbox boundary conditions
       if (SHEARING_BOX)
         pbval->SendHydroShearingboxBoundaryBuffersForInit(pmb->phydro->u, true);
-      if (CLESS_ENABLED)
-        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pcless->u, CLESS_CONS);
+			if (CLESS_ENABLED)
+				pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pcless->u, CLESS_CONS);
       pbval->ClearBoundaryForInit(true);
     }
 
@@ -1417,10 +1598,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       if (multilevel==true) {
         pbval->ProlongateBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                     time, 0.0);
-        if (CLESS_ENABLED) {
-          pbval->ProlongateBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-        }
-      }
+				if (CLESS_ENABLED) {
+					pbval->ProlongateBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+				}
+			}
 
       int il=pmb->is, iu=pmb->ie, jl=pmb->js, ju=pmb->je, kl=pmb->ks, ku=pmb->ke;
       if (pbval->nblevel[1][1][0]!=-1) il-=NGHOST;
@@ -1438,12 +1619,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                       il, iu, jl, ju, kl, ku);
       pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                      time, 0.0);
-      if (CLESS_ENABLED) {
-        pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
-                                  pcless->w, pmb->pcoord, 
-                                  il, iu, jl, ju, kl, ku);
-        pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-      }
+			if (CLESS_ENABLED) {
+				pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
+																	pcless->w, pmb->pcoord, 
+																	il, iu, jl, ju, kl, ku);
+				pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+			}
     }
 
     // Calc initial diffusion coefficients
@@ -2347,12 +2528,12 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           pmr->ProlongateInternalField(pb->pfield->b, pb->cis, pb->cie,
                                        pb->cjs, pb->cje, pb->cks, pb->cke);
         }
-        if (CLESS_ENABLED) {
-          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_conscl_,
-                                      0, NCLESS-1, is, ie, js, je, ks, ke, p);
-          pmr->ProlongateCellCenteredValues(pmr->coarse_conscl_, pb->pcless->u, 0, NCLESS-1,
-                                            pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
-        }
+				if (CLESS_ENABLED) {
+					BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_conscl_,
+                                    0, NCLESS-1, is, ie, js, je, ks, ke, p);
+					pmr->ProlongateCellCenteredValues(pmr->coarse_conscl_, pb->pcless->u, 0, NCLESS-1,
+																		 pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+				}
         k++;
       }
     }
@@ -2404,4 +2585,119 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 
 unsigned int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
   return (lid<<8) | (ox1<<7)| (ox2<<6) | (ox3<<5) | TAG_AMR;
+}
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void Mesh::EnrollGridDiffEq(WallVel_t my_func)
+//  \brief Enroll a user-defined function for velocity of cell walls for moving grid
+
+void Mesh::EnrollGridDiffEq(WallVel_t my_func) {
+  if (EXPANDING) {
+    GridDiffEq_ = my_func;
+  }
+  return;
+}
+//----------------------------------------------------------------------------------------
+//! \fn void Mesh::EnrollCalcGridData(CalcGridData_t my_func)
+//  \brief Enroll a user-defined function for mesh level data used in calculating the 
+//  movement of the grid. Changes entries in GridData AthenaArray used in the GridDiffEq
+
+void Mesh::EnrollCalcGridData(CalcGridData_t my_func) {
+  if (EXPANDING) {
+    CalcGridData_ = my_func;
+  }
+  return;
+}
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void Mesh::SetGridData(int n)
+//  \brief Set AthenaArray GridData with n Real entries 
+
+void Mesh::SetGridData(int n) {
+  if (EXPANDING) {
+    GridData.NewAthenaArray(n);
+  }
+  return;
+}
+//----------------------------------------------------------------------------------------
+//! \fn void Mesh::SetMeshSize()
+//  \brief Set Mesh size object with new bounds 
+
+void Mesh::SetMeshSize(Mesh *pm) {
+  if (EXPANDING) {
+    Real inner = 0.0;
+    Real outer = 0.0;
+    MeshBlock *pmb = pm->pblock;
+
+    if (pmb->pex->x1Move) {
+      //x1
+      inner = 0.0;
+      outer = 0.0;
+        
+      while (pmb != NULL) {
+        inner = std::min(pmb->block_size.x1min,inner);
+        outer = std::max(pmb->block_size.x1max,outer);
+        pmb = pmb->next;
+      }
+
+#ifdef MPI_PARALLEL
+      MPI_Allreduce(MPI_IN_PLACE,&inner,1,MPI_ATHENA_REAL,MPI_MIN,
+                   MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&outer,1,MPI_ATHENA_REAL,MPI_MAX,
+                   MPI_COMM_WORLD);
+#endif
+  
+      pm->mesh_size.x1min = inner;
+      pm->mesh_size.x1max = outer;
+    }
+    pmb = pm->pblock;
+
+    if (pmb->pex->x2Move) {
+      //x1
+      inner = 0.0;
+      outer = 0.0;
+        
+      while (pmb != NULL) {
+        inner = std::min(pmb->block_size.x2min,inner);
+        outer = std::max(pmb->block_size.x2max,outer);
+        pmb = pmb->next;
+      }
+
+#ifdef MPI_PARALLEL
+      MPI_Allreduce(MPI_IN_PLACE,&inner,1,MPI_ATHENA_REAL,MPI_MIN,
+                   MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&outer,1,MPI_ATHENA_REAL,MPI_MAX,
+                   MPI_COMM_WORLD);
+#endif
+  
+      pm->mesh_size.x2min = inner;
+      pm->mesh_size.x2max = outer;
+    }
+    pmb = pm->pblock;
+    if (pmb->pex->x3Move) {
+      //x1
+      inner = 0.0;
+      outer = 0.0;
+        
+      while (pmb != NULL) {
+        inner = std::min(pmb->block_size.x3min,inner);
+        outer = std::max(pmb->block_size.x3max,outer);
+        pmb = pmb->next;
+      }
+
+#ifdef MPI_PARALLEL
+      MPI_Allreduce(MPI_IN_PLACE,&inner,1,MPI_ATHENA_REAL,MPI_MIN,
+                   MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&outer,1,MPI_ATHENA_REAL,MPI_MAX,
+                   MPI_COMM_WORLD);
+#endif
+  
+      pm->mesh_size.x3min = inner;
+      pm->mesh_size.x3max = outer;
+    }
+
+  }
+  return;
 }

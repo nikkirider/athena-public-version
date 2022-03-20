@@ -44,7 +44,7 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
-
+class Expansion;
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
 //  \brief data/functions associated with a single block
@@ -108,13 +108,21 @@ public:
   Gravity *pgrav;
   EquationOfState *peos;
 
+  Expansion *pex;
+
   MeshBlock *prev, *next;
+
+  // items for timestep info
+  int ndt; // number of individual timesteps
+  AthenaArray<Real> all_min_dts; // to keep track of minimum timesteps: cs, v1,v2,v3,b1,b2,b3,cond,usr,exp
+  AthenaArray<Real> all_min_loc; // location of minimum timesteps
+  AthenaArray<int>  all_min_ind; // indices of minimum timesteps
+
 
   // functions
   size_t GetBlockSizeInBytes(void);
   void SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist, int *nslist);
-  Real GetMeanDensity(void); // for self-gravity
-  void UserWorkInLoop(void); // in ../pgen
+  void UserWorkInLoop(void);                       // in ../pgen
   void InitUserMeshBlockData(ParameterInput *pin); // in ../pgen
   void UserWorkBeforeOutput(ParameterInput *pin);  // in ../pgen
   void InitOTFOutput(ParameterInput *pin);         // in ../pgen
@@ -160,6 +168,7 @@ class Mesh {
   friend class MGGravityDriver;
   friend class Gravity;
   friend class HydroDiffusion;
+  friend class Expansion;
   friend class FieldDiffusion;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
@@ -206,7 +215,12 @@ public:
   void ApplyUserWorkBeforeOutput(ParameterInput *pin);
   void ApplyOTFWorkBeforeOutput(ParameterInput *pin);
   void UserWorkAfterLoop(ParameterInput *pin); // method in ../pgen
-  void GetMeanDensity(void); // For self-gravity. Called during Mesh Initialization, and in UserWorkInLoop if necessary
+  void UserWorkInLoop(); // called in main after each cycle
+
+  WallVel_t GridDiffEq_;
+  CalcGridData_t CalcGridData_;
+  void SetMeshSize(Mesh *pm);
+  AthenaArray<Real> GridData; 
 
 private:
   // data
@@ -233,7 +247,7 @@ private:
   SrcTermFunc_t UserSourceTerm_;
   StaticGravPotFunc_t StaticGravPot_;
   BValFunc_t BoundaryFunction_[6];
-	BValFuncCL_t BoundaryFunctionCL_[6]; 
+  BValFuncCL_t BoundaryFunctionCL_[6]; 
   AMRFlagFunc_t AMRFlag_;
   TimeStepFunc_t UserTimeStep_;
   HistoryOutputFunc_t *user_history_func_;
@@ -267,6 +281,10 @@ private:
   void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
   void SetGravityThreshold(Real eps) { grav_eps_=eps; }
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
+
+  void EnrollGridDiffEq(WallVel_t my_func);
+  void EnrollCalcGridData(CalcGridData_t my_func);
+  void SetGridData(int n);
 };
 
 

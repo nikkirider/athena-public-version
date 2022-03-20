@@ -41,10 +41,10 @@ void ClessSourceTerms::SelfGravityCL(const Real dt,const AthenaArray<Real> *flux
           phil = 0.5*(pgrav->phi(k,j,i-1)+pgrav->phi(k,j,i  ));
           phir = 0.5*(pgrav->phi(k,j,i  )+pgrav->phi(k,j,i+1));
           // Update Eij with d/dx1 terms
-					// For CLESS use the primitive variables to update the conserved variables
+          // For CLESS use the primitive variables to update the conserved variables
           cons(IE11,k,j,i) -= 2.0*dtodx1*(phir-phil)*prim(IDN,k,j,i)*prim(IVX,k,j,i);
-					cons(IE12,k,j,i) -=     dtodx1*(phir-phil)*prim(IDN,k,j,i)*prim(IVY,k,j,i);
-					cons(IE13,k,j,i) -=			dtodx1*(phir-phil)*prim(IDN,k,j,i)*prim(IVZ,k,j,i);
+          cons(IE12,k,j,i) -=     dtodx1*(phir-phil)*prim(IDN,k,j,i)*prim(IVY,k,j,i);
+          cons(IE13,k,j,i) -=	  dtodx1*(phir-phil)*prim(IDN,k,j,i)*prim(IVZ,k,j,i);
         }
       }
     }
@@ -62,11 +62,11 @@ void ClessSourceTerms::SelfGravityCL(const Real dt,const AthenaArray<Real> *flux
             phic = pgrav->phi(k,j,i);
             phil = 0.5*(pgrav->phi(k,j-1,i)+pgrav->phi(k,j  ,i));
             phir = 0.5*(pgrav->phi(k,j  ,i)+pgrav->phi(k,j+1,i));
-						// Update Eij with d/dx2 terms
-						// For CLESS use the primitive variables to update the conserved variables
-						cons(IE22,k,j,i) -= 2.0*dtodx2*(phir-phil)*prim(IDN,k,j,i)*prim(IVY,k,j,i);
-						cons(IE12,k,j,i) -=     dtodx2*(phir-phil)*prim(IDN,k,j,i)*prim(IVX,k,j,i);
-						cons(IE23,k,j,i) -=     dtodx2*(phir-phil)*prim(IDN,k,j,i)*prim(IVZ,k,j,i);
+            // Update Eij with d/dx2 terms
+            // For CLESS use the primitive variables to update the conserved variables
+            cons(IE22,k,j,i) -= 2.0*dtodx2*(phir-phil)*prim(IDN,k,j,i)*prim(IVY,k,j,i);
+            cons(IE12,k,j,i) -=     dtodx2*(phir-phil)*prim(IDN,k,j,i)*prim(IVX,k,j,i);
+            cons(IE23,k,j,i) -=     dtodx2*(phir-phil)*prim(IDN,k,j,i)*prim(IVZ,k,j,i);
           }
         }
       }
@@ -85,11 +85,11 @@ void ClessSourceTerms::SelfGravityCL(const Real dt,const AthenaArray<Real> *flux
             phic = pgrav->phi(k,j,i);
             phil = 0.5*(pgrav->phi(k-1,j,i)+pgrav->phi(k  ,j,i));
             phir = 0.5*(pgrav->phi(k  ,j,i)+pgrav->phi(k+1,j,i));
-						// Update Eij with d/dx3 terms
-						// For CLESS use the primitive variables to update the conserved variables
-						cons(IE33,k,j,i) -= 2.0*dtodx3*(phir-phil)*prim(IDN,k,j,i)*prim(IVZ,k,j,i);
-						cons(IE13,k,j,i) -=     dtodx3*(phir-phil)*prim(IDN,k,j,i)*prim(IVX,k,j,i);
-						cons(IE23,k,j,i) -=     dtodx3*(phir-phil)*prim(IDN,k,j,i)*prim(IVY,k,j,i);
+            // Update Eij with d/dx3 terms
+            // For CLESS use the primitive variables to update the conserved variables
+            cons(IE33,k,j,i) -= 2.0*dtodx3*(phir-phil)*prim(IDN,k,j,i)*prim(IVZ,k,j,i);
+            cons(IE13,k,j,i) -=     dtodx3*(phir-phil)*prim(IDN,k,j,i)*prim(IVX,k,j,i);
+            cons(IE23,k,j,i) -=     dtodx3*(phir-phil)*prim(IDN,k,j,i)*prim(IVY,k,j,i);
           }
         }
       }

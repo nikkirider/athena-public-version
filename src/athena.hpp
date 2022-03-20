@@ -51,6 +51,7 @@ struct RegionSize;
 class HydroDiffusion;
 class FieldDiffusion;
 
+class Mesh;
 //--------------------------------------------------------------------------------------
 //! \struct LogicalLocation
 //  \brief stores logical location and level of meshblock
@@ -120,7 +121,7 @@ enum {IB1=0, IB2=1, IB3=2};
 // array indices for cless variables
 enum {IE11=4,IE22=5,IE33=6,IE12=7,IE13=8,IE23=9};
 
-// array indices for 1D primitives: velocity, transverse components of field
+// array indices for 1D primitives: velocity, pressure internal energy, transverse components of field
 enum {IVX=1, IVY=2, IVZ=3, IPR=4, IGE=5, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
 
 // array indices for cless variables
@@ -189,4 +190,6 @@ typedef void (*FieldDiffusionCoeff_t)(FieldDiffusion *pfdif, MeshBlock *pmb,
                                       const AthenaArray<Real> &bmag,
                                       int is, int ie, int js, int je, int ks, int ke);
 
+typedef Real (*WallVel_t)(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> gridData);
+typedef void (*CalcGridData_t)(Mesh *pm);
 #endif // ATHENA_HPP_

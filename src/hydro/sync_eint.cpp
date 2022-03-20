@@ -6,6 +6,11 @@
 //! \file sync_eint.cpp
 //  \brief Syncs internal with total energy
 
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+
 // Athena++ headers
 #include "hydro.hpp"
 #include "../athena.hpp"
@@ -37,100 +42,66 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
 
   // 1D-case
   if ( dim == 1 ) {
-// Pretty sure that vectorization does not allow if statements (loop actions must be known in advance)
 //#pragma omp simd
     for (int i=is; i<=ie; ++i) {
-      eint = u(IEN,ks,js,i) - 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
+      eint = u(IEN,ks,js,i) - 0.5*(SQR(u(IVX,ks,js,i)))/u(IDN,ks,js,i);
       emax = u(IEN,ks,js,i); 
-
       emax = std::max(emax,u(IEN,ks,js,std::max(is,i-1)));
       emax = std::max(emax,u(IEN,ks,js,std::min(ie,i+1)));
-			
+
       if ((eint/emax > i2) && (eint > 0.0)) {
-	u(IIE,ks,js,i) = eint; 
+        u(IIE,ks,js,i) = eint; 
       }
     }
   }
   // 2D-case
   else if ( dim == 2 ) {
     for (int j=js; j<=je; ++j) {
-// Pretty sure that vectorization does not allow if statements (loop actions must be known in advance)
 //#pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        eint = u(IEN,ks,j,i) - 0.5*(SQR(u(IM1,ks,j,i)) + SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
+        eint = u(IEN,ks,j,i) - 0.5*(  SQR(u(IM1,ks,j,i))
+                                          + SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
         emax = u(IEN,ks,j,i); 
-
-        // this is should be equivalent to the commented out for-loop below
-        //emax = std::max(emax,u(IEN,ks,std::max(js,j-1),std::max(is,i-1)));
-        //emax = std::max(emax,u(IEN,ks,std::max(js,j-1),            i   ));
-        //emax = std::max(emax,u(IEN,ks,std::max(js,j-1),std::min(ie,i+1)));
-        //emax = std::max(emax,u(IEN,ks,            j   ,std::max(is,i-1)));
-        //emax = std::max(emax,u(IEN,ks,            j   ,            i   ));
-        //emax = std::max(emax,u(IEN,ks,            j   ,std::min(ie,i+1)));
-        //emax = std::max(emax,u(IEN,ks,std::min(je,j+1),std::max(is,i-1)));
-        //emax = std::max(emax,u(IEN,ks,std::min(je,j+1),            i   ));
-        //emax = std::max(emax,u(IEN,ks,std::min(je,j+1),std::min(ie,i+1)));
 				
-        for (int jj=std::max(js,j-1); jj<=std::min(je,j+1); jj++) {
-          for (int ii=std::max(is,i-1); ii<=std::min(ie,i+1); ii++) {
-            emax = std::max(emax,u(IEN,ks,jj,ii));
-          }
-        }
+        // Can't do this with for-loop bc of pragma directive
+        emax = std::max(emax,u(IEN,ks,std::max(js,j-1),std::max(is,i-1)));
+        emax = std::max(emax,u(IEN,ks,std::max(js,j-1),            i   ));
+        emax = std::max(emax,u(IEN,ks,std::max(js,j-1),std::min(ie,i+1)));
+        emax = std::max(emax,u(IEN,ks,            j   ,std::max(is,i-1)));
+        emax = std::max(emax,u(IEN,ks,            j   ,            i   ));
+        emax = std::max(emax,u(IEN,ks,            j   ,std::min(ie,i+1)));
+        emax = std::max(emax,u(IEN,ks,std::min(je,j+1),std::max(is,i-1)));
+        emax = std::max(emax,u(IEN,ks,std::min(je,j+1),            i   ));
+        emax = std::max(emax,u(IEN,ks,std::min(je,j+1),std::min(ie,i+1)));
+				
         if ((eint/emax > i2) && (eint > 0.0)) {
-          //std::cout << "[SyncEint]: k " << ks << " j " << j  << " i "  << i << " eint=" << eint
-          //          << " IE: " << u(IIE,ks,j,i) << " ieta2: " << i2 << std::endl;
+        //std::cout << "[SyncEint]: k " << ks << " j " << j  << " i "  << i << " eint=" << eint
+        //          << " IE: " << u(IIE,ks,j,i) << " ieta2: " << i2 << std::endl;
           u(IIE,ks,j,i) = eint; 
+
         }
       }
-    }
+    } 
   }
   // 3D-case
   else {
     for (int k=ks; k<=ke; ++k) {
       for (int j=js; j<=je; ++j) {
-// Pretty sure that vectorization does not allow if statements (loop actions must be known in advance)
 //#pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          eint = u(IEN,k,j,i) - 0.5*(SQR(u(IM1,k,j,i)) + SQR(u(IM2,k,j,i)) + SQR(u(IM3,k,j,i)))/u(IDN,k,j,i);
+          eint = u(IEN,k,j,i) - 0.5*(  SQR(u(IM1,k,j,i))
+                                     + SQR(u(IM2,k,j,i)) 
+                                     + SQR(u(IM3,k,j,i)))/u(IDN,k,j,i);
           emax = u(IEN,k,j,i); 
-
-          // this is should be equivalent to the commented out for-loop below
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::max(js,j-1),std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::max(js,j-1),            i   ));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::max(js,j-1),std::min(ie,i+1)));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),            j   ,std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),            j   ,	           i   ));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),            j   ,std::min(ie,i+1)));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::min(je,j+1),std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::min(je,j+1),            i   ));
-          //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::min(je,j+1),std::min(ie,i+1)));
-
-          //emax = std::max(emax,u(IEN,            k   ,std::max(js,j-1),std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,            k   ,std::max(js,j-1),            i   ));
-          //emax = std::max(emax,u(IEN,            k   ,std::max(js,j-1),std::min(ie,i+1)));
-          //emax = std::max(emax,u(IEN,            k   ,            j   ,std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,            k   ,            j   ,            i   ));
-          //emax = std::max(emax,u(IEN,            k   ,            j   ,std::min(ie,i+1)));
-          //emax = std::max(emax,u(IEN,            k   ,std::min(je,j+1),std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,            k   ,std::min(je,j+1),            i   ));
-          //emax = std::max(emax,u(IEN,            k   ,std::min(je,j+1),std::min(ie,i+1)));
-
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),std::max(js,j-1),std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),std::max(js,j-1),            i   ));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),std::max(js,j-1),std::min(ie,i+1)));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),            j   ,std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),            j   ,            i   ));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),            j   ,std::min(ie,i+1)));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),std::min(je,j+1),std::max(is,i-1)));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),std::min(je,j+1),            i   ));
-          //emax = std::max(emax,u(IEN,std::min(ke,k-1),std::min(je,j+1),std::min(ie,i+1)));
-
-          for (int kk=std::max(ks,k-1); kk<=std::min(ke,k+1); kk++) {
-            for (int jj=std::max(js,j-1); jj<=std::min(je,j+1); jj++) {
-              for (int ii=std::max(is,i-1); ii<=std::min(ie,i+1); ii++) {
-                emax = std::max(emax,u(IEN,kk,jj,ii));
+          for (int kk=-1; kk<=1; kk++) {
+            int k1 = std::min(std::max(ks,k+kk),ke);
+            for (int jj=-1; jj<=1; jj++) {
+              int j1 = std::min(std::max(js,j+jj),je);
+              for (int ii=-1; ii<=1; ii++) {
+                int i1 = std::min(std::max(is,i+ii),ie);
+                emax = std::max(emax,u(IEN,k1,j1,i1));
               }
-            }
+            }				
           }
           if ((eint/emax > i2) && (eint > 0.0)) {
             u(IIE,k,j,i) = eint; 
@@ -160,26 +131,29 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
 
   // 1D-case
   if ( dim == 1 ) {
-//#pragma omp simd
+#pragma omp simd
     for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
       etot = u(IEN,ks,js,i);
       kine = 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
       eint = etot - kine;
       if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
-        u(IEN,ks,js,i)  = u(IIE,ks,js,i) + kine;
+        u(IEN,ks,js,i)  = u(IIE,ks,js,i);
+        u(IEN,ks,js,i) += kine; 
       }
     }
   }
   // 2D-case
   else if ( dim == 2 ) {
     for (int j=js-NGHOST; j<=je+NGHOST; ++j) {
-//#pragma omp simd
+#pragma omp simd
       for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
         etot = u(IEN,ks,j,i);
-        kine = 0.5*(SQR(u(IM1,ks,j,i))+SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
+        kine = 0.5*(  SQR(u(IM1,ks,j,i))
+                    + SQR(u(IM2,ks,j,i)) )/u(IDN,ks,j,i);
         eint = etot - kine;
         if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
-          u(IEN,ks,j,i)  = u(IIE,ks,j,i) + kine;
+          u(IEN,ks,j,i)  = u(IIE,ks,j,i);
+          u(IEN,ks,j,i) += kine; 
         }
       }
     }
@@ -188,13 +162,16 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
   else {
     for (int k=ks-NGHOST; k<=ke+NGHOST; ++k) {
       for (int j=js-NGHOST; j<=je+NGHOST; ++j) {
-//#pragma omp simd
+#pragma omp simd
         for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
           etot = u(IEN,k,j,i); 
-          kine = 0.5*(SQR(u(IM1,k,j,i))+SQR(u(IM2,k,j,i))+SQR(u(IM3,k,j,i)) )/u(IDN,k,j,i);
+          kine = 0.5*(  SQR(u(IM1,k,j,i))
+                      + SQR(u(IM2,k,j,i)) 
+                      + SQR(u(IM3,k,j,i)) )/u(IDN,k,j,i);
           eint = etot - kine; 
           if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
-            u(IEN,k,j,i)  = u(IIE,k,j,i) + kine;
+            u(IEN,k,j,i)  = u(IIE,k,j,i);
+            u(IEN,k,j,i) += kine;
           }
         }
       }
