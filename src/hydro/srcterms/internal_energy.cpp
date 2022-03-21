@@ -46,7 +46,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
         // calculate x1-grad
-        // ** for new version
+        // ** for new version fh++
         pmb->pcoord->VolCenter1Length(k, j, pmb->is-1, pmb->ie+1, dx1v); 
         pmb->pcoord->Edge1Length(k, j, pmb->is-1, pmb->ie+1, dx1f);
         pmb->pcoord->Center1Pos(k, j, pmb->is-1, pmb->ie+1,x1v); //fh++
@@ -55,8 +55,8 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
         //pmb->pcoord->VolCenter1Length(k, j, pmb->is-1, pmb->ie+1, dx1v);
 #pragma omp simd
         for (int i=pmb->is; i<=pmb->ie; ++i) {
-          //** new version //
-          Pc               = prim(IPR,k,j,i);  // should be from internal, not total energy
+          //** new version accounting for non-uniform (radial) grids //
+          Pc               = prim(IGE,k,j,i);  // pressure from internal energy branch fh++
           Real vim         = prim(IVX,k,j,i-1);
           Real vi          = prim(IVX,k,j,i  );
           Real vip         = prim(IVX,k,j,i+1);
@@ -83,7 +83,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
 #pragma omp simd
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             Real dtodx2 = dt/((dx2p1(i) + dx2m1(i))); 
-            Pc  = prim(IPR,k,j,i);
+            Pc  = prim(IGE,k,j,i);
             vr  = prim(IVY,k,j+1,i);
             vl  = prim(IVY,k,j-1,i); 
             // for the time being, this assumes uniform spacing
@@ -97,7 +97,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
 #pragma omp simd
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             Real dtodx3 = dt/(dx3p1(i) + dx3m1(i)); 
-            Pc  = prim(IPR,k,j,i);
+            Pc  = prim(IGE,k,j,i);
             vr  = prim(IVZ,k+1,j,i);
             vl  = prim(IVZ,k-1,j,i); 
             // for the time being, this assumes uniform spacing

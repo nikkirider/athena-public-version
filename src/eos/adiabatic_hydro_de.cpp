@@ -87,12 +87,12 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
       Real ke = 0.5*di*(SQR(u_m1) + SQR(u_m2) + SQR(u_m3));
       w_p = gm1*(u_e - ke);
-      //w_ge = u_ie*di; Do not use temperature (fh211001)
-      w_ge = gm1*u_ie; // use pressure instead (same as standard energy)
+      w_ge= gm1*u_ie;
 
       // Use dual-energy 
       if (((w_p/u_e) < i1) || (u_e <= 0.0) || (w_p <= 0.0) || isnan(w_p)) {
-        w_p = gm1*u_ie; 
+        // Do not use temperature, but pressure instead (same as standard energy fh211001)
+        w_p = w_ge; 
         u_e = u_ie + ke; 
       }
     }

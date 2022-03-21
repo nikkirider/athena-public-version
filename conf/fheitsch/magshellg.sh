@@ -1,14 +1,13 @@
 # Easy to edit configure script for athena++ 
 python3 configure.py\
 			 --prob magshell \
-			 --flux hllc \
+			 --flux hlld \
 			 --coord cartesian \
 			 --nghost=3 \
                          --ns 3 \
 			 -hdf5 \
-                         -exp \
                          -mpi \
-                         -de \
+                         -b \
                          -fft \
                          --grav=fft \
                          --cxx icc \
