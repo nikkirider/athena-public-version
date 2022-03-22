@@ -18,6 +18,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
+#include "../field/field.hpp"
 
 // OpenMP header
 #ifdef OPENMP_PARALLEL
@@ -33,18 +34,28 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   Real i2 = pmb->peos->GetIeta2(); 
-  Real eint, emax;  
+  Real eint, emax, ekin, emag=0.0;  
   int dim = 1; 
 
   // Get dimension
   if (pmb->block_size.nx2 > 1) dim = 2;
   if (pmb->block_size.nx3 > 1) dim = 3;  
 
+  if (MAGNETIC_FIELDS_ENABLED) {
+    pmb->pfield->CalculateCellCenteredField(pmb->pfield->b, pmb->pfield->bcc,
+                                            pmb->pcoord, is, ie, js, je, ks, ke);
+  }
+
   // 1D-case
   if ( dim == 1 ) {
 //#pragma omp simd
     for (int i=is; i<=ie; ++i) {
-      eint = u(IEN,ks,js,i) - 0.5*(SQR(u(IVX,ks,js,i)))/u(IDN,ks,js,i);
+      ekin = 0.5*(SQR(u(IVX,ks,js,i)))/u(IDN,ks,js,i);
+      if (MAGNETIC_FIELDS_ENABLED) 
+        emag = 0.5*( SQR(pmb->pfield->bcc(0,ks,js,i))
+                    +SQR(pmb->pfield->bcc(1,ks,js,i))
+                    +SQR(pmb->pfield->bcc(2,ks,js,i))); 
+      eint = u(IEN,ks,js,i) - ekin - emag;
       emax = u(IEN,ks,js,i); 
       emax = std::max(emax,u(IEN,ks,js,std::max(is,i-1)));
       emax = std::max(emax,u(IEN,ks,js,std::min(ie,i+1)));
@@ -59,8 +70,13 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
     for (int j=js; j<=je; ++j) {
 //#pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        eint = u(IEN,ks,j,i) - 0.5*(  SQR(u(IM1,ks,j,i))
-                                          + SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
+        ekin = 0.5*(  SQR(u(IM1,ks,j,i))
+                    + SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
+        if (MAGNETIC_FIELDS_ENABLED) 
+          emag = 0.5*( SQR(pmb->pfield->bcc(0,ks,j,i))
+                      +SQR(pmb->pfield->bcc(1,ks,j,i))
+                      +SQR(pmb->pfield->bcc(2,ks,j,i))); 
+        eint = u(IEN,ks,j,i) - ekin - emag;
         emax = u(IEN,ks,j,i); 
 				
         // Can't do this with for-loop bc of pragma directive
@@ -89,9 +105,14 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
       for (int j=js; j<=je; ++j) {
 //#pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          eint = u(IEN,k,j,i) - 0.5*(  SQR(u(IM1,k,j,i))
-                                     + SQR(u(IM2,k,j,i)) 
-                                     + SQR(u(IM3,k,j,i)))/u(IDN,k,j,i);
+          ekin = 0.5*( SQR(u(IM1,k,j,i))
+                      +SQR(u(IM2,k,j,i)) 
+                      +SQR(u(IM3,k,j,i)))/u(IDN,k,j,i);
+          if (MAGNETIC_FIELDS_ENABLED)
+            emag = 0.5*( SQR(pmb->pfield->bcc(0,k,j,i))
+                        +SQR(pmb->pfield->bcc(1,k,j,i))
+                        +SQR(pmb->pfield->bcc(2,k,j,i)));
+          eint = u(IEN,k,j,i) - ekin - emag;
           emax = u(IEN,k,j,i); 
           for (int kk=-1; kk<=1; kk++) {
             int k1 = std::min(std::max(ks,k+kk),ke);
@@ -122,23 +143,32 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   Real i1 = pmb->peos->GetIeta1(); 
-  Real eint, etot, kine;  
+  Real eint, etot, ekin, emag=0.0;  
   int dim = 1; 
 
   // Get dimension
   if (pmb->block_size.nx2 > 1) dim = 2;
   if (pmb->block_size.nx3 > 1) dim = 3;  
 
+  if (MAGNETIC_FIELDS_ENABLED) {
+    pmb->pfield->CalculateCellCenteredField(pmb->pfield->b, pmb->pfield->bcc,
+                                            pmb->pcoord, is, ie, js, je, ks, ke);
+  }
+
   // 1D-case
   if ( dim == 1 ) {
 #pragma omp simd
     for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
       etot = u(IEN,ks,js,i);
-      kine = 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
-      eint = etot - kine;
+      ekin = 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
+      if (MAGNETIC_FIELDS_ENABLED)
+        emag = 0.5*( SQR(pmb->pfield->bcc(0,ks,js,i))
+                    +SQR(pmb->pfield->bcc(1,ks,js,i))
+                    +SQR(pmb->pfield->bcc(2,ks,js,i)));
+      eint = etot - ekin - emag;
       if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
         u(IEN,ks,js,i)  = u(IIE,ks,js,i);
-        u(IEN,ks,js,i) += kine; 
+        u(IEN,ks,js,i) += (ekin + emag); 
       }
     }
   }
@@ -148,12 +178,16 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
 #pragma omp simd
       for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
         etot = u(IEN,ks,j,i);
-        kine = 0.5*(  SQR(u(IM1,ks,j,i))
+        ekin = 0.5*(  SQR(u(IM1,ks,j,i))
                     + SQR(u(IM2,ks,j,i)) )/u(IDN,ks,j,i);
-        eint = etot - kine;
+        if (MAGNETIC_FIELDS_ENABLED)
+          emag = 0.5*( SQR(pmb->pfield->bcc(0,ks,j,i))
+                      +SQR(pmb->pfield->bcc(1,ks,j,i))
+                      +SQR(pmb->pfield->bcc(2,ks,j,i)));
+        eint = etot - ekin - emag;
         if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
           u(IEN,ks,j,i)  = u(IIE,ks,j,i);
-          u(IEN,ks,j,i) += kine; 
+          u(IEN,ks,j,i) += (ekin + emag); 
         }
       }
     }
@@ -165,13 +199,17 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
 #pragma omp simd
         for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
           etot = u(IEN,k,j,i); 
-          kine = 0.5*(  SQR(u(IM1,k,j,i))
+          ekin = 0.5*(  SQR(u(IM1,k,j,i))
                       + SQR(u(IM2,k,j,i)) 
                       + SQR(u(IM3,k,j,i)) )/u(IDN,k,j,i);
-          eint = etot - kine; 
+          if (MAGNETIC_FIELDS_ENABLED)
+            emag = 0.5*( SQR(pmb->pfield->bcc(0,k,j,i))
+                        +SQR(pmb->pfield->bcc(1,k,j,i))
+                        +SQR(pmb->pfield->bcc(2,k,j,i)));
+          eint = etot - ekin - emag; 
           if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
             u(IEN,k,j,i)  = u(IIE,k,j,i);
-            u(IEN,k,j,i) += kine;
+            u(IEN,k,j,i) += (ekin + emag);
           }
         }
       }

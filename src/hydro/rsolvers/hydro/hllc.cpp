@@ -24,8 +24,6 @@
 #include "../../../athena_arrays.hpp"
 #include "../../../eos/eos.hpp"
 
-
-
 //----------------------------------------------------------------------------------------
 //! \fn void Hydro::RiemannSolver
 //! \brief The HLLC Riemann solver for adiabatic hydrodynamics (use HLLE for isothermal)
@@ -74,7 +72,6 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IPR]=wl(IPR,k,j,i);
     if (DUAL_ENERGY) 
       wli[IGE]=wl(IGE,k,j,i);
-    // not sure that works with pragma
     if (NSCALARS > 0) { 
       for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
         wli[n] = wl(n,k,j,i); 
@@ -88,7 +85,6 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wri[IPR]=wr(IPR,k,j,i);
     if (DUAL_ENERGY) 
       wri[IGE]=wr(IGE,k,j,i);
-    // not sure that works with pragma
     if (NSCALARS > 0) {
       for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
         wri[n] = wr(n,k,j,i);

@@ -38,15 +38,27 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
 
-  Real flxi[(NWAVE)];             // temporary variable to store flux
-  Real wli[(NWAVE)],wri[(NWAVE)]; // L/R states, primitive variables (input)
+  // This is different from standard hlld, which uses NWAVE. Since we
+  // have the internal energy and the scalars, we need to include
+  // those in flxi, wli, wri. NHYDRO is just the hydro variables + internal energy
+  // + scalars. 
+  // NWAVE is 5 hydro variables + 2 transverse field (7). The
+  // indices IBY, IBZ are NHYDRO, NHYDRO+1. 
+  // The following *should* be ok. Make sure to address scalars correctly.
+  Real flxi[(NHYDRO+2)];             // temporary variable to store flux
+  Real wli[(NHYDRO+2)],wri[(NHYDRO+2)]; // L/R states, primitive variables (input)
   Real spd[5];                    // signal speeds, left to right
 
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
+  Real igm1 = 1.0/gm1;
+  int n;
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
-#pragma omp simd simdlen(SIMD_WIDTH) private(wli,wri,spd,flxi)
+
+//#pragma omp simd simdlen(SIMD_WIDTH) private(wli,wri,spd,flxi)
+#pragma distribute_point
+#pragma omp simd private(n,wli,wri,spd,flxi)
   for (int i=il; i<=iu; ++i) {
     Cons1D ul,ur;                   // L/R states, conserved variables (computed)
     Cons1D ulst,uldst,urdst,urst;   // Conserved variable for all states
@@ -61,6 +73,13 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IPR]=wl(IPR,k,j,i);
     wli[IBY]=wl(IBY,k,j,i);
     wli[IBZ]=wl(IBZ,k,j,i);
+    if (DUAL_ENERGY)
+      wli[IGE]=wl(IGE,k,j,i);
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-2-NSCALARS); n<NHYDRO-2; n++) {
+        wli[n] = wl(n,k,j,i);
+      }
+    }
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
@@ -69,6 +88,13 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wri[IPR]=wr(IPR,k,j,i);
     wri[IBY]=wr(IBY,k,j,i);
     wri[IBZ]=wr(IBZ,k,j,i);
+    if (DUAL_ENERGY)
+      wri[IGE]=wr(IGE,k,j,i);
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-2-NSCALARS); n<NHYDRO-2; n++) {
+        wri[n] = wr(n,k,j,i);
+      }
+    }
 
     Real bxi = bx(k,j,i);
 
@@ -363,30 +389,19 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     ey(k,j,i) = -flxi[IBY];
     ez(k,j,i) =  flxi[IBZ];
 
-  }
-  }}
+    if (DUAL_ENERGY) { // needs to change bc not T any more fh211001. Similar to scalar flux
+                       // IGE now needs to be divided by density, bc fd is density flux.
+      flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
+    }
 
-  if (NSCALARS > 0) {
-    for (int k=kl; k<=ku; k++) {
-      for (int j=jl; j<=ju; j++) {
-#pragma omp simd
-        for (int i=il; i<=iu; i++) {
-          Real fd = flx(IDN,k,j,i);
-          flx(IS0,k,j,i)   = (fd >= 0 ? fd*wl(IS0,k,j,i) : fd*wr(IS0,k,j,i));
-          if (NSCALARS > 1)
-            flx(IS1,k,j,i) = (fd >= 0 ? fd*wl(IS1,k,j,i) : fd*wr(IS1,k,j,i));
-          if (NSCALARS > 2)
-            flx(IS2,k,j,i) = (fd >= 0 ? fd*wl(IS2,k,j,i) : fd*wr(IS2,k,j,i));
-          if (NSCALARS > 3)
-            flx(IS3,k,j,i) = (fd >= 0 ? fd*wl(IS3,k,j,i) : fd*wr(IS3,k,j,i));
-          if (NSCALARS > 4)
-            flx(IS4,k,j,i) = (fd >= 0 ? fd*wl(IS4,k,j,i) : fd*wr(IS4,k,j,i));
-          if (NSCALARS > 5)
-            flx(IS5,k,j,i) = (fd >= 0 ? fd*wl(IS5,k,j,i) : fd*wr(IS5,k,j,i));
-        }
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-2-NSCALARS); n<NHYDRO-2; n++) {
+        flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
       }
     }
+
   }
+  }}
 
   return;
 }
