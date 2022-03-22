@@ -150,15 +150,17 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
   if (pmb->block_size.nx2 > 1) dim = 2;
   if (pmb->block_size.nx3 > 1) dim = 3;  
 
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pmb->pfield->CalculateCellCenteredField(pmb->pfield->b, pmb->pfield->bcc,
-                                            pmb->pcoord, is, ie, js, je, ks, ke);
-  }
 
   // 1D-case
   if ( dim == 1 ) {
+    if (MAGNETIC_FIELDS_ENABLED) 
+      pmb->pfield->CalculateCellCenteredField(pmb->pfield->b, pmb->pfield->bcc,
+                                              pmb->pcoord, is-NGHOST, ie+NGHOST, 
+                                                           js       , je       , 
+                                                           ks       , ke       );
 #pragma omp simd
     for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
+
       etot = u(IEN,ks,js,i);
       ekin = 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
       if (MAGNETIC_FIELDS_ENABLED)
@@ -174,6 +176,11 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
   }
   // 2D-case
   else if ( dim == 2 ) {
+    if (MAGNETIC_FIELDS_ENABLED) 
+      pmb->pfield->CalculateCellCenteredField(pmb->pfield->b, pmb->pfield->bcc,
+                                              pmb->pcoord, is-NGHOST, ie+NGHOST, 
+                                                           js-NGHOST, je+NGHOST, 
+                                                           ks       , ke      );
     for (int j=js-NGHOST; j<=je+NGHOST; ++j) {
 #pragma omp simd
       for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
@@ -194,6 +201,11 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
   }
   // 3D-case
   else {
+    if (MAGNETIC_FIELDS_ENABLED) 
+      pmb->pfield->CalculateCellCenteredField(pmb->pfield->b, pmb->pfield->bcc,
+                                              pmb->pcoord, is-NGHOST, ie+NGHOST, 
+                                                           js-NGHOST, je+NGHOST, 
+                                                           ks-NGHOST, ke+NGHOST);
     for (int k=ks-NGHOST; k<=ke+NGHOST; ++k) {
       for (int j=js-NGHOST; j<=je+NGHOST; ++j) {
 #pragma omp simd
