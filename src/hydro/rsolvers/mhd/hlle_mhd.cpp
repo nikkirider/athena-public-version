@@ -25,13 +25,16 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   AthenaArray<Real> &ey, AthenaArray<Real> &ez) {
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
-  Real wli[(NWAVE)],wri[(NWAVE)],wroe[(NWAVE)],fl[(NWAVE)],fr[(NWAVE)],flxi[(NWAVE)];
+  //Real wli[(NWAVE)],wri[(NWAVE)],wroe[(NWAVE)],fl[(NWAVE)],fr[(NWAVE)],flxi[(NWAVE)];
+  Real wli[(NHYDRO+1)],wri[(NHYDRO+2)],wroe[(NHYDRO+2)],fl[(NHYDRO+2)],fr[(NHYDRO+2)],flxi[(NHYDRO+2)];
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
+  Real igm1 = 1.0/gm1;
   Real iso_cs = pmy_block->peos->GetIsoSoundSpeed();
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
-#pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
+#pragma distribute_point
+#pragma omp simd private(n,wli,wri,wroe,fl,fr,flxi)
   for (int i=il; i<=iu; ++i) {
 
 //--- Step 1.  Load L/R states into local variables
@@ -40,17 +43,37 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IVX]=wl(ivx,k,j,i);
     wli[IVY]=wl(ivy,k,j,i);
     wli[IVZ]=wl(ivz,k,j,i);
-    if (NON_BAROTROPIC_EOS) wli[IPR]=wl(IPR,k,j,i);
+    if (NON_BAROTROPIC_EOS) {
+      wli[IPR]=wl(IPR,k,j,i);
+      if (DUAL_ENERGY)
+        wli[IGE]=wl(IGE,k,j,i);
+    }
     wli[IBY]=wl(IBY,k,j,i);
     wli[IBZ]=wl(IBZ,k,j,i);
+
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        wli[n] = wl(n,k,j,i);
+      }
+    }
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
     wri[IVY]=wr(ivy,k,j,i);
     wri[IVZ]=wr(ivz,k,j,i);
-    if (NON_BAROTROPIC_EOS) wri[IPR]=wr(IPR,k,j,i);
+    if (NON_BAROTROPIC_EOS) {
+      wri[IPR]=wr(IPR,k,j,i);
+      if (DUAL_ENERGY)
+        wri[IGE]=wr(IGE,k,j,i);
+    }
     wri[IBY]=wr(IBY,k,j,i);
     wri[IBZ]=wr(IBZ,k,j,i);
+
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        wri[n] = wr(n,k,j,i);
+      }
+    }
 
     Real bxi = bx(k,j,i);
 
@@ -167,9 +190,23 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     flx(ivx,k,j,i) = flxi[IVX];
     flx(ivy,k,j,i) = flxi[IVY];
     flx(ivz,k,j,i) = flxi[IVZ];
-    if (NON_BAROTROPIC_EOS) flx(IEN,k,j,i) = flxi[IEN];
+    if (NON_BAROTROPIC_EOS) {
+      flx(IEN,k,j,i) = flxi[IEN];
+      if (DUAL_ENERGY) 
+        flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
+    }
     ey(k,j,i) = -flxi[IBY];
     ez(k,j,i) =  flxi[IBZ];
+
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
+      }
+    }
+
+
+
+
   }
   }}
   return;
