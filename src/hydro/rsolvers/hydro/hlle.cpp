@@ -47,7 +47,10 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
-#pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
+//#pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
+#pragma distribute_point
+#pragma omp simd private(n,wli,wri,wroe,flxi,fl,fr)
+
   for (int i=il; i<=iu; ++i) {
 
 //--- Step 1.  Load L/R states into local variables
@@ -157,37 +160,17 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     if (NON_BAROTROPIC_EOS) {
       flx(IEN,k,j,i) = flxi[IEN];
       if (DUAL_ENERGY) {
-        if (flxi[IDN] >= 0.0) {
-          flx(IIE,k,j,i) = (flxi[IDN]*wli[IGE]/wli[IDN])/gm1;
-        } else {
-          flx(IIE,k,j,i) = (flxi[IDN]*wri[IGE]/wri[IDN])/gm1; 
-        }
+        flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
       }
-     }
-  }
-  }}
+    }
 
-  if (NSCALARS > 0) {
-    for (int k=kl; k<=ku; k++) {
-      for (int j=jl; j<=ju; j++) {
-#pragma omp simd
-        for (int i=il; i<=iu; i++) {
-          Real fd = flx(IDN,k,j,i);
-          flx(IS0,k,j,i)   = (fd >= 0 ? fd*wl(IS0,k,j,i) : fd*wr(IS0,k,j,i));
-          if (NSCALARS > 1)
-            flx(IS1,k,j,i) = (fd >= 0 ? fd*wl(IS1,k,j,i) : fd*wr(IS1,k,j,i));
-          if (NSCALARS > 2)
-            flx(IS2,k,j,i) = (fd >= 0 ? fd*wl(IS2,k,j,i) : fd*wr(IS2,k,j,i));
-          if (NSCALARS > 3)
-            flx(IS3,k,j,i) = (fd >= 0 ? fd*wl(IS3,k,j,i) : fd*wr(IS3,k,j,i));
-          if (NSCALARS > 4)
-            flx(IS4,k,j,i) = (fd >= 0 ? fd*wl(IS4,k,j,i) : fd*wr(IS4,k,j,i));
-          if (NSCALARS > 5)
-            flx(IS5,k,j,i) = (fd >= 0 ? fd*wl(IS5,k,j,i) : fd*wr(IS5,k,j,i));
-        }
+    if (NSCALARS > 0) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
+        flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
       }
     }
   }
+  }}
 
   return;
 }

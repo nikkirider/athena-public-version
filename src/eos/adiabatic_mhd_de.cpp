@@ -90,11 +90,8 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       w_p = gm1*(u_e - ke - pb);
       w_ge= gm1*u_ie;
 
-      // apply pressure floor, correct total energy
-      u_e = (w_p > pressure_floor_) ?  u_e : ((pressure_floor_/gm1) + ke + pb);
-      w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
       //Use dual-energy 
-      if (((w_p/u_e) < i1) || (u_e <= 0.0) || (w_p <= 0.0) || isnan(w_p)) {
+      if (((w_p/u_e) < i1) || (u_e <= 0.0) || (w_p <= 0.0) || isnan(w_p) || isnan(u_e)) {
         // Do not use temperature, but pressure instead (same as standard energy fh211001)
         w_p = w_ge;
         u_e = u_ie + ke + pb;
@@ -110,9 +107,8 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         for (int i=il; i<=iu; ++i) {
           Real& u_s = cons(n  ,k,j,i);
           Real& u_d = cons(IDN,k,j,i);
-          Real   di = 1./u_d;
           Real& w_s = prim(n,k,j,i);
-          w_s = u_s*di;
+          w_s = u_s/u_d;
         }
       }
     }
@@ -155,14 +151,13 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
       const Real& bcc2 = bc(IB2,k,j,i);
       const Real& bcc3 = bc(IB3,k,j,i);
 
-      u_d = w_d;
+      u_d  = w_d;
       u_m1 = w_vx*w_d;
       u_m2 = w_vy*w_d;
       u_m3 = w_vz*w_d;
-      u_e = w_p*igm1 + 0.5*(w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz))
-            + (SQR(bcc1) + SQR(bcc2) + SQR(bcc3)));
+      u_e  = w_p*igm1 + 0.5*(  w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz))
+                             +     (SQR(bcc1) + SQR(bcc2) + SQR(bcc3)));
       u_ie = w_ge*igm1; // use internal branch pressure instead 
-
     }
   }}
 
@@ -188,6 +183,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 //----------------------------------------------------------------------------------------
 // \!fn Real EquationOfState::SoundSpeed(Real prim[NHYDRO])
 // \brief returns adiabatic sound speed given vector of primitive variables
+//   IGE is pressure - we use here the "safe" dual energy branch
 Real EquationOfState::SoundSpeed(const Real prim[NHYDRO]) {
   return std::sqrt(GetGamma()*prim[IGE]/prim[IDN]);
 }
@@ -196,9 +192,10 @@ Real EquationOfState::SoundSpeed(const Real prim[NHYDRO]) {
 // \!fn Real EquationOfState::FastMagnetosonicSpeed(const Real prim[], const Real bx)
 // \brief returns fast magnetosonic speed given vector of primitive variables
 // Note the formula for (C_f)^2 is positive definite, so this func never returns a NaN
-// Needs more thought how to implement dual energy fh220321
 // Is used differently than in adiabatic_mhd.cpp. Passes NHYDRO+2, not NWAVE, to 
 // account for scalars and dual energy.
+// NHYDRO = IDN,IVX,IVY,IVZ,IPR,IGE,NSCALARS
+// Last two elements in PRIM are IBY, IBZ (see athena.hpp)
 Real EquationOfState::FastMagnetosonicSpeed(const Real prim[(NHYDRO+2)], const Real bx) {
   Real asq = GetGamma()*prim[IGE];
   Real vaxsq = bx*bx;

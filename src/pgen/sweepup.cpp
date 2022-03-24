@@ -664,13 +664,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     for (int k=ks; k <= ke; ++k) {
       for (int j=js; j <= je; ++j) {
         for (int i=is; i <= ie; ++i) {
-          phydro->u(IEN,k,j,i) += 0.5*( SQR(pfield->bcc(0,k,j,i))
-                                       +SQR(pfield->bcc(1,k,j,i))
-                                       +SQR(pfield->bcc(2,k,j,i)));
+          phydro->u(IEN,k,j,i) += 0.5*( SQR(pfield->bcc(IB1,k,j,i))
+                                       +SQR(pfield->bcc(IB2,k,j,i))
+                                       +SQR(pfield->bcc(IB3,k,j,i)));
         }
       }
     }          
   }
+
+  if (iturb > 0)
+    dvturb.DeleteAthenaArray();
+
+  return;
 }
 
 //========================================================================================

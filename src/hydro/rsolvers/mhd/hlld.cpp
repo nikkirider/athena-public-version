@@ -76,7 +76,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     if (DUAL_ENERGY)
       wli[IGE]=wl(IGE,k,j,i);
     if (NSCALARS > 0) {
-      for (n=(NHYDRO-2-NSCALARS); n<NHYDRO-2; n++) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
         wli[n] = wl(n,k,j,i);
       }
     }
@@ -91,7 +91,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     if (DUAL_ENERGY)
       wri[IGE]=wr(IGE,k,j,i);
     if (NSCALARS > 0) {
-      for (n=(NHYDRO-2-NSCALARS); n<NHYDRO-2; n++) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
         wri[n] = wr(n,k,j,i);
       }
     }
@@ -395,7 +395,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     }
 
     if (NSCALARS > 0) {
-      for (n=(NHYDRO-2-NSCALARS); n<NHYDRO-2; n++) {
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
         flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
       }
     }

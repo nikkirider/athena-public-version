@@ -4,7 +4,7 @@
 #python3 configure.py --prob spiralarm --coord cartesian --eos isothermal -mpi -hdf5 --cxx icc --ccmd /nas/longleaf/apps-dogwood/hdf5/1.10.2/openmpi/bin/h5pcc --cflag="-DH5_HAVE_PARALLEL" -fft --grav fft
 
 python3 configure.py\
-                         --prob sweepup\
+                         --prob blast \
                          --coord cartesian \
                          --eos adiabatic \
                          --flux hlld \
@@ -12,9 +12,6 @@ python3 configure.py\
                          --cflag="DH5_HAVE_PARALLEL -std=c++11" \
                          --ccmd /nas/longleaf/apps-dogwood/hdf5/1.10.2/openmpi/bin/h5pcc \
                          -hdf5 \
-                         --grav fft \
-                         -fft \
                          -mpi \
-                         -b \
-                         -de 
+                         -b
 

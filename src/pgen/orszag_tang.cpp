@@ -49,7 +49,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   Real B0 = 1.0/std::sqrt(4.0*PI);
   Real d0 = 25.0/(36.0*PI);
-  Real v0 = 1.0;
+  Real v0 = pin->GetOrAddReal("problem","v0",1.0);
   Real p0 = 5.0/(12.0*PI);
 
   // Initialize vector potential
@@ -96,9 +96,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                SQR(0.5*(pfield->b.x3f(k,j,i) + pfield->b.x3f(k+1,j,i)))) + (0.5)*
           (SQR(phydro->u(IM1,k,j,i)) + SQR(phydro->u(IM2,k,j,i))
            + SQR(phydro->u(IM3,k,j,i)))/phydro->u(IDN,k,j,i);
+      if (DUAL_ENERGY) 
+        phydro->u(IIE,k,j,i) = p0/gm1;
     }}}
   }
 
   az.DeleteAthenaArray();
+  return;
+}
+
+//=======================================
+
+void Mesh::UserWorkInLoop(void) {
   return;
 }

@@ -129,7 +129,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
       u_m2 = w_vy*w_d;
       u_m3 = w_vz*w_d;
       u_e = w_p*igm1 + 0.5*(w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz))
-            + (SQR(bcc1) + SQR(bcc2) + SQR(bcc3)));
+                              + (SQR(bcc1) + SQR(bcc2) + SQR(bcc3)));
     }
   }}
 
