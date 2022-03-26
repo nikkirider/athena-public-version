@@ -45,8 +45,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   // NWAVE is 5 hydro variables + 2 transverse field (7). The
   // indices IBY, IBZ are NHYDRO, NHYDRO+1. 
   // The following *should* be ok. Make sure to address scalars correctly.
-  Real flxi[(NWAVE+NINT+NSCALARS)];             // temporary variable to store flux
-  Real wli[(NWAVE+NINT+NSCALARS)],wri[(NWAVE+NINT+NSCALARS)]; // L/R states, primitive variables (input)
+  //Real flxi[(NWAVE+NINT+NSCALARS)];             // temporary variable to store flux
+  //Real wli[(NWAVE+NINT+NSCALARS)],wri[(NWAVE+NINT+NSCALARS)]; // L/R states, primitive variables (input)
+  Real flxi[(NHYDRO+2)];             // temporary variable to store flux
+  Real wli[(NHYDRO+2)],wri[(NHYDRO+2)]; // L/R states, primitive variables (input)
+
   Real spd[5];                    // signal speeds, left to right
 
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
