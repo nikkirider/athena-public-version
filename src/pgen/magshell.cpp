@@ -61,8 +61,8 @@ void UpdateGridData(Mesh *pm);
 
 //Global Variables for OuterX1
 Real damb,pamb; // ambient parameters
-Real x1cld,x2cld,x3cld,dcld,rcld; // cloud parameters
-Real x1fil,x2fil,x3fil,rfil,lfil,dfil; // filament parameters
+Real x1cld=0.0,x2cld=0.0,x3cld=0.0,dcld=0.0,rcld=0.0; // cloud parameters
+Real x1fil=0.0,x2fil=0.0,x3fil=0.0,rfil=0.0,lfil=0.0,dfil=0.0; // filament parameters
 Real bx0,by0,bz0;
 void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
@@ -856,7 +856,7 @@ void OuterX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
         }
       }
     } 
-  } else if (iturb == 1) { // bl b at y > 0
+  } else if (iturb == 1) { // blob at y > 0
     for (int k=ks; k<=ke; ++k) {
       Real x32 = SQR(pco->x3v(k)-x3cld);
       for (int i=is; i<=ie; ++i) {
@@ -1275,7 +1275,8 @@ void InnerX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
-  Real gamma, rout, dr, esne, msne, pint, dint;
+  int iblast;
+  Real gamma, rout, dr, esne, msne, pint, dint, v0;
 
   // cooling
   CoolingFunc = NULL;
@@ -1287,7 +1288,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
   // Perturbations
-  iturb    = pin->GetOrAddInteger("problem","iturb",0); // 0 none; 1: blob at boundaries
+  // 0 none; 1: blob at boundaries, 2: filament
+  iturb    = pin->GetOrAddInteger("problem","iturb",0); 
+  // 0 standard blast wave (constant overpressure), 1: knova-type (all kinetic energy)
+  iblast   = pin->GetOrAddInteger("problem","iblast",0);
+  if (iblast == 1) {
+    v0     = pin->GetReal("problem","v0");
+  }
 
   // shell parameters
   rout = pin->GetReal("problem","radius");
@@ -1306,8 +1313,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   dint  = 3.0*msne/(4.0*PI*SQR(rout)*rout);
   pint  = gm1*3.0*esne/(4.0*PI*SQR(rout)*rout);
   if (Globals::my_rank == 0) {
-    std::cout << "[ProblemGenerator]: dint = " << std::scientific << std::setw(13) << std::setprecision(5) << dint << std::endl;
-    std::cout << "[ProblemGenerator]: pint = " << std::scientific << std::setw(13) << std::setprecision(5) << pint << std::endl;
+    std::cout << "[ProblemGenerator]: iturb  = " << std::setw(13) << iturb << std::endl;
+    std::cout << "[ProblemGenerator]: iblast = " << std::setw(13) << iblast << std::endl;
+    std::cout << "[ProblemGenerator]: dint   = " << std::scientific << std::setw(13) << std::setprecision(5) << dint << std::endl;
+    std::cout << "[ProblemGenerator]: pint   = " << std::scientific << std::setw(13) << std::setprecision(5) << pint << std::endl;
   }
   
   if (iturb == 1) {
@@ -1351,9 +1360,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                                       + (dfil-damb)*0.25*(1.0-std::tanh((radf-rfil)/0.05))
                                                         *(1.0-std::tanh((len -lfil)/0.05));
           phydro->u(IDN,k,j,i) = den;
-          phydro->u(IM1,k,j,i) = 0.0;
-          phydro->u(IM2,k,j,i) = 0.0;
-          phydro->u(IM3,k,j,i) = 0.0;
+          if (iblast == 1) {
+            Real rxy    = std::sqrt(SQR(pcoord->x1v(i))+SQR(pcoord->x2v(j)));
+            Real cosphi = pcoord->x1v(i)/rxy;
+            Real sinphi = pcoord->x2v(j)/rxy;
+            Real costhe = rxy/rad;
+            Real sinthe = pcoord->x3v(k)/rad;
+            Real rprof  = (rad/rout) * 0.5*(1.0-std::tanh((rad -rout)/0.05)); 
+            phydro->u(IM1,k,j,i) = v0 * rprof * costhe * cosphi * dint;
+            phydro->u(IM2,k,j,i) = v0 * rprof * costhe * sinphi * dint;
+            phydro->u(IM3,k,j,i) = v0 * rprof * sinthe * dint;
+          } else {
+            phydro->u(IM1,k,j,i) = 0.0;
+            phydro->u(IM2,k,j,i) = 0.0;
+            phydro->u(IM3,k,j,i) = 0.0;
+          }
           if (NON_BAROTROPIC_EOS) {
             pres                 = pamb + (pint-pamb)*0.5*(1.0-std::tanh((rad-rout)/dr));
             phydro->u(IEN,k,j,i) = pres/gm1 + 0.5*(  SQR(phydro->u(IM1,k,j,i))
@@ -1385,9 +1406,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           rad                  = std::sqrt(SQR(x) + SQR(y) + SQR(z));
           den                  = damb + (dint-damb)*0.5*(1.0-std::tanh((rad-rout)/dr));
           phydro->u(IDN,k,j,i) = den;
-          phydro->u(IM1,k,j,i) = 0.0;
-          phydro->u(IM2,k,j,i) = 0.0;
-          phydro->u(IM3,k,j,i) = 0.0;
+          if (iblast == 1) {
+            Real rxy    = std::sqrt(SQR(pcoord->x1v(i))+SQR(pcoord->x2v(j)));
+            Real cosphi = pcoord->x1v(i)/rxy;
+            Real sinphi = pcoord->x2v(j)/rxy;
+            Real costhe = rxy/rad;
+            Real sinthe = pcoord->x3v(k)/rad;
+            Real rprof  = (rad/rout) * 0.5*(1.0-std::tanh((rad -rout)/0.05));
+            phydro->u(IM1,k,j,i) = v0 * rprof * costhe * cosphi * den;
+            phydro->u(IM2,k,j,i) = v0 * rprof * costhe * sinphi * den;
+            phydro->u(IM3,k,j,i) = v0 * rprof * sinthe * den;
+          } else {
+            phydro->u(IM1,k,j,i) = 0.0;
+            phydro->u(IM2,k,j,i) = 0.0;
+            phydro->u(IM3,k,j,i) = 0.0;
+          }
           if (NON_BAROTROPIC_EOS) {
             pres                 = pamb + (pint-pamb)*0.5*(1.0-std::tanh((rad-rout)/dr));
             phydro->u(IEN,k,j,i) = pres/gm1 + 0.5*(  SQR(phydro->u(IM1,k,j,i))

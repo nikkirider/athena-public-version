@@ -15,6 +15,6 @@ python3 configure.py\
                          --grav fft \
                          -fft \
                          -mpi \
-                         -b \
-                         -de 
+                         -de \
+                         -b 
 

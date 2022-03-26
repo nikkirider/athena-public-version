@@ -26,10 +26,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
   //Real wli[(NWAVE)],wri[(NWAVE)],wroe[(NWAVE)],fl[(NWAVE)],fr[(NWAVE)],flxi[(NWAVE)];
-  Real wli[(NHYDRO+1)],wri[(NHYDRO+2)],wroe[(NHYDRO+2)],fl[(NHYDRO+2)],fr[(NHYDRO+2)],flxi[(NHYDRO+2)];
+  Real wli[(NHYDRO+2)],wri[(NHYDRO+2)],wroe[(NHYDRO+2)],fl[(NHYDRO+2)],fr[(NHYDRO+2)],flxi[(NHYDRO+2)];
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
   Real igm1 = 1.0/gm1;
   Real iso_cs = pmy_block->peos->GetIsoSoundSpeed();
+  int n;
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
@@ -203,9 +204,6 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
       }
     }
-
-
-
 
   }
   }}

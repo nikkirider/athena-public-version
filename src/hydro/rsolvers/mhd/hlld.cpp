@@ -45,8 +45,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   // NWAVE is 5 hydro variables + 2 transverse field (7). The
   // indices IBY, IBZ are NHYDRO, NHYDRO+1. 
   // The following *should* be ok. Make sure to address scalars correctly.
-  Real flxi[(NHYDRO+2)];             // temporary variable to store flux
-  Real wli[(NHYDRO+2)],wri[(NHYDRO+2)]; // L/R states, primitive variables (input)
+  Real flxi[(NWAVE+NINT+NSCALARS)];             // temporary variable to store flux
+  Real wli[(NWAVE+NINT+NSCALARS)],wri[(NWAVE+NINT+NSCALARS)]; // L/R states, primitive variables (input)
   Real spd[5];                    // signal speeds, left to right
 
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
@@ -75,11 +75,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IBZ]=wl(IBZ,k,j,i);
     if (DUAL_ENERGY)
       wli[IGE]=wl(IGE,k,j,i);
-    if (NSCALARS > 0) {
-      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-        wli[n] = wl(n,k,j,i);
-      }
-    }
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+      wli[n] = wl(n,k,j,i);
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
@@ -90,11 +87,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wri[IBZ]=wr(IBZ,k,j,i);
     if (DUAL_ENERGY)
       wri[IGE]=wr(IGE,k,j,i);
-    if (NSCALARS > 0) {
-      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-        wri[n] = wr(n,k,j,i);
-      }
-    }
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+      wri[n] = wr(n,k,j,i);
 
     Real bxi = bx(k,j,i);
 
@@ -389,16 +383,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     ey(k,j,i) = -flxi[IBY];
     ez(k,j,i) =  flxi[IBZ];
 
-    if (DUAL_ENERGY) { // needs to change bc not T any more fh211001. Similar to scalar flux
-                       // IGE now needs to be divided by density, bc fd is density flux.
+    if (DUAL_ENERGY)  // IGE is pressure
       flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
-    }
 
-    if (NSCALARS > 0) {
-      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-        flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
-      }
-    }
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+      flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
 
   }
   }}

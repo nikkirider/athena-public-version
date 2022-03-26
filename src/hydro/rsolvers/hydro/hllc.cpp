@@ -72,11 +72,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IPR]=wl(IPR,k,j,i);
     if (DUAL_ENERGY) 
       wli[IGE]=wl(IGE,k,j,i);
-    if (NSCALARS > 0) { 
-      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-        wli[n] = wl(n,k,j,i); 
-      }
-    }
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      wli[n] = wl(n,k,j,i); 
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
@@ -85,11 +82,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wri[IPR]=wr(IPR,k,j,i);
     if (DUAL_ENERGY) 
       wri[IGE]=wr(IGE,k,j,i);
-    if (NSCALARS > 0) {
-      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-        wri[n] = wr(n,k,j,i);
-      }
-    }
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      wri[n] = wr(n,k,j,i);
 
 
 //--- Step2.  Compute Roe-averaged state
@@ -192,16 +186,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     flx(ivz,k,j,i) = flxi[IVZ];
     flx(IEN,k,j,i) = flxi[IEN];
 
-    if (DUAL_ENERGY) { // needs to change bc not T any more fh211001. Similar to scalar flux
-                       // IGE now needs to be divided by density, bc fd is density flux.
+    if (DUAL_ENERGY) // IGE is pressure
       flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
-    }
 
-    if (NSCALARS > 0) {
-      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-        flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
-      } 
-    }
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+      flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
 
     //For Time Dependent grid, account for Wall Flux
     if ((EXPANDING) && (move)) {
@@ -224,11 +213,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         wi[IPR]=wr(IPR,k,j,i);//eWri(IPR,k,j,i);
         if (DUAL_ENERGY) 
           wi[IGE]=wr(IGE,k,j,i);//eWri(IGE,k,j,i);
-        if (NSCALARS > 0) {
-          for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-            wi[n] = wr(n,k,j,i);
-          }
-        }
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+          wi[n] = wr(n,k,j,i);
       } else if (wallV < 0.0) {
         wi[IDN]=wl(IDN,k,j,i);//eWli(IDN,k,j,i);
         wi[IVX]=wl(ivx,k,j,i);//eWli(ivx,k,j,i);
@@ -237,11 +223,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         wi[IPR]=wl(IPR,k,j,i);//eWli(IPR,k,j,i);
         if (DUAL_ENERGY) 
           wi[IGE]=wl(IGE,k,j,i);//eWli(IGE,k,j,i);
-        if (NSCALARS > 0) {
-          for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-            wi[n] = wl(n,k,j,i);
-          }
-        } 
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+          wi[n] = wl(n,k,j,i);
       } else {
         wi[IDN]=0.0;
         wi[IVX]=0.0;
@@ -250,11 +233,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         wi[IPR]=0.0;
         if (DUAL_ENERGY) 
           wi[IGE]=0.0;
-        if (NSCALARS > 0) {
-          for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-            wi[n] = 0.0;
-          }
-        }
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+          wi[n] = 0.0;
       }
       e = wi[IPR]*igm1 + 0.5*wi[IDN]*(SQR(wi[IVX]) + SQR(wi[IVY]) + SQR(wi[IVZ]));
       eFlx(IDN,k,j,i) = wi[IDN]*wallV;
@@ -262,15 +242,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       eFlx(ivy,k,j,i) = wi[IDN]*wi[IVY]*wallV;
       eFlx(ivz,k,j,i) = wi[IDN]*wi[IVZ]*wallV;
       eFlx(IEN,k,j,i) = e*wallV;
-      if (DUAL_ENERGY) {
-        //eFlx(IIE,k,j,i) = wi[IDN]*wallV*wi[IGE];
-        eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is p, not T/(gamma-1)
-      }
-      if (NSCALARS > 0) {
-        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) {
-          eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
-        }
-      }
+      if (DUAL_ENERGY) 
+        eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is pressure
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
+        eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
+
     } //End Expanding
   }
   }}
