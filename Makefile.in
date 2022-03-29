@@ -30,6 +30,7 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     src/eos/$(EOS_FILE) \
   	     src/eos/eos_cless.cpp \
              $(wildcard src/expansion/*.cpp) \
+             $(wildcard src/recover/*.cpp) \
 	     $(wildcard src/field/*.cpp) \
 	     $(wildcard src/hydro/*.cpp) \
 	     $(wildcard src/hydro/srcterms/*.cpp) \

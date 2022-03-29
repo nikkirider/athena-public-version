@@ -49,6 +49,9 @@
 // timestep information
 #define TIMESTEPINFO_ENABLED @TIMESTEPINFO_ENABLED@
 
+// step recovery mode
+#define RECOVER_ENABLED @RECOVER_ENABLED@
+
 // include self gravity? default=0 (false)
 #define SELF_GRAVITY_ENABLED @SELF_GRAVITY_ENABLED@
 

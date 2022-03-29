@@ -29,7 +29,7 @@
 // constructor, initializes data structures and parameters
 
 Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
-  bool coarse_flag=pmb->pcoord->coarse_flag;
+  bool coarse_flag=pmb->pcoord->CoarseFlag();
   pmy_block = pmb;
   if (coarse_flag==true) {
     is = pmb->cis; js = pmb->cjs; ks = pmb->cks;

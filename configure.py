@@ -105,8 +105,8 @@ parser.add_argument('--nghost',
 
 # --ns=[value] argument
 parser.add_argument('--ns',
-    default='0',
-    help='set number of passively advected scalar fields')
+                    default='0',
+                    help='set number of passively advected scalar fields')
 
 # -b argument
 parser.add_argument('-b',
@@ -114,17 +114,23 @@ parser.add_argument('-b',
                     default=False,
                     help='enable magnetic field')
 
+# -rec argument
+parser.add_argument('-rec',
+                    action='store_true',
+                    default=False,
+                    help='enable step recovery mode')
+
 # -cl argument
 parser.add_argument('-cl',
-    action='store_true',
-    default=False,
-    help='enable collisionless solver')
+                    action='store_true',
+                    default=False,
+                    help='enable collisionless solver')
 
 # -clo argument 
 parser.add_argument('-clo',
-    action='store_true',
-    default=False,
-    help='enable collisionless-only mode (only integrate cless-variables)')
+                    action='store_true',
+                    default=False,
+                    help='enable collisionless-only mode (only integrate cless-variables)')
 
 # -s argument
 parser.add_argument('-s',
@@ -153,8 +159,7 @@ parser.add_argument('-shear',
 parser.add_argument('-exp',
     		    default=False,
     		    action='store_true',
-    		    help='Make Grid expand'
-)
+    		    help='enable expanding grid')
 
 # -de argument
 parser.add_argument('-de',
@@ -378,8 +383,6 @@ if args['exp']:
 else:
     definitions['EXPANDING'] = '0'
 
-
-
 # --flux=[name] argument
 definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 
@@ -420,6 +423,13 @@ else:
         definitions['NWAVE_VALUE'] = '5'
     else:
         definitions['NWAVE_VALUE'] = '4'
+
+# -rec argument
+# set step recovery mode 
+if args['rec']:
+    definitions['RECOVER_ENABLED'] = '1'
+else:
+    definitions['RECOVER_ENABLED'] = '0'
 
 # -s, -g, and -t arguments
 definitions['RELATIVISTIC_DYNAMICS'] = '1' if args['s'] or args['g'] else '0'
@@ -747,6 +757,7 @@ print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Dual-Energy:             ' + ('ON' if args['de'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))
 print('  Timestep Information:    ' + ('ON' if args['tsi'] else 'OFF'))
+print('  Recover Timestep:        ' + ('ON' if args['rec'] else 'OFF'))
 print('  Linker flags:            ' + makefile_options['LINKER_FLAGS'] + ' '
       + makefile_options['LIBRARY_FLAGS'])
 print('  Precision:               ' + ('single' if args['float'] else 'double'))
