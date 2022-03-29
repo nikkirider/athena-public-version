@@ -461,6 +461,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                 << " tshell=" << std::scientific << std::setprecision(5) << ts
                 << " vshell=" << std::scientific << std::setprecision(5) << vs
                 << std::endl;
+      std::cout << "NHYDRO   = " << std::setw(3) << (NHYDRO) 
+                << " NWAVE    = " << std::setw(3) << (NWAVE)
+                << " NINT     = " << std::setw(3) << (NINT)
+                << " NSCALARS = " << std::setw(3) << (NSCALARS) << std::endl;
     }
     dx1v   = pcoord->dx1v(is); // assuming cartesian for now
     dx2v   = pcoord->dx2v(js);
