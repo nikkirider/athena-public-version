@@ -128,7 +128,7 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
   }
 
   dt_old  = pmb->pmy_mesh->dt; 
-  freduct = 0; // reduction level 0: no reduction. 
+  freduct_ = 0; // reduction level 0: no reduction. 
 
 }
 
@@ -147,11 +147,66 @@ Recover::~Recover() {
   }
 }
 
-// Recover::CheckAndReset(MeshBlock *pmb) 
-// \brief: Checks grid for invalid values, and resets grid to old values
-//  Must be called outside task list, before update of timestep in main loop.
-//  For the expanding grid, it requires full re-calculation of grid (see Expansion::GridEdit)
-void Recover::CheckAndReset(MeshBlock *pmb) {
+// Recover::Check(MeshBlock *pmb) 
+// \brief: Checks grid for invalid values
+bool Recover::Check(MeshBlock *pmb) {
+
+  bool failed = false;
+
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        Real dens = pmb->phydro->u(IDN,k,j,i);
+        Real etot = pmb->phydro->u(IEN,k,j,i);
+        failed = (failed || (dens <=0.0) || (std::isnan(dens))
+                         || (etot <=0.0) || (std::isnan(etot)));
+        if (DUAL_ENERGY) {
+          Real eint = pmb->phydro->u(IIE,k,j,i);;
+          failed = (failed || (eint <=0.0) || (std::isnan(eint)));
+        }
+      }
+    }
+  }
+  return failed;
+}
+
+// Recover::Resets(MeshBlock *pmb) 
+// // \brief: If failed, resets primitive variables,
+// otherwise copies new primitive variables into 
+// temporary. 
+void Recover::Reset(MeshBlock *pmb, bool failed) {
+
+  if (failed) {
+    // copy backup into primitive variables
+    for (int n=0; n<NHYDRO; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            pmb->phydro->w(n,k,j,i) = w(n,k,j,i); 
+          }
+        }
+      }
+    }
+    // fields & grids, also conservative variables
+    
+    // NEED TO INCREASE FREDUCT, BUT WITH SAFEGUARD. IS USED IN TIMESTEP.
+  } else {
+    // copy new primitive variables into backup
+    for (int n=0; n<NHYDRO; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            w(n,k,j,i) = pmb->phydro->w(n,k,j,i);
+          }
+        }
+      }
+    }
+    // fields & grids, also conservative variables
+    // Pay close attention to boundaries here.
+  }
 
   return;
 }

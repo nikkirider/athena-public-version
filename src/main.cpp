@@ -400,6 +400,8 @@ int main(int argc, char *argv[]) {
       
     }
 
+    // Possibly here pmesh->CheckAndReset. But need to skip rest then.
+
     pmesh->UserWorkInLoop();
 
     pmesh->ncycle++;

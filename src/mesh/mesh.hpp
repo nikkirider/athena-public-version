@@ -45,6 +45,7 @@ class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
 class Expansion;
+class Recover;
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
 //  \brief data/functions associated with a single block
@@ -55,7 +56,7 @@ class MeshBlock {
   friend class GravityBoundaryValues;
   friend class Mesh;
   friend class Hydro;
-	friend class Cless;
+  friend class Cless;
   friend class TaskList;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
@@ -109,6 +110,7 @@ public:
   EquationOfState *peos;
 
   Expansion *pex;
+  Recover *prec;
 
   MeshBlock *prev, *next;
 
@@ -169,6 +171,7 @@ class Mesh {
   friend class Gravity;
   friend class HydroDiffusion;
   friend class Expansion;
+  friend class Recover;
   friend class FieldDiffusion;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
@@ -221,6 +224,9 @@ public:
   CalcGridData_t CalcGridData_;
   void SetMeshSize(Mesh *pm);
   AthenaArray<Real> GridData; 
+
+  // step recovery mechanism
+  void CheckAndReset(Mesh *pm);
 
 private:
   // data

@@ -42,6 +42,7 @@
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
+#include "../recover/recover.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
@@ -2623,7 +2624,7 @@ void Mesh::SetGridData(int n) {
 }
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::SetMeshSize()
-//  \brief Set Mesh size object with new bounds 
+//  \brief Set Mesh size object with new bounds by pulling info from adjusted MeshBlocks
 
 void Mesh::SetMeshSize(Mesh *pm) {
   if (EXPANDING) {
@@ -2632,71 +2633,92 @@ void Mesh::SetMeshSize(Mesh *pm) {
     MeshBlock *pmb = pm->pblock;
 
     if (pmb->pex->x1Move) {
-      //x1
-      inner = 0.0;
-      outer = 0.0;
-        
+      inner =  1e30;
+      outer = -1e30;
       while (pmb != NULL) {
         inner = std::min(pmb->block_size.x1min,inner);
         outer = std::max(pmb->block_size.x1max,outer);
         pmb = pmb->next;
       }
-
 #ifdef MPI_PARALLEL
       MPI_Allreduce(MPI_IN_PLACE,&inner,1,MPI_ATHENA_REAL,MPI_MIN,
                    MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&outer,1,MPI_ATHENA_REAL,MPI_MAX,
                    MPI_COMM_WORLD);
 #endif
-  
       pm->mesh_size.x1min = inner;
       pm->mesh_size.x1max = outer;
     }
     pmb = pm->pblock;
 
     if (pmb->pex->x2Move) {
-      //x1
-      inner = 0.0;
-      outer = 0.0;
-        
+      inner =  1e30;
+      outer = -1e30;
       while (pmb != NULL) {
         inner = std::min(pmb->block_size.x2min,inner);
         outer = std::max(pmb->block_size.x2max,outer);
         pmb = pmb->next;
       }
-
 #ifdef MPI_PARALLEL
       MPI_Allreduce(MPI_IN_PLACE,&inner,1,MPI_ATHENA_REAL,MPI_MIN,
                    MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&outer,1,MPI_ATHENA_REAL,MPI_MAX,
                    MPI_COMM_WORLD);
 #endif
-  
       pm->mesh_size.x2min = inner;
       pm->mesh_size.x2max = outer;
     }
     pmb = pm->pblock;
+
     if (pmb->pex->x3Move) {
-      //x1
-      inner = 0.0;
-      outer = 0.0;
-        
+      inner =  1e30; 
+      outer = -1e30;
       while (pmb != NULL) {
         inner = std::min(pmb->block_size.x3min,inner);
         outer = std::max(pmb->block_size.x3max,outer);
         pmb = pmb->next;
       }
-
 #ifdef MPI_PARALLEL
       MPI_Allreduce(MPI_IN_PLACE,&inner,1,MPI_ATHENA_REAL,MPI_MIN,
                    MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&outer,1,MPI_ATHENA_REAL,MPI_MAX,
                    MPI_COMM_WORLD);
 #endif
-  
       pm->mesh_size.x3min = inner;
       pm->mesh_size.x3max = outer;
     }
+
+  }
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void Mesh::CheckAndReset()
+//  \brief Checks variables and resets if necessary
+//
+void Mesh::CheckAndReset(Mesh *pm) {
+
+  if (RECOVER_ENABLED) {
+    bool failed = false;
+    MeshBlock *pmb = pm->pblock;
+
+    while (pmb != NULL) {
+      failed = (failed || (pmb->prec->Check(pmb)));
+      pmb = pmb->next;
+    }
+#ifdef MPI_PARALLEL
+    MPI_Allreduce(MPI_IN_PLACE,&failed,1,MPI_C_BOOL,MPI_LOR,MPI_COMM_WORLD);
+#endif
+    pmb = pm->pblock;
+
+    while (pmb != NULL) { 
+      pmb->prec->Reset(pmb,failed); // Reset switches between reset and update
+      pmb = pmb->next; 
+    }
+    pmb = pm->pblock;
+
+    // Reset Grid at mesh level (meshblock has been done in prec->Reset)
+    // Do what the expanding grid does - loop over the Blocks
 
   }
   return;
