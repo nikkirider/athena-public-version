@@ -26,8 +26,9 @@
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
-// constructor, initializes data structures and parameters
-
+//----------------------------------------------------------------------------------------
+// Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin)
+//   \brief constructor, initializes data structures and parameters
 Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   bool coarse_flag=pmb->pcoord->CoarseFlag();
   pmy_block = pmb;
@@ -120,13 +121,11 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   }
   mydt = (FLT_MAX);
 }
-// destructor
 
+//----------------------------------------------------------------------------------------
+// Expansion::~Expansion()
+//   \brief Destructor
 Expansion::~Expansion() {
-
-  //v1f.DeleteAthenaArray();
-  //v2f.DeleteAthenaArray();
-  //v3f.DeleteAthenaArray();
   x1_0.DeleteAthenaArray();
   x2_0.DeleteAthenaArray();
   x3_0.DeleteAthenaArray();
@@ -152,6 +151,9 @@ Expansion::~Expansion() {
 
 }
 
+//----------------------------------------------------------------------------------------
+// Expansion::WeightedAveX(...)
+//   \brief average weights for wall integration
 void Expansion::WeightedAveX(const int low, const int up, AthenaArray<Real> &x_out, AthenaArray<Real> &x_in1, AthenaArray<Real> &x_in2, const Real wght[3]){
 
   if (wght[2] != 0.0) {
@@ -183,6 +185,9 @@ void Expansion::WeightedAveX(const int low, const int up, AthenaArray<Real> &x_o
 }
 
 
+//----------------------------------------------------------------------------------------
+// void Expansion::IntegrateWalls(Real dt)
+//   \brief Advances the wall motion at same order as hydro.
 void Expansion::IntegrateWalls(Real dt){
 
   AthenaArray<Real> &v1f = vf[X1DIR];
@@ -211,7 +216,9 @@ void Expansion::IntegrateWalls(Real dt){
 }
 
 
-
+//----------------------------------------------------------------------------------------
+// void Expansion::ExpansionSoureTerms(...)
+//   \brief Determines fluxes due to moving cell walls
 void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flux, const AthenaArray<Real> &prim, AthenaArray<Real> &cons) {
   Real vm = 0.0;
   Coordinates *pc = pmy_block->pcoord;
@@ -295,6 +302,9 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
 }
 
 
+//----------------------------------------------------------------------------------------
+// void Expansion::UpdateVelData(MeshBlock *pmb, Real time, Real dt)
+//   \brief Updates the velocity data based on grid ODE.
 void Expansion::UpdateVelData(MeshBlock *pmb ,Real time, Real dt){
   AthenaArray<Real> &v1f = vf[X1DIR];
   AthenaArray<Real> &v2f = vf[X2DIR];
@@ -321,6 +331,9 @@ void Expansion::UpdateVelData(MeshBlock *pmb ,Real time, Real dt){
   return;
 }
 
+//----------------------------------------------------------------------------------------
+// void Expansion::GridEdit(MeshBlock *pmb, bool lastStage)
+//   \brief Calculates the new grid and all auxilliaries.
 void Expansion::GridEdit(MeshBlock *pmb,bool lastStage){
   //FACE CENTERED
   //x1
@@ -563,7 +576,8 @@ void Expansion::GridEdit(MeshBlock *pmb,bool lastStage){
   } else if (COORDINATE_SYSTEM == "cylindrical") {
     //Cylindrical
     for (int i=il; i<=iu; ++i) {
-      pmb->pcoord->x1v(i) = (TWO_3RD)*(pow(pmb->pcoord->x1f(i+1),3)-pow(pmb->pcoord->x1f(i),3))/(pow(pmb->pcoord->x1f(i+1),2) - pow(pmb->pcoord->x1f(i),2));
+      pmb->pcoord->x1v(i) = (TWO_3RD)*(pow(pmb->pcoord->x1f(i+1),3)-pow(pmb->pcoord->x1f(i),3))
+                           /(pow(pmb->pcoord->x1f(i+1),2) - pow(pmb->pcoord->x1f(i),2));
     }
     for (int i=il; i<=iu-1; ++i) {
       pmb->pcoord->dx1v(i) = pmb->pcoord->x1v(i+1) - pmb->pcoord->x1v(i);
@@ -655,7 +669,8 @@ void Expansion::GridEdit(MeshBlock *pmb,bool lastStage){
     //x1 deltas, volumes
     // x1-direction: x1v = (\int r dV / \int dV) = d(r^4/4)/d(r^3/3)
     for (int i=il; i<iu; ++i) {
-      pmb->pcoord->x1v(i) = 0.75*(pow(pmb->pcoord->x1f(i+1),4) - pow(pmb->pcoord->x1f(i),4))/(pow(pmb->pcoord->x1f(i+1),3) - pow(pmb->pcoord->x1f(i),3));
+      pmb->pcoord->x1v(i) = 0.75*(pow(pmb->pcoord->x1f(i+1),4) - pow(pmb->pcoord->x1f(i),4))
+                                /(pow(pmb->pcoord->x1f(i+1),3) - pow(pmb->pcoord->x1f(i),3));
     }
     for (int i=il; i<=iu-1; ++i) {
       pmb->pcoord->dx1v(i) = pmb->pcoord->x1v(i+1) - pmb->pcoord->x1v(i);
@@ -817,38 +832,26 @@ void Expansion::GridEdit(MeshBlock *pmb,bool lastStage){
 
   //Check Mesh_Size object and reset bounds if necessary
   if (x1Move) {
-    //x1
-    Real inner = 0.0;
-    Real outer = 0.0;
-    inner = x1_0(is);
-    outer = x1_0(ie+1);
-    pmb->block_size.x1min = inner;
-    pmb->block_size.x1max = outer;
+    pmb->block_size.x1min = x1_0(is);
+    pmb->block_size.x1max = x1_0(ie+1);
   }
   if (x2Move) {
-    //x2
-    Real inner = 0.0;
-    Real outer = 0.0;
-    inner = x2_0(js);
-    outer = x2_0(je+1);
-    pmb->block_size.x2min = inner;
-    pmb->block_size.x2max = outer;
+    pmb->block_size.x2min = x2_0(js);
+    pmb->block_size.x2max = x2_0(je+1);
   }
   if (x3Move) {
-    //x3
-
-    Real inner = 0.0;
-    Real outer = 0.0;
-    inner = x3_0(ks);
-    outer = x3_0(ke+1);
-    pmb->block_size.x3min = inner;
-    pmb->block_size.x3max = outer;
+    pmb->block_size.x3min = x3_0(ks);
+    pmb->block_size.x3max = x3_0(ke+1);
   }
 
   return;
 }
 
 
+//----------------------------------------------------------------------------------------
+// Real Expansion::GridTimeStep(MeshBlock *pmb)
+//   \brief Sets timestep imposed by co-scaling grid.
+//     Called by MeshBlock::NewBlock_Dt.
 Real Expansion::GridTimeStep(MeshBlock *pmb){
 
   Real nextPosDelta, minCellSize;//, dt;

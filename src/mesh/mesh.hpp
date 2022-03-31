@@ -226,7 +226,7 @@ public:
   AthenaArray<Real> GridData; 
 
   // step recovery mechanism
-  void CheckAndReset(Mesh *pm);
+  bool CheckAndReset(Mesh *pm);
 
 private:
   // data

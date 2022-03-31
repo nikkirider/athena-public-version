@@ -20,6 +20,7 @@
 #include "../mesh/mesh.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../expansion/expansion.hpp"
+#include "../recover/recover.hpp"
 // forward declarations
 class MeshBlock;
 class ParameterInput;
@@ -31,6 +32,7 @@ class ParameterInput;
 class Coordinates {
 public:
   friend class Expansion;
+  friend class Recover;
   friend class HydroSourceTerms;
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
   virtual ~Coordinates();

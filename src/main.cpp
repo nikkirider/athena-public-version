@@ -29,6 +29,9 @@
 #include <iostream>   // cout, endl
 #include <new>        // bad_alloc
 #include <string>     // string
+#include <sstream>
+#include <stdexcept>  // runtime_error
+
 
 // Athena++ headers
 #include "athena.hpp"
@@ -382,25 +385,68 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
+    if (RECOVER_ENABLED) {
 
-    for (int stage=1; stage<=ptlist->nstages; ++stage) {
-      if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
-        pmesh->pfgrd->Solve(stage, 0);
-      else if (SELF_GRAVITY_ENABLED == 2) // multigrid
-        pmesh->pmgrd->Solve(stage);
-      
-      if (EXPANDING) {
-        pmesh->CalcGridData_(pmesh); 
-      }
-      ptlist->DoTaskListOneStage(pmesh, stage);
-      if (EXPANDING) {
-        pmesh->SetMeshSize(pmesh); 
-      }
-      
-    }
+      bool failed = true;
+      int itretry = 0, maxitretry=5;
+      while ((failed) && (itretry <= maxitretry)) {
 
-    // Possibly here pmesh->CheckAndReset. But need to skip rest then.
+        if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
+
+        for (int stage=1; stage<=ptlist->nstages; ++stage) {
+          if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
+            pmesh->pfgrd->Solve(stage, 0);
+          else if (SELF_GRAVITY_ENABLED == 2) // multigrid
+            pmesh->pmgrd->Solve(stage);
+      
+          if (EXPANDING) {
+            pmesh->CalcGridData_(pmesh); 
+          }
+          ptlist->DoTaskListOneStage(pmesh, stage);
+          if (EXPANDING) {
+            pmesh->SetMeshSize(pmesh); 
+          }
+        }
+
+        failed = pmesh->CheckAndReset(pmesh);
+        if (failed) {
+          itretry++; 
+          pmesh->dt = 0.5*pmesh->dt;
+          if (Globals::my_rank==0) {
+            std::cout << "retry=" << pmesh->ncycle<< std::scientific <<std::setprecision(14)
+                      << " time=" << pmesh->time << " dt=" << pmesh->dt 
+                      << " itretry=" << std::setw(3) << itretry << std::endl;
+          }
+        }
+      }
+      if (itretry >= maxitretry) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in Main" << std::endl
+            << "Recover reached maximum number of retries ("
+            << maxitretry << ")" << std::endl;
+        throw std::runtime_error(msg.str().c_str());
+      }
+
+    } else { // original branch
+
+      if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
+
+      for (int stage=1; stage<=ptlist->nstages; ++stage) { 
+        if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
+          pmesh->pfgrd->Solve(stage, 0);
+        else if (SELF_GRAVITY_ENABLED == 2) // multigrid
+          pmesh->pmgrd->Solve(stage);
+          
+        if (EXPANDING) { 
+          pmesh->CalcGridData_(pmesh); 
+        } 
+        ptlist->DoTaskListOneStage(pmesh, stage);
+        if (EXPANDING) { 
+          pmesh->SetMeshSize(pmesh); 
+        } 
+      }
+
+    } 
 
     pmesh->UserWorkInLoop();
 

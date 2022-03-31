@@ -34,6 +34,7 @@
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "../reconstruct/reconstruction.hpp"
+#include "../recover/recover.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "mesh.hpp"
@@ -132,15 +133,15 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // physics-related objects: may depend on Coordinates for diffusion terms
   phydro = new Hydro(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
-	if (CLESS_ENABLED) pcless = new Cless(this, pin); 
+  if (CLESS_ENABLED) pcless = new Cless(this, pin); 
   peos = new EquationOfState(this, pin);
 
   // Create user mesh data
   InitUserMeshBlockData(pin);
   // Initialize OTF output if necessary.
   InitOTFOutput(pin);
-
-  pex = new Expansion(this,pin);
+  if (EXPANDING) pex = new Expansion(this,pin);
+  if (RECOVER_ENABLED) prec = new Recover(this,pin);
 
   if (TIMESTEPINFO_ENABLED) { 
     ndt = 12;
@@ -240,11 +241,13 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   // (re-)create physics-related objects in MeshBlock
   phydro = new Hydro(this, pin);
-	if (CLESS_ENABLED) pcless = new Cless(this, pin); 
+  if (CLESS_ENABLED) pcless = new Cless(this, pin); 
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
   peos = new EquationOfState(this, pin);
   InitUserMeshBlockData(pin);
   InitOTFOutput(pin);
+  if (EXPANDING) pex = new Expansion(this,pin);
+  if (RECOVER_ENABLED) prec = new Recover(this,pin);
 
   int os=0;
   // load hydro and field data
@@ -323,7 +326,9 @@ MeshBlock::~MeshBlock() {
   delete peos;
   if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (SELF_GRAVITY_ENABLED==1) delete pgbval;
-	if (CLESS_ENABLED) delete pcless; 
+  if (CLESS_ENABLED) delete pcless; 
+  if (EXPANDING) delete pex;
+  if (RECOVER_ENABLED) delete prec;
 
   // delete user output variables array
   if (nuser_out_var > 0) {

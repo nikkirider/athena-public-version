@@ -1062,6 +1062,7 @@ void Mesh::NewTimeStep(void) {
       }
       pmb=pmb->next;
     }
+    pmb = pblock;
 #ifdef MPI_PARALLEL
     for (int l=0; l<ndt; l++) {
       buf_in[l*7+0] = all_min_dts(l);
@@ -1244,6 +1245,7 @@ void Mesh::NewTimeStep(void) {
       min_dt=std::min(min_dt,pmb->new_block_dt);
       pmb=pmb->next;
     }
+    pmb = pblock;
 #ifdef MPI_PARALLEL
     MPI_Allreduce(MPI_IN_PLACE,&min_dt,1,MPI_ATHENA_REAL,MPI_MIN,MPI_COMM_WORLD);
 #endif
@@ -1528,7 +1530,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 {
     MeshBlock *pmb;
     Hydro *phydro;
-		Cless *pcless;
+    Cless *pcless;
     Field *pfield;
     BoundaryValues *pbval;
 
@@ -1547,9 +1549,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, HYDRO_CONS);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->SendFieldBoundaryBuffers(pmb->pfield->b);
-			if (CLESS_ENABLED) 
-				pbval->SendCellCenteredBoundaryBuffers(pmb->pcless->u, CLESS_CONS);
-		}
+      if (CLESS_ENABLED) 
+        pbval->SendCellCenteredBoundaryBuffers(pmb->pcless->u, CLESS_CONS);
+    }
 		
     // wait to receive conserved variables
 #pragma omp for private(pmb,pbval)
@@ -1561,8 +1563,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // send and receive shearingbox boundary conditions
       if (SHEARING_BOX)
         pbval->SendHydroShearingboxBoundaryBuffersForInit(pmb->phydro->u, true);
-			if (CLESS_ENABLED)
-				pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pcless->u, CLESS_CONS);
+      if (CLESS_ENABLED)
+        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pcless->u, CLESS_CONS);
       pbval->ClearBoundaryForInit(true);
     }
 
@@ -1599,10 +1601,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       if (multilevel==true) {
         pbval->ProlongateBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                     time, 0.0);
-				if (CLESS_ENABLED) {
-					pbval->ProlongateBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-				}
-			}
+        if (CLESS_ENABLED) {
+          pbval->ProlongateBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+        }
+      }
 
       int il=pmb->is, iu=pmb->ie, jl=pmb->js, ju=pmb->je, kl=pmb->ks, ku=pmb->ke;
       if (pbval->nblevel[1][1][0]!=-1) il-=NGHOST;
@@ -1620,12 +1622,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                       il, iu, jl, ju, kl, ku);
       pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                      time, 0.0);
-			if (CLESS_ENABLED) {
-				pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
-																	pcless->w, pmb->pcoord, 
-																	il, iu, jl, ju, kl, ku);
-				pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
-			}
+      if (CLESS_ENABLED) {
+        pmb->peos->ConsclToPrimcl(pcless->u, pcless->w1, 
+                                  pcless->w, pmb->pcoord, 
+                                  il, iu, jl, ju, kl, ku);
+        pbval->ApplyPhysicalBoundariesCL(pcless->w, pcless->u, time, 0.0); 
+      }
     }
 
     // Calc initial diffusion coefficients
@@ -1676,6 +1678,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
   }
 
   NewTimeStep();
+
+  if (RECOVER_ENABLED) {
+    // now that the pmbs have their data, initialize recovery system. 
+#pragma omp parallel for num_threads(nthreads)
+    for (int i=0; i<nmb; ++i) {
+      pmb_array[i]->prec->Initialize(pmb_array[i]);
+    }
+  }
+
   return;
 }
 
@@ -2216,12 +2227,12 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Pack3DData(pmr->coarse_b_.x3f, sendbuf[k],
                          pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke+f3, p);
         }
-				if (CLESS_ENABLED) {
-	        pmr->RestrictCellCenteredValues(pb->pcless->u, pmr->coarse_conscl_,
-		           0, NCLESS-1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
-				  BufferUtility::Pack4DData(pmr->coarse_conscl_, sendbuf[k], 0, NCLESS-1,
-                       pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
-				}
+        if (CLESS_ENABLED) {
+          pmr->RestrictCellCenteredValues(pb->pcless->u, pmr->coarse_conscl_,
+                                          0, NCLESS-1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+         BufferUtility::Pack4DData(pmr->coarse_conscl_, sendbuf[k], 0, NCLESS-1,
+                                   pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
+        }
         int tag=CreateAMRMPITag(nn-nslist[newrank[nn]], ox1, ox2, ox3);
         MPI_Isend(sendbuf[k], bsf2c, MPI_ATHENA_REAL, newrank[nn],
                   tag, MPI_COMM_WORLD, &(req_send[k]));
@@ -2328,19 +2339,18 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
               }
             }
           }
-					if (CLESS_ENABLED) {
-						pmr->RestrictCellCenteredValues(pob->pcless->u, pmr->coarse_conscl_,
-								 0, NCLESS-1, pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
-						AthenaArray<Real> &src=pmr->coarse_conscl_;
-						AthenaArray<Real> &dst=pmb->pcless->u;
-						for (int nv=0; nv<NCLESS; nv++) {
-							for (int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
-								for (int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
-									for (int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
-										dst(nv, k, j, i)=src(nv, fk, fj, fi);
-						}}}
-					}
-
+          if (CLESS_ENABLED) {
+            pmr->RestrictCellCenteredValues(pob->pcless->u, pmr->coarse_conscl_,
+                                            0, NCLESS-1, pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
+            AthenaArray<Real> &src=pmr->coarse_conscl_;
+            AthenaArray<Real> &dst=pmb->pcless->u;
+            for (int nv=0; nv<NCLESS; nv++) {
+              for (int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
+                for (int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
+                  for (int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
+                    dst(nv, k, j, i)=src(nv, fk, fj, fi);
+            }}}
+          }
         }
       } else if ((loclist[on].level < newloc[n].level) &&
                  (ranklist[on]==Globals::my_rank)) {
@@ -2390,20 +2400,19 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           pmr->ProlongateInternalField(pmb->pfield->b, pob->cis, pob->cie,
                                        pob->cjs, pob->cje, pob->cks, pob->cke);
         }
-				if (CLESS_ENABLED) {
-					AthenaArray<Real> &src=pob->pcless->u;
-					AthenaArray<Real> &dst=pmr->coarse_conscl_;
-					// fill the coarse buffer
-					for (int nv=0; nv<NCLESS; nv++) {
-						for (int k=ks, ck=cks; k<=ke; k++, ck++) {
-							for (int j=js, cj=cjs; j<=je; j++, cj++) {
-								for (int i=is, ci=cis; i<=ie; i++, ci++)
-									dst(nv, k, j, i)=src(nv, ck, cj, ci);
-					}}}
-					pmr->ProlongateCellCenteredValues(dst, pmb->pcless->u, 0, NCLESS-1,
-						             pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
-
-				}
+        if (CLESS_ENABLED) {
+          AthenaArray<Real> &src=pob->pcless->u;
+          AthenaArray<Real> &dst=pmr->coarse_conscl_;
+          // fill the coarse buffer
+          for (int nv=0; nv<NCLESS; nv++) {
+            for (int k=ks, ck=cks; k<=ke; k++, ck++) {
+              for (int j=js, cj=cjs; j<=je; j++, cj++) {
+                for (int i=is, ci=cis; i<=ie; i++, ci++)
+                  dst(nv, k, j, i)=src(nv, ck, cj, ci);
+          }}}
+          pmr->ProlongateCellCenteredValues(dst, pmb->pcless->u, 0, NCLESS-1,
+                                            pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
+        }
       }
     }
   }
@@ -2456,11 +2465,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         }
         int *dcp=reinterpret_cast<int *>(&(recvbuf[k][p]));
         pb->pmr->deref_count_=*dcp;
-			
-				if (CLESS_ENABLED) {
-	        BufferUtility::Unpack4DData(recvbuf[k], pb->pcless->u, 0, NCLESS-1,
-		                     pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
-				}
+
+        if (CLESS_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pb->pcless->u, 0, NCLESS-1,
+                                      pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         k++;
       } else if (oloc.level>nloc.level) { // f2c
         for (int l=0; l<nlbl; l++) {
@@ -2496,10 +2505,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
               }
             }
           }
-					if (CLESS_ENABLED) {
-	          BufferUtility::Unpack4DData(recvbuf[k], pb->pcless->u, 0, NCLESS-1,
-		                       is, ie, js, je, ks, ke, p);
-					}
+          if (CLESS_ENABLED) {
+            BufferUtility::Unpack4DData(recvbuf[k], pb->pcless->u, 0, NCLESS-1,
+                                        is, ie, js, je, ks, ke, p);
+          }
           k++;
         }
       } else { // c2f
@@ -2529,12 +2538,12 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           pmr->ProlongateInternalField(pb->pfield->b, pb->cis, pb->cie,
                                        pb->cjs, pb->cje, pb->cks, pb->cke);
         }
-				if (CLESS_ENABLED) {
-					BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_conscl_,
-                                    0, NCLESS-1, is, ie, js, je, ks, ke, p);
-					pmr->ProlongateCellCenteredValues(pmr->coarse_conscl_, pb->pcless->u, 0, NCLESS-1,
-																		 pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
-				}
+        if (CLESS_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_conscl_,
+                                      0, NCLESS-1, is, ie, js, je, ks, ke, p);
+          pmr->ProlongateCellCenteredValues(pmr->coarse_conscl_, pb->pcless->u, 0, NCLESS-1,
+                                            pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+        }
         k++;
       }
     }
@@ -2696,10 +2705,11 @@ void Mesh::SetMeshSize(Mesh *pm) {
 //! \fn void Mesh::CheckAndReset()
 //  \brief Checks variables and resets if necessary
 //    Loops over all meshblocks. 
-void Mesh::CheckAndReset(Mesh *pm) {
+bool Mesh::CheckAndReset(Mesh *pm) {
+
+  bool failed = false;
 
   if (RECOVER_ENABLED) {
-    bool failed = false;
     MeshBlock *pmb = pm->pblock;
 
     while (pmb != NULL) {
@@ -2717,10 +2727,30 @@ void Mesh::CheckAndReset(Mesh *pm) {
     }
     pmb = pm->pblock;
 
-
-    // Reset Grid at mesh level (meshblock has been done in prec->Reset)
-    // Do what the expanding grid does - loop over the Blocks
+    // Reset grid size at mesh level 
+    Real bounds[6];
+    for (int l=0; l<6; ++l) bounds[l  ] =  1e30;
+    while (pmb != NULL) {
+      bounds[0] = std::min(pmb->block_size.x1min,bounds[0]);
+      bounds[1] = std::min(pmb->block_size.x2min,bounds[1]);
+      bounds[2] = std::min(pmb->block_size.x3min,bounds[2]);
+      bounds[3] = std::min(-pmb->block_size.x1max,bounds[3]);
+      bounds[4] = std::min(-pmb->block_size.x2max,bounds[4]);
+      bounds[5] = std::min(-pmb->block_size.x3max,bounds[5]);
+      pmb = pmb->next;
+    }
+#ifdef MPI_PARALLEL
+    MPI_Allreduce(MPI_IN_PLACE,&bounds,6,MPI_ATHENA_REAL,MPI_MIN,
+                  MPI_COMM_WORLD);
+#endif
+    pm->mesh_size.x1min =  bounds[0];
+    pm->mesh_size.x2min =  bounds[1];
+    pm->mesh_size.x3min =  bounds[2];
+    pm->mesh_size.x1max = -bounds[3];
+    pm->mesh_size.x2max = -bounds[4];
+    pm->mesh_size.x3max = -bounds[5];
+    pmb = pm->pblock;
 
   }
-  return;
+  return failed;
 }

@@ -42,6 +42,8 @@ public:
   int il, iu, jl, ju, kl, ku, ng; //With Ghost cells
   int ie,is,je,js,ke,ks; //Without ghost cells
 
+  // initializes recovery system (i.e. copies initial data into backup)
+  void Initialize(MeshBlock *pmb); 
   // checks the meshblock pmb, resets to old values and adjusts freduct.
   bool Check(MeshBlock *pmb);
   void Reset(MeshBlock *pmb, bool failed); // reset if failed, and adjust freduct_
