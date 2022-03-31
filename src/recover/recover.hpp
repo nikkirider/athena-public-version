@@ -33,9 +33,10 @@ public:
   ~Recover();
 
   // Old Data: full copy of old  set
-  AthenaArray<Real> w;   // primitive variables
+  AthenaArray<Real> u,w;   // primitive variables
   FaceField b;  // face-centered magnetic fields
   AthenaArray<Real> x1f, x2f, x3f; // wall coordinates, from which grid will be reconstructed 
+  AthenaArray<Real> phi; // gravitational potential
 
   Real time_old, dt_old;
   int il, iu, jl, ju, kl, ku, ng; //With Ghost cells

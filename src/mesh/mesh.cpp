@@ -2695,7 +2695,7 @@ void Mesh::SetMeshSize(Mesh *pm) {
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::CheckAndReset()
 //  \brief Checks variables and resets if necessary
-//
+//    Loops over all meshblocks. 
 void Mesh::CheckAndReset(Mesh *pm) {
 
   if (RECOVER_ENABLED) {
@@ -2716,6 +2716,7 @@ void Mesh::CheckAndReset(Mesh *pm) {
       pmb = pmb->next; 
     }
     pmb = pm->pblock;
+
 
     // Reset Grid at mesh level (meshblock has been done in prec->Reset)
     // Do what the expanding grid does - loop over the Blocks

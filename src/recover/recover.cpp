@@ -5,7 +5,7 @@
 //========================================================================================
 //! \file recover.cpp
 //  \brief implementation of Recover class
-
+//    The class Recover is owned by MeshBlock, similar to Expansion.
 // C/C++ headers
 #include <string>
 #include <algorithm>  // min()
@@ -17,6 +17,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../eos/eos.hpp"
+#include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
@@ -26,8 +27,11 @@
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
+
+//============================================
 // constructor, initializes data structures and parameters
 // Needs to be called after grid setup, problem generator, and timestep.
+//============================================
 Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
   bool coarse_flag=pmb->pcoord->CoarseFlag();
   pmy_block = pmb;
@@ -53,12 +57,14 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
   if (pmb->block_size.nx2 > 1) {ncells2 = (je-js+1) + 2*ng; jl = js-ng; ju = je+ng;}
   if (pmb->block_size.nx3 > 1) {ncells3 = (ke-ks+1) + 2*ng; kl = ks-ng; ku = ke+ng;}
 
-  //Allocate grid data
-  x1f.NewAthenaArray((ncells1+1));
-  x2f.NewAthenaArray((ncells2+1));
-  x3f.NewAthenaArray((ncells3+1));
+  if (EXPANDING) { // Allocate grid data if needed
+    x1f.NewAthenaArray((ncells1+1));
+    x2f.NewAthenaArray((ncells2+1));
+    x3f.NewAthenaArray((ncells3+1));
+  }
 
-  // allocate primitive variables (old values)
+  // allocate conservative and primitive variables (old values)
+  u.NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1);
   w.NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1);
 
   // allocate magnetic fields if needed
@@ -74,26 +80,25 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
     b.x3f.NewAthenaArray((ncells3_b+1), ncells2_b   , ncells1_b   );
   }
     
-  // copy grid information
+  if (EXPANDING) { // initialize grid information
 #pragma omp simd
-  for (int i=il; i<=iu+1;++i) {
-    x1f(i) = pmb->pcoord->x1f(i);
-  }
+    for (int i=il; i<=iu+1;++i)
+      x1f(i) = pmb->pcoord->x1f(i);
 #pragma omp simd
-  for (int j=jl; j<=ju+1;++j) {
-   x2f(j) = pmb->pcoord->x2f(j);
-  }
+    for (int j=jl; j<=ju+1;++j)
+     x2f(j) = pmb->pcoord->x2f(j);
 #pragma omp simd
-  for (int k=kl; k<=ku+1;++k) {
-    x3f(k) = pmb->pcoord->x3f(k);
+    for (int k=kl; k<=ku+1;++k)
+      x3f(k) = pmb->pcoord->x3f(k);
   }
 
-  // copy primitive variables
+  // copy conservative and primitive variables
   for (int n=0; n<NHYDRO; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
         for (int i=il; i<=iu; ++i) {
+          u(n,k,j,i) = pmb->phydro->u(n,k,j,i);
           w(n,k,j,i) = pmb->phydro->w(n,k,j,i);       
         }
       }
@@ -117,11 +122,22 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
         }
       }
     }
-    for (int k=0; k<=ku+1; ++k) {
-      for (int j=0; j<=ju; ++j) {
+    for (int k=kl; k<=ku+1; ++k) {
+      for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-        for (int i=0; i<=iu; ++i) {
+        for (int i=il; i<=iu; ++i) {
           b.x3f(k,j,i) = pmb->pfield->b.x3f(k,j,i);
+        }
+      }
+    }
+  }
+
+  if (SELF_GRAVITY_ENABLED) {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+        for (int i=il; i<=iu; ++i) {
+          phi(k,j,i) = pmb->pgrav->phi(k,j,i);
         }
       }
     }
@@ -133,22 +149,33 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
 }
 
 
-// destructor
+//============================================
+// Destructor
+//============================================
 Recover::~Recover() {
 
-  x1f.DeleteAthenaArray();
-  x2f.DeleteAthenaArray();
-  x3f.DeleteAthenaArray();
+  if (EXPANDING) {
+    x1f.DeleteAthenaArray();
+    x2f.DeleteAthenaArray();
+    x3f.DeleteAthenaArray();
+  }
+  u.DeleteAthenaArray();
   w.DeleteAthenaArray();
   if (MAGNETIC_FIELDS_ENABLED) {
     b.x1f.DeleteAthenaArray();
     b.x2f.DeleteAthenaArray();
     b.x3f.DeleteAthenaArray();
   }
+  if (SELF_GRAVITY_ENABLED) {
+    phi.DeleteAthenaArray();
+  }
 }
 
+//============================================
 // Recover::Check(MeshBlock *pmb) 
-// \brief: Checks grid for invalid values
+// \brief: Checks grid owned by pmb for invalid values.
+//   Called by Mesh::CheckAndReset()
+//============================================
 bool Recover::Check(MeshBlock *pmb) {
 
   bool failed = false;
@@ -171,42 +198,144 @@ bool Recover::Check(MeshBlock *pmb) {
   return failed;
 }
 
+//============================================
 // Recover::Resets(MeshBlock *pmb) 
 // // \brief: If failed, resets primitive variables,
 // otherwise copies new primitive variables into 
-// temporary. 
+// temporary. This is called after BCs, therefore
+// must include boundaries.
+//============================================
 void Recover::Reset(MeshBlock *pmb, bool failed) {
 
   if (failed) {
     // copy backup into primitive variables
     for (int n=0; n<NHYDRO; ++n) {
-      for (int k=ks; k<=ke; ++k) {
-        for (int j=js; j<=je; ++j) {
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
+          for (int i=il; i<=iu; ++i) {
             pmb->phydro->w(n,k,j,i) = w(n,k,j,i); 
+            pmb->phydro->u(n,k,j,i) = u(n,k,j,i);
           }
         }
       }
     }
-    // fields & grids, also conservative variables
-    
-    // NEED TO INCREASE FREDUCT, BUT WITH SAFEGUARD. IS USED IN TIMESTEP.
-  } else {
-    // copy new primitive variables into backup
-    for (int n=0; n<NHYDRO; ++n) {
-      for (int k=ks; k<=ke; ++k) {
-        for (int j=js; j<=je; ++j) {
+
+    if (EXPANDING) { // grids
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            w(n,k,j,i) = pmb->phydro->w(n,k,j,i);
+      for (int i=il; i<=iu+1;++i)
+        pmb->pcoord->x1f(i) = x1f(i);
+#pragma omp simd
+      for (int j=jl; j<=ju+1;++j) 
+        pmb->pcoord->x2f(j) = x2f(j);
+#pragma omp simd
+      for (int k=kl; k<=ku+1;++k) 
+        pmb->pcoord->x3f(k) = x3f(k);
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED) {
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd 
+          for (int i=il; i<=iu+1; ++i) {
+            pmb->pfield->b.x1f(k,j,i) = b.x1f(k,j,i);
+          }
+        }
+      }
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju+1; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            pmb->pfield->b.x2f(k,j,i) = b.x2f(k,j,i);
+          }
+        }
+      }
+      for (int k=kl; k<=ku+1; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            pmb->pfield->b.x3f(k,j,i) = b.x3f(k,j,i);
+          }
+        }
+      }
+    } 
+
+    if (SELF_GRAVITY_ENABLED) {
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            pmb->pgrav->phi(k,j,i) = phi(k,j,i);
           }
         }
       }
     }
-    // fields & grids, also conservative variables
-    // Pay close attention to boundaries here.
-  }
+
+  } else {
+    // copy new conservative and primitive variables into backup
+    for (int n=0; n<NHYDRO; ++n) {
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            w(n,k,j,i) = pmb->phydro->w(n,k,j,i);
+            u(n,k,j,i) = pmb->phydro->u(n,k,j,i);
+          }
+        }
+      }
+    }
+
+    if (EXPANDING) { // grids
+#pragma omp simd
+      for (int i=il; i<=iu+1;++i)
+        x1f(i) = pmb->pcoord->x1f(i);
+#pragma omp simd
+      for (int j=jl; j<=ju+1;++j)
+        x2f(j) = pmb->pcoord->x2f(j);
+#pragma omp simd
+      for (int k=kl; k<=ku+1;++k)
+        x3f(k) = pmb->pcoord->x3f(k);
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED) { 
+      for (int k=kl; k<=ku; ++k) { 
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd 
+          for (int i=il; i<=iu+1; ++i) {
+            b.x1f(k,j,i) = pmb->pfield->b.x1f(k,j,i);
+          }
+        }
+      }
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju+1; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            b.x2f(k,j,i) = pmb->pfield->b.x2f(k,j,i);
+          }
+        }
+      }
+      for (int k=kl; k<=ku+1; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            b.x3f(k,j,i) = pmb->pfield->b.x3f(k,j,i);
+          }
+        }
+      }
+    }
+
+    if (SELF_GRAVITY_ENABLED) {
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+            phi(k,j,i) = pmb->pgrav->phi(k,j,i);
+          }
+        }
+      }
+    }
+
+  } // if (failed)
 
   return;
 }
