@@ -193,6 +193,7 @@ public:
   enum BoundaryFlag mesh_bcs[6];
   Real start_time, tlim, cfl_number, time, dt;
   int nlim, ncycle, ncycle_out;
+  int maxitretry = 0; // For Recover class
   int nbtotal, nbnew, nbdel;
   bool adaptive, multilevel;
   int gflag;

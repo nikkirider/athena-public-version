@@ -14,7 +14,8 @@ python3 configure.py\
                          -hdf5 \
                          --grav fft \
                          -fft \
-                         -mpi \
                          -rec \
+                         -mpi \
+                         -de \
                          -b 
 

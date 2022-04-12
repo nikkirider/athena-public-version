@@ -81,6 +81,10 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
     b.x3f.NewAthenaArray((ncells3_b+1), ncells2_b   , ncells1_b   );
   }
 
+  if (SELF_GRAVITY_ENABLED) {
+    phi.NewAthenaArray(ncells3,ncells2,ncells1);
+  }
+
   return;
 }
 
@@ -185,6 +189,7 @@ void Recover::Initialize(MeshBlock *pmb) {
 // \brief: Checks grid owned by pmb for invalid values.
 //   Called by Mesh::CheckAndReset()
 //   Assumes that primitive and conservative variables are fully updated.
+//   Uses std::isnormal to check for 0, NaN, +-Inf, < DBL_MIN
 bool Recover::Check(MeshBlock *pmb) {
 
   bool failed = false;
@@ -195,14 +200,14 @@ bool Recover::Check(MeshBlock *pmb) {
       for (int i=is; i<=ie; ++i) {
         Real dens = pmb->phydro->u(IDN,k,j,i);
         Real etot = pmb->phydro->u(IEN,k,j,i);
-        failed = (failed || (dens <=0.0) || (std::isnan(dens))
-                         || (etot <=0.0) || (std::isnan(etot)));
+        failed = (failed || (dens < 0.0) || (!(std::isnormal(dens)))
+                         || (etot < 0.0) || (!(std::isnormal(etot))));
         if (DUAL_ENERGY) {
           Real eint = pmb->phydro->u(IIE,k,j,i);
-          failed = (failed || (eint <=0.0) || (std::isnan(eint)));
+          failed = (failed || (eint < 0.0) || (!(std::isnormal(eint))));
         } else {
           Real prss = pmb->phydro->w(IPR,k,j,i); 
-          failed = (failed || (prss <=0.0) || (std::isnan(prss)));
+          failed = (failed || (prss < 0.0) || (!(std::isnormal(prss))));
         }
       }
     }
@@ -212,8 +217,8 @@ bool Recover::Check(MeshBlock *pmb) {
 
 //----------------------------------------------------------------------------------------
 // Recover::Resets(MeshBlock *pmb) 
-// // \brief: If failed, resets primitive variables,
-// otherwise copies new primitive variables into 
+// // \brief: If failed, resets primitive and conservative variables,
+// otherwise copies new primitive and conservative variables into 
 // temporary. This is called after BCs, therefore
 // must include boundaries.
 void Recover::Reset(MeshBlock *pmb, bool failed) {
@@ -572,7 +577,7 @@ void Recover::Reset(MeshBlock *pmb, bool failed) {
         if (pmb->pcoord->coarse_flag==false) {
           // Compute and store constant coefficients needed for face-areas, cell-volumes, etc.
           // This helps improve performance
-    #pragma omp simd
+#pragma omp simd
           for (int i=il; i<=iu; ++i) {
             Real rm = pmb->pcoord->x1f(i  );
             Real rp = pmb->pcoord->x1f(i+1);
@@ -587,7 +592,7 @@ void Recover::Reset(MeshBlock *pmb, bool failed) {
             // Rf_{i}/R_{i}/Rf_{i}^2
             pmb->pcoord->phy_src1_i_(i) = 1.0/(pmb->pcoord->x1v(i)*pmb->pcoord->x1f(i));
           }
-    #pragma omp simd
+#pragma omp simd
           for (int i=il; i<=iu-1; ++i) {
             // Rf_{i+1}/R_{i}/Rf_{i+1}^2
             pmb->pcoord->phy_src2_i_(i) = 1.0/(pmb->pcoord->x1v(i)*pmb->pcoord->x1f(i+1));

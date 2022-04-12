@@ -72,8 +72,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       Real& w_p  = prim(IPR,k,j,i);
       Real& w_ge = prim(IGE,k,j,i);
 
-      // apply density floor, without changing momentum or energy
-      u_d = (u_d > density_floor_) ?  u_d : density_floor_;
+      if (!RECOVER_ENABLED) {
+        // apply density floor, without changing momentum or energy
+        u_d = (u_d > density_floor_) ?  u_d : density_floor_;
+      }
       w_d = u_d;
 
       Real di = 1.0/u_d;
@@ -211,8 +213,10 @@ Real EquationOfState::FastMagnetosonicSpeed(const Real prim[(NHYDRO+2)], const R
 // \brief Apply density and pressure floors to reconstructed L/R cell interface states
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
   Real& w_d  = prim(IDN,k,j,i);
-  // apply density floor
-  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  if (!RECOVER_ENABLED) {
+    // apply density floor
+    w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  }
 
   return;
 }

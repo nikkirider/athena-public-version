@@ -388,8 +388,8 @@ int main(int argc, char *argv[]) {
     if (RECOVER_ENABLED) {
 
       bool failed = true;
-      int itretry = 0, maxitretry=5;
-      while ((failed) && (itretry <= maxitretry)) {
+      int itretry = 0; 
+      while ((failed) && (itretry <= pmesh->maxitretry)) {
 
         if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
 
@@ -413,17 +413,18 @@ int main(int argc, char *argv[]) {
           itretry++; 
           pmesh->dt = 0.5*pmesh->dt;
           if (Globals::my_rank==0) {
-            std::cout << "retry=" << pmesh->ncycle<< std::scientific <<std::setprecision(14)
-                      << " time=" << pmesh->time << " dt=" << pmesh->dt 
+            std::cout << "retry=" << std::setw(7) << pmesh->ncycle 
+                      << " time=" << std::scientific << std::setprecision(14) << pmesh->time 
+                      << " dt="   << std::scientific << std::setprecision(14) << pmesh->dt 
                       << " itretry=" << std::setw(3) << itretry << std::endl;
           }
         }
       }
-      if (itretry >= maxitretry) {
+      if (itretry >= pmesh->maxitretry) {
         std::stringstream msg;
         msg << "### FATAL ERROR in Main" << std::endl
             << "Recover reached maximum number of retries ("
-            << maxitretry << ")" << std::endl;
+            << pmesh->maxitretry << ")" << std::endl;
         throw std::runtime_error(msg.str().c_str());
       }
 
@@ -445,7 +446,6 @@ int main(int argc, char *argv[]) {
           pmesh->SetMeshSize(pmesh); 
         } 
       }
-
     } 
 
     pmesh->UserWorkInLoop();

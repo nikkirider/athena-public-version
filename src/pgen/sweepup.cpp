@@ -35,6 +35,7 @@
 #endif
 
 #define SUBSAMPLE
+#define DEBUG_IC
 
 
 // Cooling variables. These need to be set in InitUserMeshData (restarts!!)
@@ -465,6 +466,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                 << " NWAVE    = " << std::setw(3) << (NWAVE)
                 << " NINT     = " << std::setw(3) << (NINT)
                 << " NSCALARS = " << std::setw(3) << (NSCALARS) << std::endl;
+      if (RECOVER_ENABLED) {
+        std::cout << "[ProblemGenerator]: RECOVER_ENABLED: yes." << std::endl;
+      } else {
+        std::cout << "[ProblemGenerator]: RECOVER_ENABLED: no." << std::endl;
+      }
     }
     dx1v   = pcoord->dx1v(is); // assuming cartesian for now
     dx2v   = pcoord->dx2v(js);
@@ -542,8 +548,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         for (int j=js; j<=je; j++) {
           Real y = pcoord->x2v(j);
           for (int i=is; i<=ie; i++) {
-#ifdef SUBSAMPLE
             Real x = pcoord->x1v(i);
+#ifdef SUBSAMPLE
             int nq;
             if (DUAL_ENERGY) {
               nq = 6;
@@ -567,14 +573,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                   Real vrad = vs*0.5*(1.0-std::tanh(2.0*(r-rs)/dx1v)) * vinner(r,ts)/vinner(rs,ts);
                   Real dd   = n0*0.5*(1.0+std::tanh(5.0*(r-rs+dr)/dr)) + nbar*0.5*std::exp(-0.5*SQR((r-rs)/s))*(1.0+std::erf(w*(r-rs)/std::sqrt(2.0)))/std::sqrt(2.0*PI);
                   qsub[0]   += dd;
-                  Real mm1  = vrad*(xx/r)*dd;
-                  Real mm2  = vrad*(yy/r)*dd;
-                  Real mm3  = vrad*(zz/r)*dd;
+                  Real mm1  = vrad*(xx/r);
+                  Real mm2  = vrad*(yy/r);
+                  Real mm3  = vrad*(zz/r);
+                  if (iturb > 0) {
+                    mm1 += dvturb(0,k,j,i);
+                    mm2 += dvturb(1,k,j,i);                   
+                    mm3 += dvturb(2,k,j,i);                   
+                  }
                   Real tt   = GetEquiTemp(dd,r);
-                  qsub[1]  += mm1;
-                  qsub[2]  += mm2;
-                  qsub[3]  += mm3;
-                  qsub[4]  += dd*tt/gm1 + 0.5*(SQR(mm1)+SQR(mm2)+SQR(mm3))/dd;
+                  qsub[1]  += mm1*dd;
+                  qsub[2]  += mm2*dd;
+                  qsub[3]  += mm3*dd;
+                  qsub[4]  += dd*tt/gm1;// + 0.5*(SQR(mm1)+SQR(mm2)+SQR(mm3))/dd;
                   if (DUAL_ENERGY)  
                     qsub[5]  += dd*tt/gm1;
                 }
@@ -582,29 +593,40 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
             }
             for (int iq=0; iq<nq; iq++) {
               phydro->u(iq,k,j,i) = norm*qsub[iq];
+            //  fprintf(stdout,"%2i %13.5e %13.5e %13.5e\n",iq,phydro->u(iq,k,j,i),norm,qsub[iq]);
             }
-            if (iturb > 0) {
-              for (int c=0; c<3; c++) {
-                phydro->u(c+1,k,j,i) += dvturb(c,k,j,i)*phydro->u(IDN,k,j,i);
-              }
-              phydro->u(IEN,k,j,i) += 0.5*(SQR(dvturb(0,k,j,i))+SQR(dvturb(1,k,j,i))+SQR(dvturb(2,k,j,i)))*phydro->u(IDN,k,j,i);
-            }
+            //if (iturb > 0) {
+            //  for (int c=0; c<3; c++) {
+            //    phydro->u(c+1,k,j,i) += dvturb(c,k,j,i)*phydro->u(IDN,k,j,i);
+            //  }
+            phydro->u(IEN,k,j,i) += 0.5*( SQR(phydro->u(IM1,k,j,i))
+                                         +SQR(phydro->u(IM2,k,j,i))
+                                         +SQR(phydro->u(IM3,k,j,i)))
+                                       /phydro->u(IDN,k,j,i);
+            //}
 #else // SUBSAMPLE
-            Real x               = pcoord->x1v(i);
             Real r               = std::sqrt(x*x+y*y+z*z);
             Real vrad            = vs*0.5*(1.0-std::tanh(2.0*(r-rs)/dx1v)) * vinner(r,ts)/vinner(rs,ts);
-            Real d               = n0*0.5*(1.0+std::tanh(5.0*(r-rs+dr)/dr)) + nbar*0.5*std::exp(-0.5*SQR((r-rs)/s))*(1.0+std::erf(w*(r-rs)/std::sqrt(2.0)))/std::sqrt(2.0*PI);
+            Real d               =   n0*0.5*(1.0+std::tanh(5.0*(r-rs+dr)/dr)) 
+                                   + nbar*0.5*std::exp(-0.5*SQR((r-rs)/s))
+                                         *(1.0+std::erf(w*(r-rs)/std::sqrt(2.0)))/std::sqrt(2.0*PI);
             phydro->u(IDN,k,j,i) = d;
             phydro->u(IM1,k,j,i) = vrad*(x/r)*d;
             phydro->u(IM2,k,j,i) = vrad*(y/r)*d;
             phydro->u(IM3,k,j,i) = vrad*(z/r)*d;
             Real temp            = GetEquiTemp(d,r);
             //fprintf(stdout,"i,j,k=%4i%4i%4i dens=%13.5e temp=%13.5e\n",i,j,k,d,temp);
-            phydro->u(IEN,k,j,i) = d*temp/gm1 + 0.5*(SQR(phydro->u(IM1,k,j,i))+SQR(phydro->u(IM2,k,j,i))+SQR(phydro->u(IM3,k,j,i)))/d;
+            if (iturb > 0) {
+              for (int c=0; c<3; c++) {
+                phydro->u(c+1,k,j,i) += dvturb(c,k,j,i)*d;
+              }
+            }
+            phydro->u(IEN,k,j,i) = d*temp/gm1 + 0.5*( SQR(phydro->u(IM1,k,j,i))
+                                                     +SQR(phydro->u(IM2,k,j,i))
+                                                     +SQR(phydro->u(IM3,k,j,i)))
+                                                   /d;
             if (DUAL_ENERGY)
               phydro->u(IIE,k,j,i) = d*temp/gm1;
-            //fprintf(stdout,"[ProblemGenerator]: i,j,k=%4i%4i%4i d=%13.5e e=%13.5e ei=%13.5e m1=%13.5e m2=%13.5e m3=%13.5e temp=%13.5e\n",
-            //        i,j,k,phydro->u(IDN,k,j,i),phydro->u(IEN,k,j,i),phydro->u(IIE,k,j,i),phydro->u(IM1,k,j,i),phydro->u(IM2,k,j,i),phydro->u(IM3,k,j,i),temp);
 #endif // SUBSAMPLE
           }
         }
@@ -676,6 +698,42 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }          
   }
 
+  // Check the initial conditions
+#ifdef DEBUG_IC
+  Real ekin, emag=0.0;
+  bool ok = true, allok = true;
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
+        Real dens = phydro->u(IDN,k,j,i);
+        ekin = 0.5*( SQR(phydro->u(IM1,k,j,i))
+                    +SQR(phydro->u(IM2,k,j,i))
+                    +SQR(phydro->u(IM3,k,j,i)))
+                  /dens;
+        if (MAGNETIC_FIELDS_ENABLED) {
+          emag = 0.5*( SQR(pfield->bcc(IB1,k,j,i))
+                      +SQR(pfield->bcc(IB2,k,j,i))
+                      +SQR(pfield->bcc(IB3,k,j,i)));
+        }
+        Real prss = gm1*(phydro->u(IEN,k,j,i)-ekin-emag);
+        ok = (prss > 0.0);
+        if (!ok) {
+          std::cout << "[ProblemGenerator]: prss <=0 in initial conditions" << std::endl
+                    << "    p=" << std::setw(5) << Globals::my_rank << " i=" << std::setw(5) << i << " j=" << std::setw(5) << j << " k=" << std::setw(5) << k << std::endl
+                    << "    prss=" << std::scientific << std::setw(13) << std::setprecision(5) << prss
+                    << "    dens=" << std::scientific << std::setw(13) << std::setprecision(5) << dens << std::endl;
+          allok = ok;
+        }
+      }
+    }
+  } 
+  if (!allok) {
+    std::stringstream msg;
+    msg << "[ProblemGenerator]: prss <=0 in initial conditions" << std::endl;
+    throw std::runtime_error(msg.str().c_str());
+  }
+#endif
+
   if (iturb > 0)
     dvturb.DeleteAthenaArray();
 
@@ -723,13 +781,15 @@ void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<
         } else {
           temp0 = prim(IPR,k,j,i)/dens;
         }
-        if (temp0 <= 0.0) {
-          std::stringstream msg;
-          msg << "### FATAL ERROR in sweepup.cpp: HeatCool: temp0 <=0 for DUAL_ENERGY" << std::endl
-              << "    p=" << std::setw(5) << Globals::my_rank << " i=" << std::setw(5) << i << " j=" << std::setw(5) << j << " k=" << std::setw(5) << k << std::endl
-              << "    temp0=" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
-              << "    dens=" << std::scientific << std::setw(13) << std::setprecision(5) << dens << std::endl;
-          throw std::runtime_error(msg.str().c_str());
+        if (!RECOVER_ENABLED) { // for RECOVER_ENABLED, this is supposedly caught at end of timestep
+          if (temp0 <= 0.0) {
+            std::stringstream msg;
+            msg << "### FATAL ERROR in sweepup.cpp: HeatCool: temp0 <=0 " << std::endl
+                << "    p=" << std::setw(5) << Globals::my_rank << " i=" << std::setw(5) << i << " j=" << std::setw(5) << j << " k=" << std::setw(5) << k << std::endl
+                << "    temp0=" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
+                << "    dens=" << std::scientific << std::setw(13) << std::setprecision(5) << dens << std::endl;
+            throw std::runtime_error(msg.str().c_str());
+          }
         }
         Real temp1       = BracketRoot(dens,temp0,r,dt);
         Real temp2       = FindRoot(dens,temp0,temp1,r,dt);
@@ -770,13 +830,15 @@ Real HeatCoolTimeStep(MeshBlock *pmb)
         } else {
           temp0 = pmb->phydro->w(IPR,k,j,i)/dens;
         }
-        if (temp0 <= 0.0) { 
-          std::stringstream msg;
-          msg << "### FATAL ERROR in sweepup.cpp: HeatCool: temp0 <=0 for DUAL_ENERGY" << std::endl
-              << "    p=" << std::setw(5) << Globals::my_rank << " i=" << std::setw(5) << i << " j=" << std::setw(5) << j << " k=" << std::setw(5) << k << std::endl
-              << "    temp0=" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
-              << "    dens=" << std::scientific << std::setw(13) << std::setprecision(5) << dens << std::endl;
-          throw std::runtime_error(msg.str().c_str());
+        if (!RECOVER_ENABLED) { // For Recover enabled, this is caught at end of timestep
+          if (temp0 <= 0.0) { 
+            std::stringstream msg;
+            msg << "### FATAL ERROR in sweepup.cpp: HeatCoolTimeStep: temp0 <=0" << std::endl
+                << "    p=" << std::setw(5) << Globals::my_rank << " i=" << std::setw(5) << i << " j=" << std::setw(5) << j << " k=" << std::setw(5) << k << std::endl
+                << "    temp0=" << std::scientific << std::setw(13) << std::setprecision(5) << temp0
+                << "    dens=" << std::scientific << std::setw(13) << std::setprecision(5) << dens << std::endl;
+            throw std::runtime_error(msg.str().c_str());
+          }
         }
         dtcool = std::min(dtcool,temp0/(fabs(GetL(dens,temp0,r))+1e-60));
       }

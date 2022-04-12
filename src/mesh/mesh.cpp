@@ -74,6 +74,8 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   tlim       = pin->GetReal("time","tlim");
   cfl_number = pin->GetReal("time","cfl_number");
   ncycle_out = pin->GetOrAddInteger("time","ncycle_out",1);
+  if (RECOVER_ENABLED)
+    maxitretry = pin->GetOrAddInteger("time","maxitretry",5); 
   time = start_time;
   dt   = (FLT_MAX*0.4);
   nbnew=0; nbdel=0;
@@ -2704,7 +2706,8 @@ void Mesh::SetMeshSize(Mesh *pm) {
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::CheckAndReset()
 //  \brief Checks variables and resets if necessary
-//    Loops over all meshblocks. 
+//    Loops over all meshblocks and reduces over all
+//    processors. Returns failed=true if grids have been reset. 
 bool Mesh::CheckAndReset(Mesh *pm) {
 
   bool failed = false;
@@ -2716,10 +2719,24 @@ bool Mesh::CheckAndReset(Mesh *pm) {
       failed = (failed || (pmb->prec->Check(pmb)));
       pmb = pmb->next;
     }
+    //if (failed) {
+    //  std::cout << "[Mesh::CheckAndReset]: failed before Allreduce in proc " 
+    //            << std::setw(5) << Globals::my_rank << std::endl;
+    //} else {
+    //  std::cout << "[Mesh::CheckAndReset]: all ok before Allreduce in proc " 
+    //            << std::setw(5) << Globals::my_rank << std::endl;
+    //} 
 #ifdef MPI_PARALLEL
     MPI_Allreduce(MPI_IN_PLACE,&failed,1,MPI_C_BOOL,MPI_LOR,MPI_COMM_WORLD);
 #endif
     pmb = pm->pblock;
+    //if (Globals::my_rank==0) {
+    //  if (failed) {
+    //    std::cout << "[Mesh:CheckAndReset]: failed after Allreduce" << std::endl;
+    //  } else {
+    //    std::cout << "[Mesh:CheckAndReset]: all ok after Allreduce" << std::endl; 
+    //  }
+    //}
 
     while (pmb != NULL) { 
       pmb->prec->Reset(pmb,failed); // Reset switches between reset and update
@@ -2727,30 +2744,33 @@ bool Mesh::CheckAndReset(Mesh *pm) {
     }
     pmb = pm->pblock;
 
-    // Reset grid size at mesh level 
-    Real bounds[6];
-    for (int l=0; l<6; ++l) bounds[l  ] =  1e30;
-    while (pmb != NULL) {
-      bounds[0] = std::min(pmb->block_size.x1min,bounds[0]);
-      bounds[1] = std::min(pmb->block_size.x2min,bounds[1]);
-      bounds[2] = std::min(pmb->block_size.x3min,bounds[2]);
-      bounds[3] = std::min(-pmb->block_size.x1max,bounds[3]);
-      bounds[4] = std::min(-pmb->block_size.x2max,bounds[4]);
-      bounds[5] = std::min(-pmb->block_size.x3max,bounds[5]);
-      pmb = pmb->next;
-    }
+    if (EXPANDING) {
+      // Reset grid size at mesh level 
+      if (failed) {
+        Real bounds[6];
+        for (int l=0; l<6; ++l) bounds[l] =  1e30;
+        while (pmb != NULL) {
+          bounds[0] = std::min(pmb->block_size.x1min,bounds[0]);
+          bounds[1] = std::min(pmb->block_size.x2min,bounds[1]);
+          bounds[2] = std::min(pmb->block_size.x3min,bounds[2]);
+          bounds[3] = std::min(-pmb->block_size.x1max,bounds[3]);
+          bounds[4] = std::min(-pmb->block_size.x2max,bounds[4]);
+          bounds[5] = std::min(-pmb->block_size.x3max,bounds[5]);
+          pmb = pmb->next;
+        }
 #ifdef MPI_PARALLEL
-    MPI_Allreduce(MPI_IN_PLACE,&bounds,6,MPI_ATHENA_REAL,MPI_MIN,
-                  MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE,&bounds,6,MPI_ATHENA_REAL,MPI_MIN,
+                      MPI_COMM_WORLD);
 #endif
-    pm->mesh_size.x1min =  bounds[0];
-    pm->mesh_size.x2min =  bounds[1];
-    pm->mesh_size.x3min =  bounds[2];
-    pm->mesh_size.x1max = -bounds[3];
-    pm->mesh_size.x2max = -bounds[4];
-    pm->mesh_size.x3max = -bounds[5];
-    pmb = pm->pblock;
-
+        pm->mesh_size.x1min =  bounds[0];
+        pm->mesh_size.x2min =  bounds[1];
+        pm->mesh_size.x3min =  bounds[2];
+        pm->mesh_size.x1max = -bounds[3];
+        pm->mesh_size.x2max = -bounds[4];
+        pm->mesh_size.x3max = -bounds[5];
+        pmb = pm->pblock;
+      }
+    }
   }
   return failed;
 }
