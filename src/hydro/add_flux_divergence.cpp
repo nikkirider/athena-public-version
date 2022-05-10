@@ -93,7 +93,7 @@ void Hydro::AddFluxDivergenceToAverage(AthenaArray<Real> &w, AthenaArray<Real> &
         for (int i=is; i<=ie; ++i) {
 
           u_out(n,k,j,i) -= wght*(pmb->pmy_mesh->dt)*dflx(n,i)/vol(i);
-//          if (EXPANDING) pmb->pex->AddWallFlux(k,j,i,n, (wght*(pmb->pmy_mesh->dt)), u_out);
+//          if (EXPANDING_ENABLED) pmb->pex->AddWallFlux(k,j,i,n, (wght*(pmb->pmy_mesh->dt)), u_out);
 
         }
       }

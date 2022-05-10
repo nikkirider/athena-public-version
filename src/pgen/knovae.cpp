@@ -352,7 +352,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     EnrollUserBoundaryFunction(INNER_X1, ReflectInnerX1_nonuniform);
   }
   
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     SetGridData(4);
     EnrollGridDiffEq(WallVel);
     EnrollCalcGridData(UpdateGridData);
@@ -485,7 +485,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           //if (rad >.95* r0 && rad <1.04* r0) phydro->u(NHYDRO-NSCALARS, k,j,i) = 1.0 ;
           phydro->u(IS0,k,j,i) = (2.0*ejecta+outerS*ambient)*phydro->u(IDN,k,j,i);
         }
-        if (EXPANDING) {
+        if (EXPANDING_ENABLED) {
           //std::cout << "dx1 = " << pex->delx1f(i) << std::endl;
           //phydro->u(IM1,k,j,i) += 0.5*(pex->delx1f(i)+pex->delx1f(i+1))*phydro->u(IDN,k,j,i);
         }

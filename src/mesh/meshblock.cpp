@@ -140,7 +140,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   InitUserMeshBlockData(pin);
   // Initialize OTF output if necessary.
   InitOTFOutput(pin);
-  if (EXPANDING) pex = new Expansion(this,pin);
+  if (EXPANDING_ENABLED) pex = new Expansion(this,pin);
   if (RECOVER_ENABLED) prec = new Recover(this,pin);
 
   if (TIMESTEPINFO_ENABLED) { 
@@ -246,7 +246,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   peos = new EquationOfState(this, pin);
   InitUserMeshBlockData(pin);
   InitOTFOutput(pin);
-  if (EXPANDING) pex = new Expansion(this,pin);
+  if (EXPANDING_ENABLED) pex = new Expansion(this,pin);
   if (RECOVER_ENABLED) prec = new Recover(this,pin);
 
   int os=0;
@@ -327,7 +327,7 @@ MeshBlock::~MeshBlock() {
   if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (SELF_GRAVITY_ENABLED==1) delete pgbval;
   if (CLESS_ENABLED) delete pcless; 
-  if (EXPANDING) delete pex;
+  if (EXPANDING_ENABLED) delete pex;
   if (RECOVER_ENABLED) delete prec;
 
   // delete user output variables array

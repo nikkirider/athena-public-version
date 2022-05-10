@@ -201,7 +201,7 @@ void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
   
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     outerDens = pin->GetReal("problem","dr");
     outerVel  = pin->GetReal("problem","vr");
     outerPres = pin->GetReal("problem","pr");

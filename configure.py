@@ -379,9 +379,9 @@ else:
 
 #Set Expanding Frame
 if args['exp']:
-    definitions['EXPANDING'] = '1'
+    definitions['EXPANDING_ENABLED'] = '1'
 else:
-    definitions['EXPANDING'] = '0'
+    definitions['EXPANDING_ENABLED'] = '0'
 
 # --flux=[name] argument
 definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']

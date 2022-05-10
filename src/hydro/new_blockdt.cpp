@@ -228,7 +228,7 @@ Real Hydro::NewBlockTimeStep(void) {
   if (UserTimeStep_!=NULL) {
     min_dt = std::min(min_dt, UserTimeStep_(pmb));
   }
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     min_dt = std::min(min_dt, pmb->pex->GridTimeStep(pmb));
   }
 

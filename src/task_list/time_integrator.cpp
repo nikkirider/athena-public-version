@@ -212,7 +212,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
 		// common integrator tasks -- no matter the mode 
     AddTimeIntegratorTask(STARTUP_INT,NONE);
     AddTimeIntegratorTask(START_ALLRECV,STARTUP_INT);
-    if (EXPANDING) {
+    if (EXPANDING_ENABLED) {
       AddTimeIntegratorTask(EXP_CALC,STARTUP_INT);
     }
     // First deal with cless-only-mode 
@@ -251,7 +251,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       }
     } else {
       
-      if (EXPANDING) {
+      if (EXPANDING_ENABLED) {
         AddTimeIntegratorTask(EXP_INT,EXP_CALC);
         //AddTimeIntegratorTask(EXP_EDIT,EXP_INT);  
       }
@@ -362,7 +362,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
 	}
       }
 
-      if (EXPANDING) {
+      if (EXPANDING_ENABLED) {
         AddTimeIntegratorTask(EXP_EDIT,CON2PRIM);
         AddTimeIntegratorTask(PHY_BVAL,EXP_EDIT);
       } else { 
@@ -758,7 +758,7 @@ enum TaskStatus TimeIntegratorTaskList::HydroIntegrate(MeshBlock *pmb, int stage
     ph->WeightedAveU(ph->u,ph->u1,ph->u2,ave_wghts);
     ph->AddFluxDivergenceToAverage(ph->w,pf->bcc,stage_wghts[stage-1].beta,ph->u);
 
-    //if (EXPANDING) {
+    //if (EXPANDING_ENABLED) {
     //  Real dt = (stage_wghts[stage-1].beta)*(pmb->pmy_mesh->dt);
     //  pmb->pex->AddWallFluxDivergence(dt, ph->w, ph->u);
     //}

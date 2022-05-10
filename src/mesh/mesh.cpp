@@ -1202,7 +1202,7 @@ void Mesh::NewTimeStep(void) {
                   <<                    "  k = " << std::setw(5) << all_min_ind(8,2)
                   << std::endl;
       }
-      if (EXPANDING) {
+      if (EXPANDING_ENABLED) {
         if (pblock->pex->x1Move) {
           std::cout << "[Mesh::NewTimeStep]: dtex1= " << std::setw(13) << std::scientific << std::setprecision(5) << all_min_dts(9)
                     <<                    "  p = " << std::setw(5) << all_min_prc(9)
@@ -2605,7 +2605,7 @@ unsigned int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
 //  \brief Enroll a user-defined function for velocity of cell walls for moving grid
 
 void Mesh::EnrollGridDiffEq(WallVel_t my_func) {
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     GridDiffEq_ = my_func;
   }
   return;
@@ -2616,7 +2616,7 @@ void Mesh::EnrollGridDiffEq(WallVel_t my_func) {
 //  movement of the grid. Changes entries in GridData AthenaArray used in the GridDiffEq
 
 void Mesh::EnrollCalcGridData(CalcGridData_t my_func) {
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     CalcGridData_ = my_func;
   }
   return;
@@ -2628,7 +2628,7 @@ void Mesh::EnrollCalcGridData(CalcGridData_t my_func) {
 //  \brief Set AthenaArray GridData with n Real entries 
 
 void Mesh::SetGridData(int n) {
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     GridData.NewAthenaArray(n);
   }
   return;
@@ -2638,7 +2638,7 @@ void Mesh::SetGridData(int n) {
 //  \brief Set Mesh size object with new bounds by pulling info from adjusted MeshBlocks
 
 void Mesh::SetMeshSize(Mesh *pm) {
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     Real inner = 0.0;
     Real outer = 0.0;
     MeshBlock *pmb = pm->pblock;
@@ -2744,7 +2744,7 @@ bool Mesh::CheckAndReset(Mesh *pm) {
     }
     pmb = pm->pblock;
 
-    if (EXPANDING) {
+    if (EXPANDING_ENABLED) {
       // Reset grid size at mesh level 
       if (failed) {
         Real bounds[6];

@@ -399,11 +399,11 @@ int main(int argc, char *argv[]) {
           else if (SELF_GRAVITY_ENABLED == 2) // multigrid
             pmesh->pmgrd->Solve(stage);
       
-          if (EXPANDING) {
+          if (EXPANDING_ENABLED) {
             pmesh->CalcGridData_(pmesh); 
           }
           ptlist->DoTaskListOneStage(pmesh, stage);
-          if (EXPANDING) {
+          if (EXPANDING_ENABLED) {
             pmesh->SetMeshSize(pmesh); 
           }
         }
@@ -438,11 +438,11 @@ int main(int argc, char *argv[]) {
         else if (SELF_GRAVITY_ENABLED == 2) // multigrid
           pmesh->pmgrd->Solve(stage);
           
-        if (EXPANDING) { 
+        if (EXPANDING_ENABLED) { 
           pmesh->CalcGridData_(pmesh); 
         } 
         ptlist->DoTaskListOneStage(pmesh, stage);
-        if (EXPANDING) { 
+        if (EXPANDING_ENABLED) { 
           pmesh->SetMeshSize(pmesh); 
         } 
       }

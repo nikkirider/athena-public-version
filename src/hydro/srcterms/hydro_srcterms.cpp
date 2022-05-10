@@ -64,7 +64,7 @@ HydroSourceTerms::HydroSourceTerms(Hydro *phyd, ParameterInput *pin) {
 
   if (DUAL_ENERGY) hydro_sourceterms_defined = true; 
   
-  if (EXPANDING) hydro_sourceterms_defined = true;
+  if (EXPANDING_ENABLED) hydro_sourceterms_defined = true;
 
   StaticGravPot  = phyd->pmy_block->pmy_mesh->StaticGravPot_;
   if (StaticGravPot != NULL) hydro_sourceterms_defined = true;
@@ -111,7 +111,7 @@ void HydroSourceTerms::AddHydroSourceTerms(const Real time, const Real dt,
 
   // Co-scaling grid source terms. Must be called last, bc they contain volume
   // correction (Habegger & Heitsch, eq. 9)
-  if (EXPANDING) pmb->pex->ExpansionSourceTerms(dt,flux,prim,cons);
+  if (EXPANDING_ENABLED) pmb->pex->ExpansionSourceTerms(dt,flux,prim,cons);
 
 
   return;

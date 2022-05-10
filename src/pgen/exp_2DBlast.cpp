@@ -142,7 +142,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   //   inaccurate (for example, periodic boundary conditions do not make sense
   //   for an expanding grid).
   //========================================================================================
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     EnrollGridDiffEq(WallVel);
     SetGridData(6);
     EnrollCalcGridData(UpdateGridData);

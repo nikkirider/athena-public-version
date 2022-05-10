@@ -58,7 +58,7 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
   if (pmb->block_size.nx2 > 1) {ncells2 = (je-js+1) + 2*ng; jl = js-ng; ju = je+ng;}
   if (pmb->block_size.nx3 > 1) {ncells3 = (ke-ks+1) + 2*ng; kl = ks-ng; ku = ke+ng;}
 
-  if (EXPANDING) { // Allocate grid data if needed
+  if (EXPANDING_ENABLED) { // Allocate grid data if needed
     x1f.NewAthenaArray((ncells1+1));
     x2f.NewAthenaArray((ncells2+1));
     x3f.NewAthenaArray((ncells3+1));
@@ -93,7 +93,7 @@ Recover::Recover(MeshBlock *pmb, ParameterInput *pin) {
 //  Destructor
 Recover::~Recover() {
 
-  if (EXPANDING) {
+  if (EXPANDING_ENABLED) {
     x1f.DeleteAthenaArray();
     x2f.DeleteAthenaArray();
     x3f.DeleteAthenaArray();
@@ -116,7 +116,7 @@ Recover::~Recover() {
 //    to be called at end of Mesh::Initialize for all MeshBlocks
 void Recover::Initialize(MeshBlock *pmb) {
     
-  if (EXPANDING) { // initialize grid information
+  if (EXPANDING_ENABLED) { // initialize grid information
 #pragma omp simd
     for (int i=il; i<=iu+1;++i)
       x1f(i) = pmb->pcoord->x1f(i);
@@ -275,7 +275,7 @@ void Recover::Reset(MeshBlock *pmb, bool failed) {
       }
     }
 
-    if (EXPANDING) { 
+    if (EXPANDING_ENABLED) { 
       // This is straight from Expansion::GridEdit.
       // Required because the whole grid has already been
       // updated and must be reset.
@@ -781,7 +781,7 @@ void Recover::Reset(MeshBlock *pmb, bool failed) {
         pmb->block_size.x3max = x3f(ke+1);
       }
 
-    } // if (EXPANDING) 
+    } // if (EXPANDING_ENABLED) 
 
   } else {
     // copy new conservative and primitive variables into backup
@@ -835,7 +835,7 @@ void Recover::Reset(MeshBlock *pmb, bool failed) {
       }
     }
 
-    if (EXPANDING) { 
+    if (EXPANDING_ENABLED) { 
       // grids require only face values. If reset
       // necessary, we need to recalculate all derived
       // quantities.

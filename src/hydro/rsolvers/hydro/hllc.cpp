@@ -193,7 +193,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
 
     //For Time Dependent grid, account for Wall Flux
-    if ((EXPANDING) && (move)) {
+    if ((EXPANDING_ENABLED) && (move)) {
       //--- Step 1. Determine Flux Direction
       if (ivx == IVX){
         wallV = eVel(i);
