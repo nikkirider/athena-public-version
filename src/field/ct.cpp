@@ -120,6 +120,9 @@ void Field::CT(const Real wght, FaceField &b_out) {
     }
   }}
 
+  if (EXPANDING_ENABLED) // Rescale field according to new area. Must be last action in CT.
+    pmb->pex->RescaleField(b_out);
+
   return;
 }
 

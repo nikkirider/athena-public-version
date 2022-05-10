@@ -274,6 +274,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 }
 
 //========================================================================================
+//! \fn void MeshBlock::UserWorkInLoop(void)
+//  \brief Called for individual meshblock
+//========================================================================================
+
+void MeshBlock::UserWorkInLoop(void) {
+  return;
+}
+
+//========================================================================================
+//! \fn void MeshBlock::UserWorkInLoop(void)
+//  \brief Called for individual meshblock
+//========================================================================================
+
+void Mesh::UserWorkInLoop(void) {
+  return;
+}
+
+
+//========================================================================================
 //! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 //  \brief Check radius of sphere to make sure it is round
 //========================================================================================

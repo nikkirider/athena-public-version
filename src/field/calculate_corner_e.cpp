@@ -251,8 +251,13 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
     }}
   }
 
+  // add EMF from expanding grid
+  if (EXPANDING_ENABLED) 
+    pmb->pex->AddWallEMF(bcc, e);
+
   // add diffusion flux
-  if (pfdif->field_diffusion_defined) pfdif->AddEMF(pfdif->e_oa, e);
+  if (pfdif->field_diffusion_defined) 
+    pfdif->AddEMF(pfdif->e_oa, e);
 
   return;
 }

@@ -85,7 +85,7 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   vf[X3DIR].NewAthenaArray(ncells3+1);
 
   if (x1Move){
-     expFlux[X1DIR].NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1+1);
+    expFlux[X1DIR].NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1+1);
   }
   if (x2Move) {
     expFlux[X2DIR].NewAthenaArray(NHYDRO,ncells3,ncells2+1,ncells1);
@@ -301,6 +301,23 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
   return;
 }
 
+//----------------------------------------------------------------------------------------
+// void Expansion::AddWallEMF()
+//   \brief Adds EMF due to wall motion to e_out, the total EMF used in Field::CT().
+//          This is a copy of Field::CalculateCornerE, restricted to wall velocities.
+//          It uses the wall field fluxes (vb-terms) from Riemann solver.
+void Expansion::AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out) {
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+// void Expansion::RescaleField()
+//   \brief Area-rescale for magnetic field, similar to last action in ExpansionSourceTerms
+//          Since CT is run separately via IntegrateField in time_integrator, we need to 
+//          recreate (and integrate ahead) the new areas.
+void Expansion::RescaleField(FaceField &b_out) {
+  return;
+}
 
 //----------------------------------------------------------------------------------------
 // void Expansion::UpdateVelData(MeshBlock *pmb, Real time, Real dt)

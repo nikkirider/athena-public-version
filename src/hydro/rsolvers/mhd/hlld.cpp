@@ -38,6 +38,18 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
 
+  Expansion *ex = pmy_block->pex;
+  AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];
+  AthenaArray<Real> &eVel = ex->vf[(ivx-1)];
+  bool move = false;
+  if ((ivx == IVX)&&(ex->x1Move)){
+    move = true;
+  } else if ((ivx == IVY)&&(ex->x2Move)) {
+    move = true;
+  } else if ((ivx == IVZ)&&(ex->x3Move)){
+    move = true;
+  }
+
   // This is different from standard hlld, which uses NWAVE. Since we
   // have the internal energy and the scalars, we need to include
   // those in flxi, wli, wri. NHYDRO is just the hydro variables + internal energy
@@ -391,6 +403,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
     for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
       flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
+
+    //For Time Dependent grid, account for Wall Flux
+    if ((EXPANDING_ENABLED) && (move)) {
+
+    }
 
   }
   }}
