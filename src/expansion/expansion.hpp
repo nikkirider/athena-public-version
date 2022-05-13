@@ -54,13 +54,17 @@ public:
   void IntegrateWalls(Real dt);
   void ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flux, const AthenaArray<Real> &prim, AthenaArray<Real> &cons);
   void AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out);
-  void RescaleField(FaceField &b_out);
+  void RescaleField(const Real dt, FaceField &b_out);
   void GridEdit(MeshBlock *pmb, bool lastStage);
   void UpdateVelData(MeshBlock *pmb,Real time, Real dt);
   Real GridTimeStep(MeshBlock *pmb);
 
 private:
   MeshBlock* pmy_block;    // ptr to MeshBlock containing this Expansion
+  // Scratch arrays
+  AthenaArray<Real> face_area_old_, face_area_new_;
+
+
 
 
 

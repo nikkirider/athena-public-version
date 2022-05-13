@@ -98,6 +98,11 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   AthenaArray<Real> &v2f = vf[X2DIR];
   AthenaArray<Real> &v3f = vf[X3DIR];
 
+  if (MAGNETIC_FIELDS_ENABLED) {
+    face_area_old_.NewAthenaArray(ncells1);
+    face_area_new_.NewAthenaArray(ncells1);
+  }
+
   if (x1Move) {
 #pragma omp simd
     for (int i=il; i<=iu+1;++i) {
@@ -135,6 +140,11 @@ Expansion::~Expansion() {
   x1_2.DeleteAthenaArray();
   x2_2.DeleteAthenaArray();
   x3_2.DeleteAthenaArray();
+
+  if (MAGNETIC_FIELDS_ENABLED) {
+    face_area_old_.DeleteAthenaArray();
+    face_area_new_.DeleteAthenaArray();
+  }
 
   if (x1Move) {
     expFlux[X1DIR].DeleteAthenaArray();
@@ -314,8 +324,157 @@ void Expansion::AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out) {
 // void Expansion::RescaleField()
 //   \brief Area-rescale for magnetic field, similar to last action in ExpansionSourceTerms
 //          Since CT is run separately via IntegrateField in time_integrator, we need to 
-//          recreate (and integrate ahead) the new areas.
-void Expansion::RescaleField(FaceField &b_out) {
+//          recreate (and integrate ahead) the new areas with the weighted timestep.
+void Expansion::RescaleField(const Real dt, FaceField &b_out) {
+
+  MeshBlock *pmb=pmy_block;
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  Real dx1=0.0, dx2=0.0, dx3=0.0, areanew=0.0;
+  AthenaArray<Real> areaold;
+  areaold.InitWithShallowCopy(face_area_old_);
+  //areanew.InitWithShallowCopy(face_area_new_);
+
+  AthenaArray<Real> &v1f = vf[X1DIR];
+  AthenaArray<Real> &v2f = vf[X2DIR];
+  AthenaArray<Real> &v3f = vf[X3DIR];
+
+  if (COORDINATE_SYSTEM == "cartesian") {
+    for (int k=ks; k<=ke; ++k) { 
+      dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+      for (int j=js; j<=je; ++j) {
+        pmb->pcoord->Face1Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+        dx2 = pmb->pcoord->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt;
+#pragma omp simd
+        for (int i=is; i<=ie+1; ++i) {
+          areanew           = dx2*dx3;
+          b_out.x1f(k,j,i) *= areaold(i)/areanew;
+        }
+      } 
+    }
+    if (pmb->block_size.nx2 > 1) {
+      for (int k=ks; k<=ke; ++k) { 
+        dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+        for (int j=js; j<=je+1; ++j) {
+          pmb->pcoord->Face2Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+#pragma omp simd 
+          for (int i=is; i<=ie; ++i) {
+            dx1               = pmb->pcoord->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt;
+            areanew           = dx1*dx3;
+            b_out.x2f(k,j,i) *= areaold(i)/areanew;
+          }
+        }
+      }
+    }
+    if (pmb->block_size.nx3 > 1) {
+      for (int k=ks; k<=ke+1; ++k) {
+        for (int j=js; j<=je; ++j) {
+          pmb->pcoord->Face3Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+          dx2 = pmb->pcoord->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt ;
+#pragma omp simd 
+          for (int i=is; i<=ie; ++i) {
+            dx1               = pmb->pcoord->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt;
+            areanew           = dx1*dx2;
+            b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          }
+        }
+      }
+    }
+  } else if (COORDINATE_SYSTEM == "cylindrical") {
+    for (int k=ks; k<=ke; ++k) {
+      dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+      for (int j=js; j<=je; ++j) {
+        pmb->pcoord->Face1Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+        dx2 = pmb->pcoord->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt;
+#pragma omp simd
+        for (int i=is; i<=ie+1; ++i) {
+          areanew           = dx2*dx3;
+          b_out.x1f(k,j,i) *= areaold(i)/areanew;
+        }
+      }
+    }
+    if (pmb->block_size.nx2 > 1) {
+      for (int k=ks; k<=ke; ++k) {
+        dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+        for (int j=js; j<=je+1; ++j) {
+          pmb->pcoord->Face2Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+#pragma omp simd 
+          for (int i=is; i<=ie; ++i) {
+            dx1               = pmb->pcoord->coord_vol_i_(i) 
+                               + dt*(v1f(i+1)*pmb->pcoord->x1f(i+1)-v1f(i)*pmb->pcoord->x1f(i))
+                               + 0.5*SQR(dt)*(SQR(v1f(i+1)) - SQR(v1f(i)));
+            areanew           = dx1*dx3;
+            b_out.x2f(k,j,i) *= areaold(i)/areanew;
+          }
+        }
+      }
+    }
+    if (pmb->block_size.nx3 > 1) {
+      for (int k=ks; k<=ke+1; ++k) {
+        for (int j=js; j<=je; ++j) {
+          pmb->pcoord->Face3Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+          dx2 = pmb->pcoord->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt ;
+#pragma omp simd 
+          for (int i=is; i<=ie; ++i) {
+            dx1               = pmb->pcoord->coord_vol_i_(i) 
+                               + dt*(v1f(i+1)*pmb->pcoord->x1f(i+1)-v1f(i)*pmb->pcoord->x1f(i))
+                               + 0.5*SQR(dt)*(SQR(v1f(i+1)) - SQR(v1f(i)));
+            areanew           = dx1*dx2;
+            b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          }
+        }
+      }
+    }
+  } else if (COORDINATE_SYSTEM == "spherical_polar") {
+    for (int k=ks; k<=ke; ++k) {
+      dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+      for (int j=js; j<=je; ++j) {
+        pmb->pcoord->Face1Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+        dx2 = fabs(cos(pmb->pcoord->x2f(j)+v2f(j)*dt) - cos(pmb->pcoord->x2f(j+1)+v2f(j+1)*dt));
+#pragma omp simd
+        for (int i=is; i<=ie+1; ++i) {
+          areanew           = dx2*dx3;
+          b_out.x1f(k,j,i) *= areaold(i)/areanew;
+        }
+      }
+    }
+    if (pmb->block_size.nx2 > 1) {
+      for (int k=ks; k<=ke; ++k) {
+        dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+        for (int j=js; j<=je+1; ++j) {
+          pmb->pcoord->Face2Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+#pragma omp simd 
+          for (int i=is; i<=ie; ++i) {
+            dx1               = pmb->pcoord->coord_vol_i_(i) 
+                              + dt*(v1f(i+1)*SQR(pmb->pcoord->x1f(i+1))-v1f(i)*SQR(pmb->pcoord->x1f(i)))
+                                    + SQR(dt)*(SQR(v1f(i+1))*pmb->pcoord->x1f(i+1) - SQR(v1f(i))*pmb->pcoord->x1f(i))
+                                    + SQR(dt)*dt*(SQR(v1f(i+1))*v1f(i+1) - SQR(v1f(i))*v1f(i))/3.0;
+            areanew           = dx1*dx3;
+            b_out.x2f(k,j,i) *= areaold(i)/areanew;
+          }
+        }
+      }
+    }
+    if (pmb->block_size.nx3 > 1) {
+      for (int k=ks; k<=ke+1; ++k) {
+        for (int j=js; j<=je; ++j) {
+          pmb->pcoord->Face3Area(k,j,is,ie+1,areaold);  // old area at position i ("lower")
+          dx2 = fabs(cos(pmb->pcoord->x2f(j)+v2f(j)*dt) - cos(pmb->pcoord->x2f(j+1)+v2f(j+1)*dt));
+#pragma omp simd 
+          for (int i=is; i<=ie; ++i) {
+            dx1               = pmb->pcoord->coord_vol_i_(i) 
+                              + dt*(v1f(i+1)*SQR(pmb->pcoord->x1f(i+1))-v1f(i)*SQR(pmb->pcoord->x1f(i)))
+                                    + SQR(dt)*(SQR(v1f(i+1))*pmb->pcoord->x1f(i+1) - SQR(v1f(i))*pmb->pcoord->x1f(i))
+                                    + SQR(dt)*dt*(SQR(v1f(i+1))*v1f(i+1) - SQR(v1f(i))*v1f(i))/3.0;
+            areanew           = dx1*dx2;
+            b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          }
+        }
+      }
+    }
+  }
+
   return;
 }
 
