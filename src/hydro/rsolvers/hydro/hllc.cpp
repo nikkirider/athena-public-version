@@ -57,6 +57,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   Real wi[(NHYDRO)];
   Real wallV = 0.0;
   Real e;
+
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
 #pragma distribute_point
@@ -206,23 +207,23 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       }
       //--- Step 2. Load primitive Variables
       if (wallV > 0.0) {
-        wi[IDN]=wr(IDN,k,j,i);//eWri(IDN,k,j,i);
-        wi[IVX]=wr(ivx,k,j,i);//eWri(ivx,k,j,i);
-        wi[IVY]=wr(ivy,k,j,i);//eWri(ivy,k,j,i);
-        wi[IVZ]=wr(ivz,k,j,i);//eWri(ivz,k,j,i);
-        wi[IPR]=wr(IPR,k,j,i);//eWri(IPR,k,j,i);
+        wi[IDN]=wr(IDN,k,j,i);
+        wi[IVX]=wr(ivx,k,j,i);
+        wi[IVY]=wr(ivy,k,j,i);
+        wi[IVZ]=wr(ivz,k,j,i);
+        wi[IPR]=wr(IPR,k,j,i);
         if (DUAL_ENERGY) 
-          wi[IGE]=wr(IGE,k,j,i);//eWri(IGE,k,j,i);
+          wi[IGE]=wr(IGE,k,j,i);
         for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
           wi[n] = wr(n,k,j,i);
       } else if (wallV < 0.0) {
-        wi[IDN]=wl(IDN,k,j,i);//eWli(IDN,k,j,i);
-        wi[IVX]=wl(ivx,k,j,i);//eWli(ivx,k,j,i);
-        wi[IVY]=wl(ivy,k,j,i);//eWli(ivy,k,j,i);
-        wi[IVZ]=wl(ivz,k,j,i);//eWli(ivz,k,j,i);
-        wi[IPR]=wl(IPR,k,j,i);//eWli(IPR,k,j,i);
+        wi[IDN]=wl(IDN,k,j,i);
+        wi[IVX]=wl(ivx,k,j,i);
+        wi[IVY]=wl(ivy,k,j,i);
+        wi[IVZ]=wl(ivz,k,j,i);
+        wi[IPR]=wl(IPR,k,j,i);
         if (DUAL_ENERGY) 
-          wi[IGE]=wl(IGE,k,j,i);//eWli(IGE,k,j,i);
+          wi[IGE]=wl(IGE,k,j,i);
         for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
           wi[n] = wl(n,k,j,i);
       } else {

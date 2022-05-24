@@ -49,6 +49,10 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   } else if ((ivx == IVZ)&&(ex->x3Move)){
     move = true;
   }
+  Real wi[(NHYDRO+2)];
+  Real wallV = 0.0;
+  Real e;
+  int n;
 
   // This is different from standard hlld, which uses NWAVE. Since we
   // have the internal energy and the scalars, we need to include
@@ -66,7 +70,6 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
   Real igm1 = 1.0/gm1;
-  int n;
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
@@ -406,8 +409,70 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
     //For Time Dependent grid, account for Wall Flux
     if ((EXPANDING_ENABLED) && (move)) {
-
-    }
+      //--- Step 1. Determine Flux Direction
+      if (ivx == IVX){
+        wallV = eVel(i);
+      } else if (ivx == IVY) {
+        wallV = eVel(j);
+      } else if (ivx == IVZ){
+        wallV = eVel(k);
+      } else {
+        wallV = 0.0;
+      }
+      //--- Step 2. Load primitive Variables
+      if (wallV > 0.0) {
+        wi[IDN]=wr(IDN,k,j,i);
+        wi[IVX]=wr(ivx,k,j,i);
+        wi[IVY]=wr(ivy,k,j,i);
+        wi[IVZ]=wr(ivz,k,j,i);
+        wi[IPR]=wr(IPR,k,j,i);
+        wi[IBY]=wr(IBY,k,j,i);
+        wi[IBZ]=wr(IBZ,k,j,i);
+        if (DUAL_ENERGY)
+          wi[IGE]=wr(IGE,k,j,i);
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+          wi[n] = wr(n,k,j,i);
+      } else if (wallV < 0.0) {
+        wi[IDN]=wl(IDN,k,j,i);
+        wi[IVX]=wl(ivx,k,j,i);
+        wi[IVY]=wl(ivy,k,j,i);
+        wi[IVZ]=wl(ivz,k,j,i);
+        wi[IPR]=wl(IPR,k,j,i);
+        wi[IBY]=wl(IBY,k,j,i);
+        wi[IBZ]=wl(IBZ,k,j,i);
+        if (DUAL_ENERGY)
+          wi[IGE]=wl(IGE,k,j,i);
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+          wi[n] = wl(n,k,j,i);
+      } else {
+        wi[IDN]=0.0;
+        wi[IVX]=0.0;
+        wi[IVY]=0.0;
+        wi[IVZ]=0.0;
+        wi[IPR]=0.0;
+        wi[IBY]=0.0;
+        wi[IBZ]=0.0;
+        if (DUAL_ENERGY)
+          wi[IGE]=0.0;
+        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+          wi[n] = 0.0;
+      }
+      e =   wi[IPR]*igm1 
+          + 0.5*wi[IDN]*(SQR(wi[IVX]) + SQR(wi[IVY]) + SQR(wi[IVZ])) 
+          + 0.5*(bxsq + SQR(wi[IBY]) + SQR(wi[IBZ]));
+      eFlx(IDN,k,j,i) = wi[IDN]*wallV;
+      eFlx(ivx,k,j,i) = wi[IDN]*wi[IVX]*wallV;
+      eFlx(ivy,k,j,i) = wi[IDN]*wi[IVY]*wallV;
+      eFlx(ivz,k,j,i) = wi[IDN]*wi[IVZ]*wallV;
+      eFlx(IEN,k,j,i) = e*wallV;
+      if (DUAL_ENERGY)
+        eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is pressure
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+        eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
+      ey(k,j,i) -= wi[IBY]*wallV; // modify ey, ez directly here.
+      ez(k,j,i) += wi[IBZ]*wallV;
+      
+    } // if (EXPANDING_ENABLED)
 
   }
   }}
