@@ -101,24 +101,25 @@ void Field::CT(const Real wght, FaceField &b_out) {
 //---- update B3 (curl terms in 1D and 2D problems)
 
   for (int k=ks; k<=ke+1; ++k) {
-  for (int j=js; j<=je; ++j) {
-    pmb->pcoord->Face3Area(k,j,is,ie,area);
-    pmb->pcoord->Edge2Length(k,j,is,ie+1,len);
-#pragma omp simd
-    for (int i=is; i<=ie; ++i) {
-      b_out.x3f(k,j,i) -= (wght*(pmb->pmy_mesh->dt)/area(i))*(len(i+1)*e2(k,j,i+1) -
-                                                                len(i)*e2(k,j,i));
-    }
-    if (pmb->block_size.nx2 > 1) {
-      pmb->pcoord->Edge1Length(k,j  ,is,ie,len);
-      pmb->pcoord->Edge1Length(k,j+1,is,ie,len_p1);
+    for (int j=js; j<=je; ++j) {
+      pmb->pcoord->Face3Area(k,j,is,ie,area);
+      pmb->pcoord->Edge2Length(k,j,is,ie+1,len);
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        b_out.x3f(k,j,i) += wght*
-           ((pmb->pmy_mesh->dt)/area(i))*(len_p1(i)*e1(k,j+1,i) - len(i)*e1(k,j,i));
+        b_out.x3f(k,j,i) -= (wght*(pmb->pmy_mesh->dt)/area(i))*(len(i+1)*e2(k,j,i+1) -
+                                                                  len(i)*e2(k,j,i));
+      }
+      if (pmb->block_size.nx2 > 1) {
+        pmb->pcoord->Edge1Length(k,j  ,is,ie,len);
+        pmb->pcoord->Edge1Length(k,j+1,is,ie,len_p1);
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          b_out.x3f(k,j,i) += wght*
+             ((pmb->pmy_mesh->dt)/area(i))*(len_p1(i)*e1(k,j+1,i) - len(i)*e1(k,j,i));
+        }
       }
     }
-  }}
+  }
 
   if (EXPANDING_ENABLED) // Rescale field according to new area. Must be last action in CT.
     pmb->pex->RescaleField(wght*pmb->pmy_mesh->dt, b_out);

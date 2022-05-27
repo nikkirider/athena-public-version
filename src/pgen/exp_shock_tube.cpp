@@ -40,7 +40,7 @@ void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 //====================================================================================
-// IMplement Expanding Functions
+// Implement Expanding Functions
 
 //Wall Velocity. Depending on direction and GridData and time, return the velocity at xf, which
 //will be the location of the ith cell wall at time time
@@ -63,6 +63,8 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
   } 
   return retVal; 
 }
+
+//====================================================================================
 
 void UpdateGridData(Mesh *pm) {
    
@@ -95,10 +97,15 @@ void UpdateGridData(Mesh *pm) {
   return;
 }
 
+//====================================================================================
+
 //Global Variables for OuterX1
 Real outerDens;
 Real outerVel;
 Real outerPres;
+Real outerBx;
+Real outerBy;
+Real outerBz;
 
 void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
@@ -122,7 +129,7 @@ void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=js; j<=je; ++j) {
 #pragma omp simd
         for (int i=1; i<=ngh; ++i) {
-          b.x1f(k,j,(ie+i)) = 0.0;  
+          b.x1f(k,j,(ie+i)) = outerBx;  
         }
       }
     }
@@ -130,7 +137,7 @@ void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=js; j<=je+1; ++j) {
 #pragma omp simd
         for (int i=1; i<=ngh; ++i) {
-          b.x2f(k,j,(ie+i)) = 0.0;
+          b.x2f(k,j,(ie+i)) = outerBy;
         }
       }
     }
@@ -138,7 +145,7 @@ void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=js; j<=je; ++j) {
 #pragma omp simd
         for (int i=1; i<=ngh; ++i) {
-          b.x3f(k,j,(ie+i)) =  0.0;
+          b.x3f(k,j,(ie+i)) =  outerBz;
         }
       }
     }
@@ -147,10 +154,15 @@ void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
 
 }
 
+//====================================================================================
+
 //Global Variables for OuterX1
 Real innerDens;
 Real innerVel;
 Real innerPres;
+Real innerBx;
+Real innerBy;
+Real innerBz;
 
 void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
@@ -174,7 +186,7 @@ void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=js; j<=je; ++j) {
 #pragma omp simd
         for (int i=1; i<=ngh; ++i) {
-          b.x1f(k,j,(is-i)) = 0.0;  
+          b.x1f(k,j,(is-i)) = innerBx;  
         }
       }
     }
@@ -182,7 +194,7 @@ void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=js; j<=je+1; ++j) {
 #pragma omp simd
         for (int i=1; i<=ngh; ++i) {
-          b.x2f(k,j,(is-i)) = 0.0;
+          b.x2f(k,j,(is-i)) = innerBy;
         }
       }
     }
@@ -190,7 +202,7 @@ void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=js; j<=je; ++j) {
 #pragma omp simd
         for (int i=1; i<=ngh; ++i) {
-          b.x3f(k,j,(is-i)) =  0.0;
+          b.x3f(k,j,(is-i)) = innerBz;
         }
       }
     }
@@ -199,20 +211,30 @@ void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
 
 }
 
+//====================================================================================
+
 void Mesh::InitUserMeshData(ParameterInput *pin) {
   
   if (EXPANDING_ENABLED) {
     outerDens = pin->GetReal("problem","dr");
     outerVel  = pin->GetReal("problem","vr");
     outerPres = pin->GetReal("problem","pr");
+    if (MAGNETIC_FIELDS_ENABLED) {
+      outerBx   = pin->GetReal("problem","bxr");
+      outerBy   = pin->GetReal("problem","byr");
+      outerBz   = pin->GetReal("problem","bzr");
+    }
     innerDens = pin->GetReal("problem","dl");
     innerVel  = pin->GetReal("problem","vl");
     innerPres = pin->GetReal("problem","pl");
+    if (MAGNETIC_FIELDS_ENABLED) {
+      innerBx   = pin->GetReal("problem","bxl");
+      innerBy   = pin->GetReal("problem","byl");
+      innerBz   = pin->GetReal("problem","bzl");
+    }
     SetGridData(6);
     EnrollGridDiffEq(WallVel);
     EnrollCalcGridData(UpdateGridData);
-    
-
     
     if (mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
       EnrollUserBoundaryFunction(OUTER_X1,OuterX1_UniformMedium);
@@ -304,8 +326,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     wr[NHYDRO+1] = pin->GetReal("problem","byr");
     wr[NHYDRO+2] = pin->GetReal("problem","bzr");
   }
-
-  
    
 // Initialize the discontinuity in the Hydro variables ---------------------------------
 
@@ -409,32 +429,36 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       for (int i=is; i<=ie; ++i) {
-        if (shk_dir==1 && pcoord->x1v(i) < xshock) {
-          pfield->b.x1f(k,j,i) = wl[NHYDRO  ];
-          pfield->b.x2f(k,j,i) = wl[NHYDRO+1];
-          pfield->b.x3f(k,j,i) = wl[NHYDRO+2];
-        } else if (shk_dir==2 && pcoord->x2v(j) < xshock) {
-          pfield->b.x1f(k,j,i) = wl[NHYDRO+2];
-          pfield->b.x2f(k,j,i) = wl[NHYDRO  ];
-          pfield->b.x3f(k,j,i) = wl[NHYDRO+1];
-        } else if (shk_dir==3 && pcoord->x3v(k) < xshock) {
-          pfield->b.x1f(k,j,i) = wl[NHYDRO+1];
-          pfield->b.x2f(k,j,i) = wl[NHYDRO+2];
-          pfield->b.x3f(k,j,i) = wl[NHYDRO];
-        }
-
-        if (shk_dir==1 && pcoord->x1v(i) >= xshock) {
-          pfield->b.x1f(k,j,i) = wr[NHYDRO  ];
-          pfield->b.x2f(k,j,i) = wr[NHYDRO+1];
-          pfield->b.x3f(k,j,i) = wr[NHYDRO+2];
-        } else if (shk_dir==2 && pcoord->x2v(j) >= xshock) {
-          pfield->b.x1f(k,j,i) = wr[NHYDRO+2];
-          pfield->b.x2f(k,j,i) = wr[NHYDRO  ];
-          pfield->b.x3f(k,j,i) = wr[NHYDRO+1];
-        } else if (shk_dir==3 && pcoord->x3v(k) >= xshock)  {
-          pfield->b.x1f(k,j,i) = wr[NHYDRO+1];
-          pfield->b.x2f(k,j,i) = wr[NHYDRO+2];
-          pfield->b.x3f(k,j,i) = wr[NHYDRO];
+        if (shk_dir==1) {
+          if (pcoord->x1f(i) < xshock) {
+            pfield->b.x1f(k,j,i) = wl[NHYDRO  ];
+            pfield->b.x2f(k,j,i) = wl[NHYDRO+1];
+            pfield->b.x3f(k,j,i) = wl[NHYDRO+2];
+          } else {
+            pfield->b.x1f(k,j,i) = wr[NHYDRO  ];
+            pfield->b.x2f(k,j,i) = wr[NHYDRO+1];
+            pfield->b.x3f(k,j,i) = wr[NHYDRO+2];
+          } 
+        } else if (shk_dir==2) {
+          if (pcoord->x2f(j) < xshock) {
+            pfield->b.x1f(k,j,i) = wl[NHYDRO+2];
+            pfield->b.x2f(k,j,i) = wl[NHYDRO  ];
+            pfield->b.x3f(k,j,i) = wl[NHYDRO+1];
+          } else {
+            pfield->b.x1f(k,j,i) = wr[NHYDRO+2];
+            pfield->b.x2f(k,j,i) = wr[NHYDRO  ];
+            pfield->b.x3f(k,j,i) = wr[NHYDRO+1];
+          }
+        } else if (shk_dir==3) {
+          if (pcoord->x3f(k) < xshock) {
+            pfield->b.x1f(k,j,i) = wl[NHYDRO+1];
+            pfield->b.x2f(k,j,i) = wl[NHYDRO+2];
+            pfield->b.x3f(k,j,i) = wl[NHYDRO];
+          } else {
+            pfield->b.x1f(k,j,i) = wr[NHYDRO+1];
+            pfield->b.x2f(k,j,i) = wr[NHYDRO+2];
+            pfield->b.x3f(k,j,i) = wr[NHYDRO];
+          }
         }
         if (NON_BAROTROPIC_EOS) {
           phydro->u(IEN,k,j,i) += 0.5*(SQR(pfield->b.x1f(k,j,i))
@@ -458,5 +482,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       pfield->b.x3f(ke+1,j,i) = pfield->b.x3f(ke,j,i);
     }}
   }
+  return;
+}
+
+//====================================================================================
+
+void Mesh::UserWorkInLoop(void) { 
   return;
 }

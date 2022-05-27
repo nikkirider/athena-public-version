@@ -60,7 +60,17 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
   if (pm->mesh_size.nx2 > 1) dim = 2;
   if (pm->mesh_size.nx3 > 1) dim = 3;
 
-  if (integrator == "vl2") {
+  if (integrator == "euler") {
+    // Single step euler. Only for debugging, or for original bgk2 single-step integrator.
+    nstages = 1;
+    cfl_limit = 0.5;
+
+    stage_wghts[0].delta = 1.0;
+    stage_wghts[0].gamma_1 = 1.0;
+    stage_wghts[0].gamma_2 = 0.0;
+    stage_wghts[0].gamma_3 = 0.0;
+    stage_wghts[0].beta = 1.0;
+  } else if (integrator == "vl2") {
     // VL: second-order van Leer integrator (Stone & Gardiner, NewA 14, 139 2009)
     // Simple predictor-corrector scheme similar to MUSCL-Hancock
     // Expressed in 2S or 3S* algorithm form

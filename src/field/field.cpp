@@ -132,7 +132,7 @@ void Field::CalculateCellCenteredField(const FaceField &bf, AthenaArray<Real> &b
 
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-    // calc cell centered fields first
+      // calc cell centered fields first
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
         const Real& b1_i   = bf.x1f(k,j,i  );
@@ -173,6 +173,7 @@ void Field::CalculateCellCenteredField(const FaceField &bf, AthenaArray<Real> &b
           rw = (x2v_j  - x2f_j)/dx2_j;
         }
         bcc2 = lw*b2_j + rw*b2_jp1;
+
         if (uniform_ave_x3 == true) {
           lw = 0.5;
           rw = 0.5;

@@ -469,8 +469,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is pressure
       for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
         eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
-      ey(k,j,i) -= wi[IBY]*wallV; // modify ey, ez directly here.
-      ez(k,j,i) += wi[IBZ]*wallV;
+      ey(k,j,i) += wi[IBY]*wallV; // modify ey, ez directly here. 
+      ez(k,j,i) -= wi[IBZ]*wallV;
       
     } // if (EXPANDING_ENABLED)
 
