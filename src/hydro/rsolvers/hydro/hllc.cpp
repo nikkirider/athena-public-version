@@ -39,18 +39,20 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   Real flxi[(NHYDRO)],fl[(NHYDRO)],fr[(NHYDRO)];
   Real gm1 = pmy_block->peos->GetGamma() - 1.0;
   Real igm1 = 1.0/gm1;
-
-
+  
   Expansion *ex = pmy_block->pex;
-  AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];
+  AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];;
   AthenaArray<Real> &eVel = ex->vf[(ivx-1)];
-  bool move = false;
-  if ((ivx == IVX)&&(ex->x1Move)){
-    move = true;
-  } else if ((ivx == IVY)&&(ex->x2Move)) {
-    move = true;
-  } else if ((ivx == IVZ)&&(ex->x3Move)){
-    move = true;
+  bool move;
+  if (EXPANDING_ENABLED) {
+    move  = false;
+    if ((ivx == IVX)&&(ex->x1Move)){
+      move = true;
+    } else if ((ivx == IVY)&&(ex->x2Move)) {
+      move = true;
+    } else if ((ivx == IVZ)&&(ex->x3Move)){
+      move = true;
+    }
   }
 
   int n;
