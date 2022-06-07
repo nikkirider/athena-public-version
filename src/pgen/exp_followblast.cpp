@@ -43,6 +43,10 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
 void UpdateGridData(Mesh *pm);
 //Global variables for GridUpdate
 int iexpupdate, iqunt;
+int maxntrack = 20;
+int ncycold=-1;
+Real vtrack0;
+AthenaArray<Real> ttrack,rtrack;
 
 //Global Variables for OuterX1
 Real ambDens;
@@ -135,14 +139,26 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
 //  in the WallVel function. The object in mesh is GridData(i) and i can range over the
 //  integers, limited by SetGridData argument in InitMeshUserData. See exp_blast for an 
 //  example use of this function.
+//  This is an example function, showing various options of expansion tracking.
+//  iepxupdate == 0: requires scalar field for mass-averaged radial velocity. 
+//  iexpupdate == 1: gradient-weighted radial velocity. 
+//    iqunt      == 0: pressure gradient 
+//    iqunt      == 1: radial velocity gradient
+//  Since the expansion velocity is calculated at the location of the shell, it needs
+//  to be rescaled by xmax/mrad, where mrad is the (weighted) radius corresponding to the 
+//  location of vrad. 
 //========================================================================================
 void UpdateGridData(Mesh *pm) {
   MeshBlock *pmb = pm->pblock;
   Real xMax;
   Real xMin;
-  Real vtrack = 0.0;
+  Real vtrack = 0.0, mrad = 0.0;
   Real gamma  = pmb->peos->GetGamma();
-  if (iexpupdate == 0) { // needs scalar field in u(NHYDRO-1,...), calculates mass-weighted 
+  int ntr=0;
+
+  if (iexpupdate == -1) { // constant velocity 
+    vtrack = vtrack0;
+  } else if (iexpupdate == 0) { // needs scalar field in u(NHYDRO-1,...), calculates mass-weighted 
                          // velocity of mass shell. Works best for dense shells (snow-plow).
     Real mass = 0.0;
     if (COORDINATE_SYSTEM == "cartesian") {
@@ -169,6 +185,7 @@ void UpdateGridData(Mesh *pm) {
                           + pmb->phydro->u(IM3,k,j,i)*z)
                         *c*v/rad;
               mass   += pmb->phydro->u(NHYDRO-1,k,j,i)*pmb->pcoord->GetCellVolume(k,j,i); 
+              mrad   += rad * pmb->phydro->u(NHYDRO-1,k,j,i)*pmb->pcoord->GetCellVolume(k,j,i);
             }
           }
         }
@@ -184,7 +201,8 @@ void UpdateGridData(Mesh *pm) {
               Real v  = pmb->pcoord->GetCellVolume(k,j,i);
               Real c  = pmb->phydro->u(NHYDRO-1,k,j,i)/pmb->phydro->u(IDN,k,j,i);
               vtrack += pmb->phydro->u(IM1,k,j,i)*c*v;
-              mass   += c*pmb->pcoord->GetCellVolume(k,j,i);
+              mass   += pmb->phydro->u(NHYDRO-1,k,j,i)*pmb->pcoord->GetCellVolume(k,j,i);
+              mrad   += pmb->pcoord->x1v(i) * pmb->phydro->u(NHYDRO-1,k,j,i)*pmb->pcoord->GetCellVolume(k,j,i);
             }
           }
         }
@@ -192,19 +210,23 @@ void UpdateGridData(Mesh *pm) {
       }
     }
 #ifdef MPI_PARALLEL
-    Real myval[2];
+    Real myval[3];
     myval[0] = vtrack;
     myval[1] = mass;
-    MPI_Allreduce(MPI_IN_PLACE,&myval,2,MPI_ATHENA_REAL,MPI_SUM,
+    myval[2] = mrad;
+    MPI_Allreduce(MPI_IN_PLACE,&myval,3,MPI_ATHENA_REAL,MPI_SUM,
                   MPI_COMM_WORLD);
     vtrack = myval[0];
     mass   = myval[1];
+    mrad   = myval[2];
 #endif
+    mrad   /= mass;
     vtrack /= mass;
     vtrack  = ((vtrack < 0.0) ? 0.0 : vtrack);
+    vtrack *= (pm->GridData(3) / mrad); // "boost" velocity to grid size
     if (Globals::my_rank == 0)
-      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e mass=%13.5e xmax =%13.5e\n", vtrack,mass,pm->GridData(3));
-  } else if (iexpupdate == 1) { // shock detector. Project gradient on radius
+      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e mass=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,mass,mrad,pm->GridData(3));
+  } else { // shock detector. Project gradient on radius
     Real totgrdr = 0.0;
     if (COORDINATE_SYSTEM=="cartesian") { 
       pm->GridData(3)  = pm->mesh_size.x1max;
@@ -292,12 +314,13 @@ void UpdateGridData(Mesh *pm) {
                 Real gy     = (qunt(k  ,j+1,i  )-qunt(k  ,j-1,i  ))/(yp-ym);
                 Real gz     = (qunt(k+1,j  ,i  )-qunt(k-1,j  ,i  ))/(zp-zm);
                 grdr(k,j,i) = (gx*x+gy*y+gz*z)/rad;
-                grdr(k,j,i) = ((grdr(k,j,i) < 0.0) ? -grdr(k,j,i) : 0.0);
+                grdr(k,j,i) = std::fabs(grdr(k,j,i)); //((grdr(k,j,i) < 0.0) ? -grdr(k,j,i) : 0.0);
                 totgrdr    += grdr(k,j,i);        
-                vtrack +=  (  pmb->phydro->u(IM1,k,j,i)*x
-                            + pmb->phydro->u(IM2,k,j,i)*y
-                            + pmb->phydro->u(IM3,k,j,i)*z)
-                          *grdr(k,j,i)/rad;
+                vtrack     +=  (  pmb->phydro->u(IM1,k,j,i)*x
+                                + pmb->phydro->u(IM2,k,j,i)*y
+                                + pmb->phydro->u(IM3,k,j,i)*z)
+                              *grdr(k,j,i)/rad;
+                mrad       += rad * grdr(k,j,i);
               }
             }
           }
@@ -314,12 +337,13 @@ void UpdateGridData(Mesh *pm) {
               Real gx       = (qunt(ks,j  ,i+1)-qunt(ks,j  ,i-1))/(xp-xm);
               Real gy       = (qunt(ks,j+1,i  )-qunt(ks,j-1,i  ))/(yp-ym);
               grdr(ks,j,i)  = (gx*x+gy*y)/rad; // emphasize outer gradient
-              grdr(ks,j,i)  = ((grdr(ks,j,i) < 0.0) ? -grdr(ks,j,i) : 0.0);
+              grdr(ks,j,i)  = std::fabs(grdr(ks,j,i)); //((grdr(ks,j,i) < 0.0) ? -grdr(ks,j,i) : 0.0);
               //grdr(ks,j,i) *= SQR(SQR(rad)*SQR(rad));
               totgrdr      += grdr(ks,j,i);
               vtrack       +=  (  pmb->phydro->u(IM1,ks,j,i)*x
                                 + pmb->phydro->u(IM2,ks,j,i)*y)
                               *grdr(ks,j,i)/(pmb->phydro->u(IDN,ks,j,i)*rad);
+              mrad         += rad * grdr(ks,j,i);
             }
           }
         }
@@ -331,27 +355,66 @@ void UpdateGridData(Mesh *pm) {
 
     }
 #ifdef MPI_PARALLEL
-    Real myval[2];
+    Real myval[3];
     myval[0] = vtrack;
     myval[1] = totgrdr;
-    MPI_Allreduce(MPI_IN_PLACE,&myval,2,MPI_ATHENA_REAL,MPI_SUM,
+    myval[2] = mrad;
+    MPI_Allreduce(MPI_IN_PLACE,&myval,3,MPI_ATHENA_REAL,MPI_SUM,
                   MPI_COMM_WORLD);
     vtrack  = myval[0];
     totgrdr = myval[1];
+    mrad    = myval[2];
 #endif
-    vtrack /= totgrdr;
-    vtrack  = ((vtrack < 0.0) ? 0.0 : vtrack);
-    if (Globals::my_rank == 0)
-      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totgrdr=%13.5e xmax =%13.5e\n", vtrack,totgrdr,pm->GridData(3));
-  } else {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in UpdateGridData" << std::endl
-        << "invalid iexpupdate" << std::endl;
-    throw std::runtime_error(msg.str().c_str());
-    return;
-  }
+    mrad   /= totgrdr;
 
-  //vtrack = 1.0;
+    if (iexpupdate == 1) { // use gradient-weighted radial velocity
+      vtrack /= totgrdr;
+      vtrack  = ((vtrack < 0.0) ? 0.0 : vtrack);
+      vtrack *= (pm->GridData(3)/mrad); // boost velocity
+    } else if (iexpupdate == 2) { // use position of gradient mrad
+      
+      ntr = (pm->ncycle >= maxntrack) ? maxntrack-1 : pm->ncycle;
+      //fprintf(stdout,"[UpdateGridData]: ntr=%2i\n",ntr);
+      
+      if (ncycold < pm->ncycle) {
+        ncycold = pm->ncycle;
+        if (ntr == 0) {
+          ttrack(0) = 0.0;
+          rtrack(0) = mrad;
+          vtrack    = 0.0;
+        } else {
+          for (int m=0; m<ntr; ++m) {  
+            ttrack(ntr-m) = ttrack(ntr-m-1);
+            rtrack(ntr-m) = rtrack(ntr-m-1);
+            //fprintf(stdout,"   m=%2i ntr-m=%2i ttrack[ntr-m]=%13.5e rtrack[ntr-m]=%13.5e | ntr-m-1=%2i ttrack[ntr-m-1]=%13.5e rtrack[ntr-m-1]=%13.5e\n",
+            //        m,ntr-m,ttrack(ntr-m),rtrack(ntr-m),ntr-m-1,ttrack(ntr-m-1),rtrack(ntr-m-1));
+          }
+          ttrack(0) = pm->time;
+          rtrack(0) = mrad;
+          //for (int m=0; m<ntr; ++m) {
+          //  fprintf(stdout,"   m=%2i ttrack=%10.2e rtrack=%10.2e\n",m,ttrack(m),rtrack(m));
+          //}
+        }
+      }
+     //  else {
+     //   fprintf(stdout,"[UpdateGridData]: Use old info.\n");
+     // }
+
+      vtrack = 0.0;
+
+      for (int m=1; m<ntr; ++m) {
+        Real vt = (rtrack(m-1)-rtrack(m))/(ttrack(m-1)-ttrack(m)) * (pm->GridData(3)/mrad);
+        vtrack += vt;
+        //fprintf(stdout,"   m=%2i r[m-1]-r[m]=%13.5e t[m-1]-t[m]=%13.5e vtrack[m]=%13.5e\n",m,rtrack(m-1)-rtrack(m),ttrack(m-1)-ttrack(m),vt);
+      }
+      if (ntr > 0) vtrack /= ntr;
+      //fprintf(stdout,"[UpdateGridData]:    ntr=%3i t=%13.5e vtrack=%13.5e mrad=%13.5e ttrack=%13.5e %13.5e %13.5e %13.5e rtrack=%13.5e %13.5e %13.5e %13.5e\n",
+      //        ntr,pm->time,vtrack,mrad,ttrack(0),ttrack(1),ttrack(2),ttrack(3),rtrack(0),rtrack(1),rtrack(2),rtrack(3));
+    }
+    vtrack = (vtrack <= 0.0) ? 0.0 : vtrack;
+    if (Globals::my_rank == 0)
+      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totgrdr=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,totgrdr,mrad,pm->GridData(3));
+  }
 
   pm->GridData(2) = vtrack;
   if (COORDINATE_SYSTEM=="cartesian") {
@@ -451,12 +514,18 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
       }
     }
     EnrollCalcGridData(UpdateGridData);
+    ttrack.NewAthenaArray(maxntrack); // for position tracking
+    rtrack.NewAthenaArray(maxntrack);
     
     ambDens    = pin->GetReal("problem","damb");
     ambVel     = 0.0;
     ambPres    = pin->GetReal("problem","pamb");
     iexpupdate = pin->GetOrAddInteger("problem","iexpupdate",0); // 0: mass-weighted velocity, 1: shock position
     iqunt      = pin->GetOrAddInteger("problem","iqunt",1); // 0: pressure as indicator, 1: vrad as indicator
+
+    if (iexpupdate == -1) {
+      vtrack0 = pin->GetReal("problem","vtrack0"); // constant tracking velocity for test purposes
+    }
     
     Real rout  = pin->GetReal("problem","radius");
     Real rin   = rout - pin->GetOrAddReal("problem","ramp",0.0);
@@ -1222,8 +1291,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         }
  
         for (int n=NHYDRO-NSCALARS; n<NHYDRO; ++n) {
-          phydro->u(n,k,j,i) = den*0.25*(1.0+std::tanh((rad-0.8*rout)/(0.01*rout)))
-                                       *(1.0-std::tanh((rad-1.0*rout)/(0.01*rout)));
+          phydro->u(n,k,j,i) = den*0.25*(1.0+std::tanh((rad-1.0*rout)/(0.01*rout)))
+                                       *(1.0-std::tanh((rad-1.2*rout)/(0.01*rout)));
         }
       }
     }
