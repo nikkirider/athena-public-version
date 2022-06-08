@@ -45,13 +45,33 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   Real wli[NWAVE+NSCALARS+NINT],wri[NWAVE+NSCALARS+NINT];
 	Real wroe[NWAVE],fl[NWAVE],fr[NWAVE],flxi[NWAVE];
   gm1 = pmy_block->peos->GetGamma() - 1.0;
+  Real igm1 = 1.0/gm1;
   iso_cs = pmy_block->peos->GetIsoSoundSpeed();
 
   Real ev[(NHYDRO)],du[(NHYDRO)];
 
+  Expansion *ex = pmy_block->pex;
+  AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];;
+  AthenaArray<Real> &eVel = ex->vf[(ivx-1)];
+  bool move;
+  if (EXPANDING_ENABLED) {
+    move  = false;
+    if ((ivx == IVX)&&(ex->x1Move)){
+      move = true;
+    } else if ((ivx == IVY)&&(ex->x2Move)) {
+      move = true;
+    } else if ((ivx == IVZ)&&(ex->x3Move)){
+      move = true;
+    }
+  }
+  int n;
+  Real wi[(NHYDRO)];
+  Real wallV = 0.0;
+  Real e;
+
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
-#pragma omp simd private(wli,wri,wroe,flxi,fl,fr,ev,du)
+#pragma omp simd private(n,wli,wri,wroe,flxi,fl,fr,ev,du,wi,wallV,e)
   for (int i=il; i<=iu; ++i) {
 
 //--- Step 1.  Load L/R states into local variables
@@ -60,24 +80,23 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wli[IVX]=wl(ivx,k,j,i);
     wli[IVY]=wl(ivy,k,j,i);
     wli[IVZ]=wl(ivz,k,j,i);
-    if (NON_BAROTROPIC_EOS) {
+    if (NON_BAROTROPIC_EOS) 
       wli[IPR]=wl(IPR,k,j,i);
-      if (DUAL_ENERGY) {
-        wli[IGE]=wl(IGE,k,j,i);
-      }
-    }
-
+    if (DUAL_ENERGY)
+      wli[IGE]=wl(IGE,k,j,i);
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      wli[n] = wl(n,k,j,i);
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
     wri[IVY]=wr(ivy,k,j,i);
     wri[IVZ]=wr(ivz,k,j,i);
-    if (NON_BAROTROPIC_EOS) {
+    if (NON_BAROTROPIC_EOS) 
       wri[IPR]=wr(IPR,k,j,i);
-      if (DUAL_ENERGY) {
-        wri[IGE]=wr(IGE,k,j,i);
-      }
-    }
+    if (DUAL_ENERGY)
+      wri[IGE]=wr(IGE,k,j,i);
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      wri[n] = wr(n,k,j,i);
 
 //--- Step 2.  Compute Roe-averaged data from left- and right-states
 
@@ -182,40 +201,53 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     flx(ivx,k,j,i) = flxi[IVX];
     flx(ivy,k,j,i) = flxi[IVY];
     flx(ivz,k,j,i) = flxi[IVZ];
-    if (NON_BAROTROPIC_EOS) {
+    if (NON_BAROTROPIC_EOS) 
       flx(IEN,k,j,i) = flxi[IEN];
-      if (DUAL_ENERGY) {
-        if (flxi[IDN] >= 0.0) {
-          flx(IIE,k,j,i) = (flxi[IDN]*wli[IGE]/wli[IDN])/gm1;
-        } else {	
-          flx(IIE,k,j,i) = (flxi[IDN]*wri[IGE]/wri[IDN])/gm1; 
-        }
+
+    if (DUAL_ENERGY) // IGE is pressure
+      flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
+
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
+
+    //For Time Dependent grid, account for Wall Flux
+    if ((EXPANDING_ENABLED) && (move)) {
+      //--- Step 1. Determine Flux Direction
+      if (ivx == IVX){
+        wallV = eVel(i);
+      } else if (ivx == IVY) {
+        wallV = eVel(j);
+      } else if (ivx == IVZ){
+        wallV = eVel(k);
+      } else {
+        wallV = 0.0;
       }
-    }
+      //--- Step 2. Load primitive Variables
+      if (wallV > 0.0) {
+        for (n=0; n<NHYDRO; ++n)
+          wi[n] = wri[n];
+      } else if (wallV < 0.0) {
+        for (n=0; n<NHYDRO; ++n)
+          wi[n] = wli[n];
+      } else {
+        for (n=0; n<NHYDRO; ++n)
+          wi[n] = 0.0;
+      }
+      e = wi[IPR]*igm1 + 0.5*wi[IDN]*(SQR(wi[IVX]) + SQR(wi[IVY]) + SQR(wi[IVZ]));
+      eFlx(IDN,k,j,i) = wi[IDN]*wallV;
+      eFlx(ivx,k,j,i) = wi[IDN]*wi[IVX]*wallV;
+      eFlx(ivy,k,j,i) = wi[IDN]*wi[IVY]*wallV;
+      eFlx(ivz,k,j,i) = wi[IDN]*wi[IVZ]*wallV;
+      eFlx(IEN,k,j,i) = e*wallV;
+      if (DUAL_ENERGY)
+        eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is pressure
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+        eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
+
+    } //End Expanding
+
   }
   }}
-
-  if (NSCALARS > 0) {
-    for (int k=kl; k<=ku; k++) {
-      for (int j=jl; j<=ju; j++) {
-#pragma omp simd
-        for (int i=il; i<=iu; i++) {
-          Real fd = flx(IDN,k,j,i);
-          flx(IS0,k,j,i)   = (fd >= 0 ? fd*wl(IS0,k,j,i) : fd*wr(IS0,k,j,i));
-          if (NSCALARS > 1)
-            flx(IS1,k,j,i) = (fd >= 0 ? fd*wl(IS1,k,j,i) : fd*wr(IS1,k,j,i));
-          if (NSCALARS > 2)
-            flx(IS2,k,j,i) = (fd >= 0 ? fd*wl(IS2,k,j,i) : fd*wr(IS2,k,j,i));
-          if (NSCALARS > 3)
-            flx(IS3,k,j,i) = (fd >= 0 ? fd*wl(IS3,k,j,i) : fd*wr(IS3,k,j,i));
-          if (NSCALARS > 4)
-            flx(IS4,k,j,i) = (fd >= 0 ? fd*wl(IS4,k,j,i) : fd*wr(IS4,k,j,i));
-          if (NSCALARS > 5)
-            flx(IS5,k,j,i) = (fd >= 0 ? fd*wl(IS5,k,j,i) : fd*wr(IS5,k,j,i));
-        }
-      }
-    }
-  }
 
   return;
 }

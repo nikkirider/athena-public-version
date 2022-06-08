@@ -10,6 +10,10 @@
 // negative density in the intermediate states, LLF fluxes are used instead (only density,
 // not pressure, is checked in this version).
 //
+// Note (fh220608): Because of dual energy and scalars, NHYDRO and NWAVE needed to be kept
+// consistent. Introduced IWBY, IWBZ to indicate transverse components of field if 
+// NWAVE is used. Otherwise, IBY, IBZ are NHYDRO, NHYDRO+1.
+//
 // REFERENCES:
 // - P. Roe, "Approximate Riemann solvers, parameter vectors, and difference schemes",
 //   JCP, 43, 357 (1981).
@@ -42,16 +46,35 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
-  Real wli[(NWAVE)],wri[(NWAVE)],wroe[(NWAVE)];
+  // Original version using NWAVE. See comment in hlld.cpp.
+  //Real wli[(NWAVE)],wri[(NWAVE)],wroe[(NWAVE)];
+  Real wli[(NHYDRO+2)],wri[(NHYDRO+2)],wroe[(NWAVE)];
   Real flxi[(NWAVE)],fl[(NWAVE)],fr[(NWAVE)];
   gm1 = pmy_block->peos->GetGamma() - 1.0;
+  Real igm1 = 1.0/gm1;
   iso_cs = pmy_block->peos->GetIsoSoundSpeed();
 
   Real ev[(NWAVE)],du[(NWAVE)];
 
+  Expansion *ex = pmy_block->pex;
+  AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];
+  AthenaArray<Real> &eVel = ex->vf[(ivx-1)];
+  bool move = false;
+  if ((ivx == IVX)&&(ex->x1Move)){
+    move = true;
+  } else if ((ivx == IVY)&&(ex->x2Move)) {
+    move = true;
+  } else if ((ivx == IVZ)&&(ex->x3Move)){
+    move = true;
+  }
+  Real wi[(NHYDRO+2)];
+  Real wallV = 0.0;
+  Real e;
+  int n;
+
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
-#pragma omp simd private(wli,wri,wroe,flxi,fl,fr,ev,du)
+#pragma omp simd private(n,wli,wri,wroe,flxi,fl,fr,ev,du,wi,wallV,e)
   for (int i=il; i<=iu; ++i) {
 
 //--- Step 1.  Load L/R states into local variables
@@ -63,6 +86,10 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     if (NON_BAROTROPIC_EOS) wli[IPR]=wl(IPR,k,j,i);
     wli[IBY]=wl(IBY,k,j,i);
     wli[IBZ]=wl(IBZ,k,j,i);
+    if (DUAL_ENERGY)
+      wli[IGE]=wl(IGE,k,j,i);
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      wli[n] = wl(n,k,j,i);
 
     wri[IDN]=wr(IDN,k,j,i);
     wri[IVX]=wr(ivx,k,j,i);
@@ -71,8 +98,13 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     if (NON_BAROTROPIC_EOS) wri[IPR]=wr(IPR,k,j,i);
     wri[IBY]=wr(IBY,k,j,i);
     wri[IBZ]=wr(IBZ,k,j,i);
+    if (DUAL_ENERGY)
+      wri[IGE]=wr(IGE,k,j,i);
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      wri[n] = wr(n,k,j,i);
 
     Real bxi = bx(k,j,i);
+    Real bxsq = bxi*bxi;
 
 //--- Step 2.  Compute Roe-averaged data from left- and right-states
 
@@ -85,8 +117,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     wroe[IVY] = (sqrtdl*wli[IVY] + sqrtdr*wri[IVY])*isdlpdr;
     wroe[IVZ] = (sqrtdl*wli[IVZ] + sqrtdr*wri[IVZ])*isdlpdr;
     // Note Roe average of magnetic field is different
-    wroe[IBY] = (sqrtdr*wli[IBY] + sqrtdl*wri[IBY])*isdlpdr;
-    wroe[IBZ] = (sqrtdr*wli[IBZ] + sqrtdl*wri[IBZ])*isdlpdr;
+    wroe[IWBY]= (sqrtdr*wli[IBY] + sqrtdl*wri[IBY])*isdlpdr;
+    wroe[IWBZ]= (sqrtdr*wli[IBZ] + sqrtdl*wri[IBZ])*isdlpdr;
     Real x = 0.5*(SQR(wli[IBY]-wri[IBY]) + SQR(wli[IBZ]-wri[IBZ]))/(SQR(sqrtdl+sqrtdr));
     Real y = 0.5*(wli[IDN] + wri[IDN])/wroe[IDN];
 
@@ -130,11 +162,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       fr[IVX] += (iso_cs*iso_cs)*wri[IDN];
     }
 
-    fl[IBY] = wli[IBY]*wli[IVX] - bxi*wli[IVY];
-    fr[IBY] = wri[IBY]*wri[IVX] - bxi*wri[IVY];
+    fl[IWBY]= wli[IBY]*wli[IVX] - bxi*wli[IVY];
+    fr[IWBY]= wri[IBY]*wri[IVX] - bxi*wri[IVY];
 
-    fl[IBZ] = wli[IBZ]*wli[IVX] - bxi*wli[IVZ];
-    fr[IBZ] = wri[IBZ]*wri[IVX] - bxi*wri[IVZ];
+    fl[IWBZ]= wli[IBZ]*wli[IVX] - bxi*wli[IVZ];
+    fr[IWBZ]= wri[IBZ]*wri[IVX] - bxi*wri[IVZ];
 
 //--- Step 4.  Compute Roe fluxes
 
@@ -143,16 +175,16 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     du[IVY] = wri[IDN]*wri[IVY] - wli[IDN]*wli[IVY];
     du[IVZ] = wri[IDN]*wri[IVZ] - wli[IDN]*wli[IVZ];
     if (NON_BAROTROPIC_EOS) du[IEN] = er - el;
-    du[IBY] = wri[IBY] - wli[IBY];
-    du[IBZ] = wri[IBZ] - wli[IBZ];
+    du[IWBY]= wri[IBY] - wli[IBY];
+    du[IWBZ]= wri[IBZ] - wli[IBZ];
 
     flxi[IDN] = 0.5*(fl[IDN] + fr[IDN]);
     flxi[IVX] = 0.5*(fl[IVX] + fr[IVX]);
     flxi[IVY] = 0.5*(fl[IVY] + fr[IVY]);
     flxi[IVZ] = 0.5*(fl[IVZ] + fr[IVZ]);
     if (NON_BAROTROPIC_EOS) flxi[IEN] = 0.5*(fl[IEN] + fr[IEN]);
-    flxi[IBY] = 0.5*(fl[IBY] + fr[IBY]);
-    flxi[IBZ] = 0.5*(fl[IBZ] + fr[IBZ]);
+    flxi[IWBY]= 0.5*(fl[IWBY] + fr[IWBY]);
+    flxi[IWBZ]= 0.5*(fl[IWBZ] + fr[IWBZ]);
 
     int llf_flag = 0;
     RoeFlux(wroe,bxi,x,y,du,wli,flxi,ev,llf_flag);
@@ -165,8 +197,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       flxi[IVY] = fl[IVY];
       flxi[IVZ] = fl[IVZ];
       if (NON_BAROTROPIC_EOS) flxi[IEN] = fl[IEN];
-      flxi[IBY] = fl[IBY];
-      flxi[IBZ] = fl[IBZ];
+      flxi[IWBY]= fl[IWBY];
+      flxi[IWBZ]= fl[IWBZ];
     }
     if (ev[NWAVE-1] <= 0.0) {
       flxi[IDN] = fr[IDN];
@@ -174,8 +206,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       flxi[IVY] = fr[IVY];
       flxi[IVZ] = fr[IVZ];
       if (NON_BAROTROPIC_EOS) flxi[IEN] = fr[IEN];
-      flxi[IBY] = fr[IBY];
-      flxi[IBZ] = fr[IBZ];
+      flxi[IWBY]= fr[IWBY];
+      flxi[IWBZ]= fr[IWBZ];
     }
 
 //--- Step 6.  Overwrite with LLF flux if any of intermediate states are negative
@@ -192,8 +224,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       if (NON_BAROTROPIC_EOS) {
         flxi[IEN] = 0.5*(fl[IEN] + fr[IEN]) - a*du[IEN];
       }
-      flxi[IBY] = 0.5*(fl[IBY] + fr[IBY]) - a*du[IBY];
-      flxi[IBZ] = 0.5*(fl[IBZ] + fr[IBZ]) - a*du[IBZ];
+      flxi[IWBY]= 0.5*(fl[IWBY] + fr[IWBY]) - a*du[IWBY];
+      flxi[IWBZ]= 0.5*(fl[IWBZ] + fr[IWBZ]) - a*du[IWBZ];
     }
 
 //--- Step 7. Store results into 3D array of fluxes
@@ -203,32 +235,57 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     flx(ivy,k,j,i) = flxi[IVY];
     flx(ivz,k,j,i) = flxi[IVZ];
     if (NON_BAROTROPIC_EOS) flx(IEN,k,j,i) = flxi[IEN];
-    ey(k,j,i) = -flxi[IBY];
-    ez(k,j,i) =  flxi[IBZ];
+    ey(k,j,i) = -flxi[IWBY];
+    ez(k,j,i) =  flxi[IWBZ];
+
+    if (DUAL_ENERGY)  // IGE is pressure
+      flx(IIE,k,j,i) = (flxi[IDN] >= 0 ? flxi[IDN]*wli[IGE]/wli[IDN] : flxi[IDN]*wri[IGE]/wri[IDN])*igm1;
+
+    for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+      flx(n,k,j,i)   = (flxi[IDN] >= 0 ? flxi[IDN]*wli[n] : flxi[IDN]*wri[n]);
+
+    //For Time Dependent grid, account for Wall Flux
+    if ((EXPANDING_ENABLED) && (move)) {
+      //--- Step 1. Determine Flux Direction
+      if (ivx == IVX){
+        wallV = eVel(i);
+      } else if (ivx == IVY) {
+        wallV = eVel(j);
+      } else if (ivx == IVZ){
+        wallV = eVel(k);
+      } else {
+        wallV = 0.0;
+      }
+      //--- Step 2. Load primitive variables
+      if (wallV > 0.0) {
+        for (n=0; n<(NHYDRO+2); ++n)
+          wi[n] = wri[n];
+      } else if (wallV < 0.0) {
+        for (n=0; n<(NHYDRO+2); ++n)
+          wi[n] = wli[n];
+      } else {
+        for (n=0; n<(NHYDRO+2); ++n)
+          wi[n] = 0.0;
+      }
+      e =   wi[IPR]*igm1
+          + 0.5*wi[IDN]*(SQR(wi[IVX]) + SQR(wi[IVY]) + SQR(wi[IVZ]))
+          + 0.5*(bxsq + SQR(wi[IBY]) + SQR(wi[IBZ]));
+      eFlx(IDN,k,j,i) = wi[IDN]*wallV;
+      eFlx(ivx,k,j,i) = wi[IDN]*wi[IVX]*wallV;
+      eFlx(ivy,k,j,i) = wi[IDN]*wi[IVY]*wallV;
+      eFlx(ivz,k,j,i) = wi[IDN]*wi[IVZ]*wallV;
+      eFlx(IEN,k,j,i) = e*wallV;
+      if (DUAL_ENERGY)
+        eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is pressure
+      for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+        eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
+      ey(k,j,i) += wi[IBY]*wallV; // modify ey, ez directly here. 
+      ez(k,j,i) -= wi[IBZ]*wallV;
+
+    } // if (EXPANDING_ENABLED)
+
   }
   }}
-
-  if (NSCALARS > 0) {
-    for (int k=kl; k<=ku; k++) {
-      for (int j=jl; j<=ju; j++) {
-#pragma omp simd
-        for (int i=il; i<=iu; i++) {
-          Real fd = flx(IDN,k,j,i);
-          flx(IS0,k,j,i)   = (fd >= 0 ? fd*wl(IS0,k,j,i) : fd*wr(IS0,k,j,i));
-          if (NSCALARS > 1)
-            flx(IS1,k,j,i) = (fd >= 0 ? fd*wl(IS1,k,j,i) : fd*wr(IS1,k,j,i));
-          if (NSCALARS > 2)
-            flx(IS2,k,j,i) = (fd >= 0 ? fd*wl(IS2,k,j,i) : fd*wr(IS2,k,j,i));
-          if (NSCALARS > 3)
-            flx(IS3,k,j,i) = (fd >= 0 ? fd*wl(IS3,k,j,i) : fd*wr(IS3,k,j,i));
-          if (NSCALARS > 4)
-            flx(IS4,k,j,i) = (fd >= 0 ? fd*wl(IS4,k,j,i) : fd*wr(IS4,k,j,i));
-          if (NSCALARS > 5)
-            flx(IS5,k,j,i) = (fd >= 0 ? fd*wl(IS5,k,j,i) : fd*wr(IS5,k,j,i));
-        }
-      }
-    }
-  }
 
   return;
 }
@@ -266,8 +323,8 @@ inline void RoeFlux(const Real wroe[], const Real b1, const Real x, const Real y
   Real v1 = wroe[IVX];
   Real v2 = wroe[IVY];
   Real v3 = wroe[IVZ];
-  Real b2 = wroe[IBY];
-  Real b3 = wroe[IBZ];
+  Real b2 = wroe[IWBY];
+  Real b3 = wroe[IWBZ];
 
   // compute sound and Alfven speeds
   Real di = 1.0/d;
@@ -573,8 +630,8 @@ inline void RoeFlux(const Real wroe[], const Real b1, const Real x, const Real y
     coeff[IVY] = -0.5*fabs(ev[IVY])*a[IVY];
     coeff[IVZ] = -0.5*fabs(ev[IVZ])*a[IVZ];
     if (NON_BAROTROPIC_EOS) coeff[IEN] = 0.5*fabs(ev[IEN])*a[IEN];
-    coeff[IBY] = -0.5*fabs(ev[IBY])*a[IBY];
-    coeff[IBZ] = -0.5*fabs(ev[IBZ])*a[IBZ];
+    coeff[IWBY]= -0.5*fabs(ev[IWBY])*a[IWBY];
+    coeff[IWBZ]= -0.5*fabs(ev[IWBZ])*a[IWBZ];
 
     // compute density in intermediate states and check that it is positive, set flag
     // This uses the [0][*] components of the right-eigenmatrix

@@ -419,42 +419,15 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
       } else {
         wallV = 0.0;
       }
-      //--- Step 2. Load primitive Variables
+      //--- Step 2. Load primitive variables
       if (wallV > 0.0) {
-        wi[IDN]=wr(IDN,k,j,i);
-        wi[IVX]=wr(ivx,k,j,i);
-        wi[IVY]=wr(ivy,k,j,i);
-        wi[IVZ]=wr(ivz,k,j,i);
-        wi[IPR]=wr(IPR,k,j,i);
-        wi[IBY]=wr(IBY,k,j,i);
-        wi[IBZ]=wr(IBZ,k,j,i);
-        if (DUAL_ENERGY)
-          wi[IGE]=wr(IGE,k,j,i);
-        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
-          wi[n] = wr(n,k,j,i);
+        for (n=0; n<(NHYDRO+2); ++n)
+          wi[n] = wri[n];
       } else if (wallV < 0.0) {
-        wi[IDN]=wl(IDN,k,j,i);
-        wi[IVX]=wl(ivx,k,j,i);
-        wi[IVY]=wl(ivy,k,j,i);
-        wi[IVZ]=wl(ivz,k,j,i);
-        wi[IPR]=wl(IPR,k,j,i);
-        wi[IBY]=wl(IBY,k,j,i);
-        wi[IBZ]=wl(IBZ,k,j,i);
-        if (DUAL_ENERGY)
-          wi[IGE]=wl(IGE,k,j,i);
-        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
-          wi[n] = wl(n,k,j,i);
+        for (n=0; n<(NHYDRO+2); ++n)
+          wi[n] = wli[n];
       } else {
-        wi[IDN]=0.0;
-        wi[IVX]=0.0;
-        wi[IVY]=0.0;
-        wi[IVZ]=0.0;
-        wi[IPR]=0.0;
-        wi[IBY]=0.0;
-        wi[IBZ]=0.0;
-        if (DUAL_ENERGY)
-          wi[IGE]=0.0;
-        for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++)
+        for (n=0; n<(NHYDRO+2); ++n)
           wi[n] = 0.0;
       }
       e =   wi[IPR]*igm1 

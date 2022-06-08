@@ -150,24 +150,24 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
 //========================================================================================
 void UpdateGridData(Mesh *pm) {
   MeshBlock *pmb = pm->pblock;
-  Real xMax;
-  Real xMin;
   Real vtrack = 0.0, mrad = 0.0;
   Real gamma  = pmb->peos->GetGamma();
   int ntr=0;
 
   if (iexpupdate == -1) { // constant velocity 
     vtrack = vtrack0;
+    if (Globals::my_rank == 0)
+      fprintf(stdout,"[UpdateGrid]: vtrack=%13.5e xmax =%13.5e\n", vtrack,pm->mesh_size.x1max);
   } else if (iexpupdate == 0) { // needs scalar field in u(NHYDRO-1,...), calculates mass-weighted 
                          // velocity of mass shell. Works best for dense shells (snow-plow).
     Real mass = 0.0;
     if (COORDINATE_SYSTEM == "cartesian") {
       pm->GridData(3)  = pm->mesh_size.x1max;
       pm->GridData(0)  = pm->mesh_size.x1min;
-      pm->GridData(7)  = xMax = pm->mesh_size.x2max;
-      pm->GridData(4)  = xMin = pm->mesh_size.x2min;
-      pm->GridData(11) = xMax = pm->mesh_size.x3max;
-      pm->GridData(8)  = xMin = pm->mesh_size.x3min;
+      pm->GridData(7)  = pm->mesh_size.x2max;
+      pm->GridData(4)  = pm->mesh_size.x2min;
+      pm->GridData(11) = pm->mesh_size.x3max;
+      pm->GridData(8)  = pm->mesh_size.x3min;
       Real rad = 0.0;
       Real x,y,z;
       while (pmb != NULL) {
@@ -192,8 +192,7 @@ void UpdateGridData(Mesh *pm) {
         pmb = pmb->next;
       }
     } else { // if (COORDINATE_SYSTEM == "cartesian") 
-      xMax = pm->mesh_size.x1max;
-      pm->GridData(3) = xMax;
+      pm->GridData(3) = pm->mesh_size.x1max;
       while (pmb != NULL) {
         for (int k=pmb->ks; k<=pmb->ke; ++k) {
           for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -231,10 +230,10 @@ void UpdateGridData(Mesh *pm) {
     if (COORDINATE_SYSTEM=="cartesian") { 
       pm->GridData(3)  = pm->mesh_size.x1max;
       pm->GridData(0)  = pm->mesh_size.x1min;
-      pm->GridData(7)  = xMax = pm->mesh_size.x2max;
-      pm->GridData(4)  = xMin = pm->mesh_size.x2min;
-      pm->GridData(11) = xMax = pm->mesh_size.x3max;
-      pm->GridData(8)  = xMin = pm->mesh_size.x3min;
+      pm->GridData(7)  = pm->mesh_size.x2max;
+      pm->GridData(4)  = pm->mesh_size.x2min;
+      pm->GridData(11) = pm->mesh_size.x3max;
+      pm->GridData(8)  = pm->mesh_size.x3min;
       AthenaArray<Real> qunt, grdr; 
       while (pmb != NULL) {
         int is=pmb->is, ie=pmb->ie, js=pmb->js, je=pmb->je, ks=pmb->ks, ke=pmb->ke;
@@ -1218,6 +1217,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
   Real gamma = peos->GetGamma();
   Real gm1 = gamma - 1.0;
+
+  //fprintf(stdout,"IDN=%2i IVX=%2i IVY=%2i IVZ=%2i IPR=%2i IBY=%2i IBZ=%2i NHYDRO-SCALARS=%2i NHYDRO=%2i NWAVE=%2i\n",IDN,IVX,IVY,IVZ,IPR,IBY,IBZ,NHYDRO-NSCALARS,NHYDRO,NWAVE);
 
   // get coordinates of center of blast, and convert to Cartesian if necessary
   Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);

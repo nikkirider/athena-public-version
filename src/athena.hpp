@@ -124,6 +124,9 @@ enum {IE11=4,IE22=5,IE33=6,IE12=7,IE13=8,IE23=9};
 // array indices for 1D primitives: velocity, pressure internal energy, transverse components of field
 enum {IVX=1, IVY=2, IVZ=3, IPR=4, IGE=5, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
 
+// array indices for transverse component of field to be used for vectors of length NWAVE
+enum {IWBY=(NWAVE-2), IWBZ=(NWAVE-1)};
+
 // array indices for cless variables
 enum {IP11=4,IP22=5,IP33=6,IP12=7,IP13=8,IP23=9};
 
