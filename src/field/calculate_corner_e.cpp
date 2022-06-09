@@ -92,12 +92,12 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
 #else
       if (EXPANDING_ENABLED) {
          // need to add grid velocity to w(IVY etc). 
-         // The EMFs in e3_x2f etc already include the wall motion via hlld.
+         // The EMFs in e3_x2f etc already include the wall motion via Riemann solver.
 #pragma omp simd
         for (int i=is-1; i<=ie+1; ++i) {
-          wallVx       = eVelx(i);
-          cc_e_(k,j,i) =   (w(IVY,k,j,i)+wallVy)*bcc(IB1,k,j,i) 
-                         - (w(IVX,k,j,i)+wallVx)*bcc(IB2,k,j,i);
+          if (ex->x1Move) wallVx = eVelx(i);
+          cc_e_(k,j,i) =   (w(IVY,k,j,i)-wallVy)*bcc(IB1,k,j,i) 
+                         - (w(IVX,k,j,i)-wallVx)*bcc(IB2,k,j,i);
         }
       } else { // standard branch without expansion
 #pragma omp simd
@@ -188,8 +188,8 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         if (EXPANDING_ENABLED) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            cc_e_(k,j,i) =   (w(IVZ,k,j,i)+wallVz)*bcc(IB2,k,j,i) 
-                           - (w(IVY,k,j,i)+wallVy)*bcc(IB3,k,j,i);
+            cc_e_(k,j,i) =   (w(IVZ,k,j,i)-wallVz)*bcc(IB2,k,j,i) 
+                           - (w(IVY,k,j,i)-wallVy)*bcc(IB3,k,j,i);
           }
         } else {
 #pragma omp simd
@@ -262,9 +262,9 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         if (EXPANDING_ENABLED) {
 #pragma omp simd
           for (int i=is-1; i<=ie+1; ++i) {
-            wallVx       = eVelx(i);
-            cc_e_(k,j,i) =   (w(IVX,k,j,i)+wallVx)*bcc(IB3,k,j,i) 
-                           - (w(IVZ,k,j,i)+wallVz)*bcc(IB1,k,j,i);
+            if (ex->x1Move) wallVx = eVelx(i);
+            cc_e_(k,j,i) =   (w(IVX,k,j,i)-wallVx)*bcc(IB3,k,j,i) 
+                           - (w(IVZ,k,j,i)-wallVz)*bcc(IB1,k,j,i);
           }
         } else {
 #pragma omp simd

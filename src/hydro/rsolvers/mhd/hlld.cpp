@@ -42,12 +42,14 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
   AthenaArray<Real> &eFlx = ex->expFlux[(ivx-1)];
   AthenaArray<Real> &eVel = ex->vf[(ivx-1)];
   bool move = false;
-  if ((ivx == IVX)&&(ex->x1Move)){
-    move = true;
-  } else if ((ivx == IVY)&&(ex->x2Move)) {
-    move = true;
-  } else if ((ivx == IVZ)&&(ex->x3Move)){
-    move = true;
+  if (EXPANDING_ENABLED) {
+    if ((ivx == IVX)&&(ex->x1Move)){
+      move = true;
+    } else if ((ivx == IVY)&&(ex->x2Move)) {
+      move = true;
+    } else if ((ivx == IVZ)&&(ex->x3Move)){
+      move = true;
+    }
   }
   Real wi[(NHYDRO+2)];
   Real wallV = 0.0;
