@@ -78,7 +78,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
 //#pragma omp simd simdlen(SIMD_WIDTH) private(wli,wri,spd,flxi)
 #pragma distribute_point
-#pragma omp simd private(n,wli,wri,spd,flxi)
+#pragma omp simd private(n,wli,wri,spd,flxi,wi,wallV,e)
   for (int i=il; i<=iu; ++i) {
     Cons1D ul,ur;                   // L/R states, conserved variables (computed)
     Cons1D ulst,uldst,urdst,urst;   // Conserved variable for all states

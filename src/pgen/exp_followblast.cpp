@@ -144,6 +144,9 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
 //  iexpupdate == 1: gradient-weighted radial velocity. 
 //    iqunt      == 0: pressure gradient 
 //    iqunt      == 1: radial velocity gradient
+//  iexpupdate == 2: vtrack calculated as motion of the maximum gradient (iqunt) position.
+//                   To prevent oscillations, vtrack is averaged over the previous 20 
+//                   timesteps. 
 //  Since the expansion velocity is calculated at the location of the shell, it needs
 //  to be rescaled by xmax/mrad, where mrad is the (weighted) radius corresponding to the 
 //  location of vrad. 
@@ -154,20 +157,25 @@ void UpdateGridData(Mesh *pm) {
   Real gamma  = pmb->peos->GetGamma();
   int ntr=0;
 
+  if (COORDINATE_SYSTEM == "cartesian") {
+    pm->GridData(3)  = pm->mesh_size.x1max;
+    pm->GridData(0)  = pm->mesh_size.x1min;
+    pm->GridData(7)  = pm->mesh_size.x2max;
+    pm->GridData(4)  = pm->mesh_size.x2min;
+    pm->GridData(11) = pm->mesh_size.x3max;
+    pm->GridData(8)  = pm->mesh_size.x3min;
+  } else {
+    pm->GridData(3) = pm->mesh_size.x1max;
+  }
+
   if (iexpupdate == -1) { // constant velocity 
     vtrack = vtrack0;
-    if (Globals::my_rank == 0)
-      fprintf(stdout,"[UpdateGrid]: vtrack=%13.5e xmax =%13.5e\n", vtrack,pm->mesh_size.x1max);
+    //if (Globals::my_rank == 0)
+    //  fprintf(stdout,"[UpdateGrid]: vtrack=%13.5e xmax =%13.5e\n", vtrack,pm->mesh_size.x1max);
   } else if (iexpupdate == 0) { // needs scalar field in u(NHYDRO-1,...), calculates mass-weighted 
                          // velocity of mass shell. Works best for dense shells (snow-plow).
     Real mass = 0.0;
     if (COORDINATE_SYSTEM == "cartesian") {
-      pm->GridData(3)  = pm->mesh_size.x1max;
-      pm->GridData(0)  = pm->mesh_size.x1min;
-      pm->GridData(7)  = pm->mesh_size.x2max;
-      pm->GridData(4)  = pm->mesh_size.x2min;
-      pm->GridData(11) = pm->mesh_size.x3max;
-      pm->GridData(8)  = pm->mesh_size.x3min;
       Real rad = 0.0;
       Real x,y,z;
       while (pmb != NULL) {
@@ -192,7 +200,6 @@ void UpdateGridData(Mesh *pm) {
         pmb = pmb->next;
       }
     } else { // if (COORDINATE_SYSTEM == "cartesian") 
-      pm->GridData(3) = pm->mesh_size.x1max;
       while (pmb != NULL) {
         for (int k=pmb->ks; k<=pmb->ke; ++k) {
           for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -223,17 +230,11 @@ void UpdateGridData(Mesh *pm) {
     vtrack /= mass;
     vtrack  = ((vtrack < 0.0) ? 0.0 : vtrack);
     vtrack *= (pm->GridData(3) / mrad); // "boost" velocity to grid size
-    if (Globals::my_rank == 0)
-      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e mass=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,mass,mrad,pm->GridData(3));
+    //if (Globals::my_rank == 0)
+    //  fprintf(stdout,"[UpdateGrid] vtrack=%13.5e mass=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,mass,mrad,pm->GridData(3));
   } else { // shock detector. Project gradient on radius
     Real totgrdr = 0.0;
     if (COORDINATE_SYSTEM=="cartesian") { 
-      pm->GridData(3)  = pm->mesh_size.x1max;
-      pm->GridData(0)  = pm->mesh_size.x1min;
-      pm->GridData(7)  = pm->mesh_size.x2max;
-      pm->GridData(4)  = pm->mesh_size.x2min;
-      pm->GridData(11) = pm->mesh_size.x3max;
-      pm->GridData(8)  = pm->mesh_size.x3min;
       AthenaArray<Real> qunt, grdr; 
       while (pmb != NULL) {
         int is=pmb->is, ie=pmb->ie, js=pmb->js, je=pmb->je, ks=pmb->ks, ke=pmb->ke;
@@ -411,8 +412,8 @@ void UpdateGridData(Mesh *pm) {
       //        ntr,pm->time,vtrack,mrad,ttrack(0),ttrack(1),ttrack(2),ttrack(3),rtrack(0),rtrack(1),rtrack(2),rtrack(3));
     }
     vtrack = (vtrack <= 0.0) ? 0.0 : vtrack;
-    if (Globals::my_rank == 0)
-      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totgrdr=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,totgrdr,mrad,pm->GridData(3));
+    //if (Globals::my_rank == 0)
+    //  fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totgrdr=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,totgrdr,mrad,pm->GridData(3));
   }
 
   pm->GridData(2) = vtrack;
@@ -1368,4 +1369,3 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 void Mesh::UserWorkInLoop(void) {
   return;
 }
-          

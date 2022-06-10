@@ -190,6 +190,7 @@ public:
 
   // data
   RegionSize mesh_size;
+  int dimension;
   enum BoundaryFlag mesh_bcs[6];
   Real start_time, tlim, cfl_number, time, dt;
   int nlim, ncycle, ncycle_out;

@@ -326,6 +326,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     wr[NHYDRO+1] = pin->GetReal("problem","byr");
     wr[NHYDRO+2] = pin->GetReal("problem","bzr");
   }
+
    
 // Initialize the discontinuity in the Hydro variables ---------------------------------
 

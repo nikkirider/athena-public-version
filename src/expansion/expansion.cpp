@@ -103,26 +103,20 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
     face_area_new_.NewAthenaArray(ncells1);
   }
 
-  if (x1Move) {
 #pragma omp simd
-    for (int i=il; i<=iu+1;++i) {
-      v1f(i) = 0.0;
-      x1_0(i) = pmb->pcoord->x1f(i);
-    }
+  for (int i=il; i<=iu+1;++i) {
+    v1f(i) = 0.0;
+    x1_0(i) = pmb->pcoord->x1f(i);
   }
-  if (x2Move) {
 #pragma omp simd
-    for (int j=jl; j<=ju+1;++j) {
-      v2f(j) = 0.0;
-      x2_0(j) = pmb->pcoord->x2f(j);
-    }
+  for (int j=jl; j<=ju+1;++j) {
+    v2f(j) = 0.0;
+    x2_0(j) = pmb->pcoord->x2f(j);
   }
-  if (x3Move){
 #pragma omp simd
-    for (int k=kl; k<=ku+1;++k) {
-      v3f(k) = 0.0;
-      x3_0(k) = pmb->pcoord->x3f(k);
-    }
+  for (int k=kl; k<=ku+1;++k) {
+    v3f(k) = 0.0;
+    x3_0(k) = pmb->pcoord->x3f(k);
   }
   mydt = (FLT_MAX);
 }
@@ -207,6 +201,7 @@ void Expansion::IntegrateWalls(Real dt){
 #pragma omp simd
     for (int i=il; i<=iu+1; ++i) {
       x1_0(i) += dt*v1f(i);
+      //fprintf(stdout,"[IntegrateWalls]: i=%3i v1f=%15.7e dt=%15.7e xold=%15.7e xnew=%15.7e\n",i,v1f(i),dt,x1_0(i)-dt*v1f(i),x1_0(i));
     }
   }
   if (x2Move) {
@@ -259,10 +254,16 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
 #pragma omp simd
       for (int i = is; i<=ie;++i) {
       	if (COORDINATE_SYSTEM == "cartesian") {
-      	  dx1 = pc->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt ;
-      	  dx2 = pc->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt ;
-      	  dx3 = pc->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
-      	  volume = dx1*dx2*dx3;
+          //original version
+      	  //dx1 = pc->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt ;
+      	  //dx2 = pc->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt ;
+      	  //dx3 = pc->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
+      	  //volume = dx1*dx2*dx3;
+          // this is not exact: 1-dependence of GetFace1Area. But does not matter for cartesian.
+          Real dvol1 = pc->GetFace1Area(k,j,i)*(v1f(i+1)-v1f(i))*dt; 
+          Real dvol2 = pc->GetFace2Area(k,j,i)*(v2f(j+1)-v2f(j))*dt; 
+          Real dvol3 = pc->GetFace3Area(k,j,i)*(v3f(k+1)-v3f(k))*dt; 
+          volume     = pc->GetCellVolume(k,j,i) + dvol1 + dvol2 + dvol3;
       	} else if (COORDINATE_SYSTEM == "cylindrical") {
       	  dx1 = pc->coord_vol_i_(i) + dt*(v1f(i+1)*pc->x1f(i+1)-v1f(i)*pc->x1f(i))
       				    + 0.5*pow(dt,2.0)*(pow(v1f(i+1),2.0) - pow(v1f(i),2.0));
@@ -285,24 +286,25 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
           divF1 = 0.0;
           divF2 = 0.0;
           divF3 = 0.0;
-          A1 = pmb->pcoord->GetFace1Area(k,j,i);
-          A2 = pmb->pcoord->GetFace1Area(k,j,i+1);
+          A1 = pc->GetFace1Area(k,j,i);
+          A2 = pc->GetFace1Area(k,j,i+1);
           if (x1Move) {
             divF1 = x1flux(n,k,j,i+1)*A2 - x1flux(n,k,j,i) * A1;
           }
-
           if (x2Move){
-            A1 = pmb->pcoord->GetFace2Area(k,j,i);
-            A2 = pmb->pcoord->GetFace2Area(k,j+1,i);
+            A1 = pc->GetFace2Area(k,j,i);
+            A2 = pc->GetFace2Area(k,j+1,i);
             divF2 = x2flux(n,k,j+1,i)*A2 - x2flux(n,k,j,i) * A1;
           }
           if (x3Move){
-            A1 = pmb->pcoord->GetFace3Area(k,j,i);
-            A2 = pmb->pcoord->GetFace3Area(k+1,j,i);
+            A1 = pc->GetFace3Area(k,j,i);
+            A2 = pc->GetFace3Area(k+1,j,i);
             divF3 = x3flux(n,k+1,j,i)*A2 - x3flux(n,k,j,i) * A1;
           }
           cons(n,k,j,i) += dt/vol*(divF1 + divF2 + divF3);
           cons(n,k,j,i) *= oldVol/newVol;
+          //if (n==0) fprintf(stdout,"i,j = %3i %3i new/old=%20.12e divF1=%20.12e divF2=%20.12e A1=%20.12e A2=%20.12e flx=%20.12e flxp=%20.12e\n",
+          //                  i,j,newVol/oldVol,divF1,divF2,A1,A2,x1flux(n,k,j,i),x1flux(n,k,j,i+1)); 
         }
       }
     }
@@ -330,11 +332,12 @@ void Expansion::AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out) {
 void Expansion::RescaleField(const Real dt, FaceField &b_out) {
 
   MeshBlock *pmb=pmy_block;
+  Mesh *pmesh = pmb->pmy_mesh;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   int il=is, iu=ie+1, jl=js, ju=je+1, kl=ks, ku=ke+1;
 
-  Real dx1=0.0, dx2=0.0, dx3=0.0, areanew=0.0;
+  Real areanew=0.0, dx1, dx2, dx3;
   AthenaArray<Real> areaold;
   areaold.InitWithShallowCopy(face_area_old_);
 
@@ -343,39 +346,45 @@ void Expansion::RescaleField(const Real dt, FaceField &b_out) {
   AthenaArray<Real> &v3f = vf[X3DIR];
 
   if (COORDINATE_SYSTEM == "cartesian") {
-    for (int k=ks; k<=ke; ++k) { // B1
-      dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
-      for (int j=js; j<=je; ++j) {
-        pmb->pcoord->Face1Area(k,j,is,iu,areaold);  // old area at position i ("lower")
-        dx2 = pmb->pcoord->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt;
+    if (pmesh->dimension==3) {
+      for (int k=ks; k<=ke; ++k) { // B1
+        for (int j=js; j<=je; ++j) {
+          pmb->pcoord->Face1Area(k,j,is,iu,areaold);  // old area at position i ("lower")
+          Real darea2 = pmb->pcoord->dx3f(k)*(v2f(j+1)-v2f(j))*dt;
+          Real darea3 = pmb->pcoord->dx2f(j)*(v3f(k+1)-v3f(k))*dt;   
 #pragma omp simd
-        for (int i=is; i<=iu; ++i) {
-          areanew           = dx2*dx3;
-          b_out.x1f(k,j,i) *= areaold(i)/areanew;
-        }
-      } 
-    }
-    for (int k=ks; k<=ke; ++k) { // B2
-      dx3 = pmb->pcoord->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
-      for (int j=js; j<=ju; ++j) {
-        pmb->pcoord->Face2Area(k,j,is,ie,areaold);  // old area at position i ("lower")
+          for (int i=is; i<=iu; ++i) {
+            areanew           = areaold(i) + darea2 + darea3;
+            //fprintf(stdout,"[RescaleField]: B1: i,j,k=%3i %3i %3i darea2=%17.9e darea3=%17.9e dx2=%17.9e dx3=%17.9e areanew=%17.9e areaold=%17.9e dv2=%17.9e dv3=%17.9e\n",
+            //        i,j,k,darea2,darea3,pmb->pcoord->dx2f(j),pmb->pcoord->dx3f(k),areanew,areaold(i),v2f(j+1)-v2f(j),v3f(k+1)-v3f(k));
+            b_out.x1f(k,j,i) *= areaold(i)/areanew;
+          }
+        } 
+      }
+      for (int k=ks; k<=ke; ++k) { // B2
+        for (int j=js; j<=ju; ++j) {
+          pmb->pcoord->Face2Area(k,j,is,ie,areaold);  // old area at position i ("lower")
 #pragma omp simd 
-        for (int i=is; i<=ie; ++i) {
-          dx1               = pmb->pcoord->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt;
-          areanew           = dx1*dx3;
-          b_out.x2f(k,j,i) *= areaold(i)/areanew;
+          for (int i=is; i<=ie; ++i) {
+            Real darea1 = pmb->pcoord->dx3f(k)*(v1f(i+1)-v1f(i))*dt;
+            Real darea3 = pmb->pcoord->dx1f(i)*(v3f(k+1)-v3f(k))*dt;
+            areanew           = areaold(i) + darea1 + darea3;
+            b_out.x2f(k,j,i) *= areaold(i)/areanew;
+          }
         }
       }
     }
-    for (int k=ks; k<=ku; ++k) {
-      for (int j=js; j<=je; ++j) {
-        pmb->pcoord->Face3Area(k,j,is,ie,areaold);  // old area at position i ("lower")
-        dx2 = pmb->pcoord->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt ;
+    if (pmesh->dimension > 1) { 
+      for (int k=ks; k<=ku; ++k) { // B3
+        for (int j=js; j<=je; ++j) {
+          pmb->pcoord->Face3Area(k,j,is,ie,areaold);  // old area at position i ("lower")
 #pragma omp simd 
-        for (int i=is; i<=ie; ++i) {
-          dx1               = pmb->pcoord->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt;
-          areanew           = dx1*dx2;
-          b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          for (int i=is; i<=ie; ++i) {
+            Real darea1 = pmb->pcoord->dx2f(j)*(v1f(i+1)-v1f(i))*dt;
+            Real darea2 = pmb->pcoord->dx1f(i)*(v2f(j+1)-v2f(j))*dt;
+            areanew           = areaold(i) + darea1 + darea2;
+            b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          }
         }
       }
     }
@@ -1034,7 +1043,7 @@ Real Expansion::GridTimeStep(MeshBlock *pmb){
   Real overStep = 0.0;
   if (x1Move) {
     //for (int i = il; i<=iu+1;i++){
-    for (int i = is; i<=ie;i++){
+    for (int i = is; i<=ie+1;i++){
       nextPosDelta = pmesh->GridDiffEq_(pmb->pcoord->x1f(i),i,pmesh->time,mydt,1,pmesh->GridData)*mydt;
 
       if (nextPosDelta < 0 && i != il){
@@ -1081,7 +1090,7 @@ Real Expansion::GridTimeStep(MeshBlock *pmb){
   if (x2Move) {
     mydt = 2.0*pmesh->dt;
     //for (int j = jl; j<=ju+1; j++){
-    for (int j = js; j<=je; j++){
+    for (int j = js; j<=je+1; j++){
       nextPosDelta = pmesh->GridDiffEq_(pmb->pcoord->x2f(j),j,pmesh->time,mydt,2,pmesh->GridData)*mydt;
 
       if (nextPosDelta < 0 && j != jl){
@@ -1127,7 +1136,7 @@ Real Expansion::GridTimeStep(MeshBlock *pmb){
   if (x3Move) {
     mydt = 2.0*pmesh->dt;
     //for (int k = kl; k<=ku+1; k++){
-    for (int k = ks; k<=ke; k++){
+    for (int k = ks; k<=ke+1; k++){
       nextPosDelta = pmesh->GridDiffEq_(pmb->pcoord->x3f(k),k,pmesh->time,mydt,3,pmesh->GridData)*mydt;
 
       if (nextPosDelta < 0 && k != kl){

@@ -133,6 +133,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   dim=1;
   if (mesh_size.nx2>1) dim=2;
   if (mesh_size.nx3>1) dim=3;
+  dimension = dim;
 
   // read physical size of mesh (root level) from input file.
   mesh_size.x1min = pin->GetReal("mesh","x1min");

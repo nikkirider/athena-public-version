@@ -217,6 +217,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         for (n=0; n<NHYDRO; ++n)
           wi[n] = 0.0;
       }
+
       e = wi[IPR]*igm1 + 0.5*wi[IDN]*(SQR(wi[IVX]) + SQR(wi[IVY]) + SQR(wi[IVZ]));
       eFlx(IDN,k,j,i) = wi[IDN]*wallV;
       eFlx(ivx,k,j,i) = wi[IDN]*wi[IVX]*wallV;
@@ -227,6 +228,7 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
         eFlx(IIE,k,j,i) = wi[IGE]*wallV*igm1; // IGE is pressure
       for (n=(NHYDRO-NSCALARS); n<NHYDRO; n++) 
         eFlx(n,k,j,i) = wi[IDN]*wi[n]*wallV;
+      //fprintf(stdout,"eFlx=%13.5e k,j,i=%3i %3i %3i\n",eFlx(IDN,k,j,i),k,j,i);
 
     } //End Expanding
   }
