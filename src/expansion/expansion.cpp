@@ -329,6 +329,8 @@ void Expansion::AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out) {
 //          recreate (and integrate ahead) the new areas with the weighted timestep.
 //          Note that even for 1D, b2.x2f needs to include js,je+1, otherwise 
 //          CalculateCellCenteredFieldAverage will not work properly.
+//          For restricted dimensions, transverse fields must be rescaled, but 
+//          fields in active dimensions must not be rescaled.
 void Expansion::RescaleField(const Real dt, FaceField &b_out) {
 
   MeshBlock *pmb=pmy_block;
@@ -361,6 +363,8 @@ void Expansion::RescaleField(const Real dt, FaceField &b_out) {
           }
         } 
       }
+    }
+    if ((pmesh->dimension == 1) || (pmesh->dimension == 3)) {
       for (int k=ks; k<=ke; ++k) { // B2
         for (int j=js; j<=ju; ++j) {
           pmb->pcoord->Face2Area(k,j,is,ie,areaold);  // old area at position i ("lower")
@@ -374,17 +378,15 @@ void Expansion::RescaleField(const Real dt, FaceField &b_out) {
         }
       }
     }
-    if (pmesh->dimension > 1) { 
-      for (int k=ks; k<=ku; ++k) { // B3
-        for (int j=js; j<=je; ++j) {
-          pmb->pcoord->Face3Area(k,j,is,ie,areaold);  // old area at position i ("lower")
+    for (int k=ks; k<=ku; ++k) { // B3
+      for (int j=js; j<=je; ++j) {
+        pmb->pcoord->Face3Area(k,j,is,ie,areaold);  // old area at position i ("lower")
 #pragma omp simd 
-          for (int i=is; i<=ie; ++i) {
-            Real darea1 = pmb->pcoord->dx2f(j)*(v1f(i+1)-v1f(i))*dt;
-            Real darea2 = pmb->pcoord->dx1f(i)*(v2f(j+1)-v2f(j))*dt;
-            areanew           = areaold(i) + darea1 + darea2;
-            b_out.x3f(k,j,i) *= areaold(i)/areanew;
-          }
+        for (int i=is; i<=ie; ++i) {
+          Real darea1 = pmb->pcoord->dx2f(j)*(v1f(i+1)-v1f(i))*dt;
+          Real darea2 = pmb->pcoord->dx1f(i)*(v2f(j+1)-v2f(j))*dt;
+          areanew           = areaold(i) + darea1 + darea2;
+          b_out.x3f(k,j,i) *= areaold(i)/areanew;
         }
       }
     }
