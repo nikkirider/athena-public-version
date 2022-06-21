@@ -45,6 +45,7 @@ public:
 
   AthenaArray<Real> expFlux[3];  // face-averaged flux vector
   AthenaArray<Real> vf[3];  // face-averaged wall velocity
+  AthenaArray<Real> vv[3];  // cell-centered expansion velocity (for MHD)
 
   Real mydt;
   int il, iu, jl, ju, kl, ku, ng; //With Ghost cells
@@ -53,7 +54,6 @@ public:
   void WeightedAveX(const int low, const int up, AthenaArray<Real> &x_out, AthenaArray<Real> &x_in1, AthenaArray<Real> &x_in2, const Real wght[3]);
   void IntegrateWalls(Real dt);
   void ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flux, const AthenaArray<Real> &prim, AthenaArray<Real> &cons);
-  void AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out);
   void RescaleField(const Real dt, FaceField &b_out);
   void GridEdit(MeshBlock *pmb, bool lastStage);
   void UpdateVelData(MeshBlock *pmb,Real time, Real dt);

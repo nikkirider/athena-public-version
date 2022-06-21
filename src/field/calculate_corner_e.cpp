@@ -36,10 +36,10 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
   w_x3f.InitWithShallowCopy(pmb->pfield->wght.x3f);
 
   Expansion *ex = pmy_block->pex;
-  AthenaArray<Real> &eVelx = ex->vf[(IVX-1)];
-  AthenaArray<Real> &eVely = ex->vf[(IVY-1)];
-  AthenaArray<Real> &eVelz = ex->vf[(IVZ-1)];
-  Real wallVx = 0.0, wallVy = 0.0, wallVz = 0.0;
+  AthenaArray<Real> &evelx = ex->vv[(IVX-1)]; // need the volume velocities here
+  AthenaArray<Real> &evely = ex->vv[(IVY-1)];
+  AthenaArray<Real> &evelz = ex->vv[(IVZ-1)];
+  Real evx = 0.0, evy = 0.0, evz = 0.0;
 
 
 //---- 1-D update:
@@ -60,7 +60,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
   for (int k=ks; k<=ke; ++k) {
     for (int j=js-1; j<=je+1; ++j) {
       if (EXPANDING_ENABLED) 
-        wallVy = eVely(j);
+        evy = evely(j);
 #if GENERAL_RELATIVITY==1
       pmb->pcoord->CellMetric(k, j, is-1, ie+1, g_, gi_);
 #pragma omp simd
@@ -94,9 +94,9 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
          // The EMFs in e3_x2f etc already include the wall motion via Riemann solver.
 #pragma omp simd
         for (int i=is-1; i<=ie+1; ++i) {
-          wallVx = eVelx(i);
-          cc_e_(k,j,i) =   (w(IVY,k,j,i)-wallVy)*bcc(IB1,k,j,i) 
-                         - (w(IVX,k,j,i)-wallVx)*bcc(IB2,k,j,i);
+          evx = evelx(i);
+          cc_e_(k,j,i) =   (w(IVY,k,j,i)-evy)*bcc(IB1,k,j,i) 
+                         - (w(IVX,k,j,i)-evx)*bcc(IB2,k,j,i);
         }
       } else { // standard branch without expansion
 #pragma omp simd
@@ -149,9 +149,9 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
     // integrate E1 to corners using GS07 (E3 already done above)
     // E1=-(v X B)=VzBy-VyBz
     for (int k=ks-1; k<=ke+1; ++k) {
-      if (EXPANDING_ENABLED) wallVz = eVelz(k);
+      if (EXPANDING_ENABLED) evz = evelz(k);
       for (int j=js-1; j<=je+1; ++j) {
-        if (EXPANDING_ENABLED) wallVy = eVely(j);
+        if (EXPANDING_ENABLED) evy = evely(j);
 #if GENERAL_RELATIVITY==1
         pmb->pcoord->CellMetric(k, j, is, ie, g_, gi_);
 #pragma omp simd
@@ -183,8 +183,8 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         if (EXPANDING_ENABLED) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            cc_e_(k,j,i) =   (w(IVZ,k,j,i)-wallVz)*bcc(IB2,k,j,i) 
-                           - (w(IVY,k,j,i)-wallVy)*bcc(IB3,k,j,i);
+            cc_e_(k,j,i) =   (w(IVZ,k,j,i)-evz)*bcc(IB2,k,j,i) 
+                           - (w(IVY,k,j,i)-evy)*bcc(IB3,k,j,i);
           }
         } else {
 #pragma omp simd
@@ -221,7 +221,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
     // integrate E2 to corners using GS07 (E3 already done above)
     // E2=-(v X B)=VxBz-VzBx
     for (int k=ks-1; k<=ke+1; ++k) {
-      if (EXPANDING_ENABLED) wallVz = eVelz(k);
+      if (EXPANDING_ENABLED) evz = evelz(k);
       for (int j=js; j<=je; ++j) {
 #if GENERAL_RELATIVITY==1
         pmb->pcoord->CellMetric(k, j, is-1, ie+1, g_, gi_);
@@ -254,9 +254,9 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         if (EXPANDING_ENABLED) {
 #pragma omp simd
           for (int i=is-1; i<=ie+1; ++i) {
-            wallVx       = eVelx(i);
-            cc_e_(k,j,i) =   (w(IVX,k,j,i)-wallVx)*bcc(IB3,k,j,i) 
-                           - (w(IVZ,k,j,i)-wallVz)*bcc(IB1,k,j,i);
+            evx          = evelx(i);
+            cc_e_(k,j,i) =   (w(IVX,k,j,i)-evx)*bcc(IB3,k,j,i) 
+                           - (w(IVZ,k,j,i)-evz)*bcc(IB1,k,j,i);
           }
         } else {
 #pragma omp simd

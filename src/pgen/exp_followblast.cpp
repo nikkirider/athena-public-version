@@ -45,7 +45,7 @@ void UpdateGridData(Mesh *pm);
 int iexpupdate, iqunt;
 int maxntrack = 20;
 int ncycold=-1;
-Real vtrack0;
+Real vtrack0, boost;
 AthenaArray<Real> ttrack,rtrack;
 
 //Global Variables for OuterX1
@@ -372,49 +372,35 @@ void UpdateGridData(Mesh *pm) {
       vtrack  = ((vtrack < 0.0) ? 0.0 : vtrack);
       vtrack *= (pm->GridData(3)/mrad); // boost velocity
     } else if (iexpupdate == 2) { // use position of gradient mrad
-      
-      ntr = (pm->ncycle >= maxntrack) ? maxntrack-1 : pm->ncycle;
-      //fprintf(stdout,"[UpdateGridData]: ntr=%2i\n",ntr);
-      
-      if (ncycold < pm->ncycle) {
+      ntr = (pm->ncycle >= maxntrack) ? maxntrack-1 : pm->ncycle; // number of elements to track
+      if (ncycold < pm->ncycle) { // do not update during substep
         ncycold = pm->ncycle;
-        if (ntr == 0) {
+        if (ntr == 0) { // first iteration
           ttrack(0) = 0.0;
           rtrack(0) = mrad;
           vtrack    = 0.0;
-        } else {
-          for (int m=0; m<ntr; ++m) {  
+        } else { // all subsequent iterations
+          for (int m=0; m<ntr; ++m) { // shift old elements 
             ttrack(ntr-m) = ttrack(ntr-m-1);
             rtrack(ntr-m) = rtrack(ntr-m-1);
-            //fprintf(stdout,"   m=%2i ntr-m=%2i ttrack[ntr-m]=%13.5e rtrack[ntr-m]=%13.5e | ntr-m-1=%2i ttrack[ntr-m-1]=%13.5e rtrack[ntr-m-1]=%13.5e\n",
-            //        m,ntr-m,ttrack(ntr-m),rtrack(ntr-m),ntr-m-1,ttrack(ntr-m-1),rtrack(ntr-m-1));
           }
-          ttrack(0) = pm->time;
+          ttrack(0) = pm->time; // add new element
           rtrack(0) = mrad;
-          //for (int m=0; m<ntr; ++m) {
-          //  fprintf(stdout,"   m=%2i ttrack=%10.2e rtrack=%10.2e\n",m,ttrack(m),rtrack(m));
-          //}
         }
       }
-     //  else {
-     //   fprintf(stdout,"[UpdateGridData]: Use old info.\n");
-     // }
-
       vtrack = 0.0;
-
-      for (int m=1; m<ntr; ++m) {
+      for (int m=1; m<ntr; ++m) { // calculate front velocity as average over tracking elements
         Real vt = (rtrack(m-1)-rtrack(m))/(ttrack(m-1)-ttrack(m)) * (pm->GridData(3)/mrad);
         vtrack += vt;
-        //fprintf(stdout,"   m=%2i r[m-1]-r[m]=%13.5e t[m-1]-t[m]=%13.5e vtrack[m]=%13.5e\n",m,rtrack(m-1)-rtrack(m),ttrack(m-1)-ttrack(m),vt);
       }
       if (ntr > 0) vtrack /= ntr;
-      //fprintf(stdout,"[UpdateGridData]:    ntr=%3i t=%13.5e vtrack=%13.5e mrad=%13.5e ttrack=%13.5e %13.5e %13.5e %13.5e rtrack=%13.5e %13.5e %13.5e %13.5e\n",
-      //        ntr,pm->time,vtrack,mrad,ttrack(0),ttrack(1),ttrack(2),ttrack(3),rtrack(0),rtrack(1),rtrack(2),rtrack(3));
     }
-    vtrack = (vtrack <= 0.0) ? 0.0 : vtrack;
+    vtrack = (vtrack <= 0.0) ? 0.0 : vtrack; // enforce expansion
     //if (Globals::my_rank == 0)
     //  fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totgrdr=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,totgrdr,mrad,pm->GridData(3));
   }
+
+  vtrack *= boost;
 
   pm->GridData(2) = vtrack;
   if (COORDINATE_SYSTEM=="cartesian") {
@@ -522,6 +508,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     ambPres    = pin->GetReal("problem","pamb");
     iexpupdate = pin->GetOrAddInteger("problem","iexpupdate",0); // 0: mass-weighted velocity, 1: shock position
     iqunt      = pin->GetOrAddInteger("problem","iqunt",1); // 0: pressure as indicator, 1: vrad as indicator
+    boost      = pin->GetOrAddReal("problem","boost",1.0); // enhancement of vtrack
 
     if (iexpupdate == -1) {
       vtrack0 = pin->GetReal("problem","vtrack0"); // constant tracking velocity for test purposes
@@ -1219,7 +1206,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real gamma = peos->GetGamma();
   Real gm1 = gamma - 1.0;
 
-  //fprintf(stdout,"IDN=%2i IVX=%2i IVY=%2i IVZ=%2i IPR=%2i IBY=%2i IBZ=%2i NHYDRO-SCALARS=%2i NHYDRO=%2i NWAVE=%2i\n",IDN,IVX,IVY,IVZ,IPR,IBY,IBZ,NHYDRO-NSCALARS,NHYDRO,NWAVE);
+  fprintf(stdout,"IDN=%2i IVX=%2i IVY=%2i IVZ=%2i IPR=%2i IBY=%2i IBZ=%2i NHYDRO-SCALARS=%2i NHYDRO=%2i NWAVE=%2i\n",IDN,IVX,IVY,IVZ,IPR,IBY,IBZ,NHYDRO-NSCALARS,NHYDRO,NWAVE);
 
   // get coordinates of center of blast, and convert to Cartesian if necessary
   Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);

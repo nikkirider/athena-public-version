@@ -56,7 +56,8 @@ Real Hydro::NewBlockTimeStep(void) {
   dt1.InitWithShallowCopy(dt1_);
   dt2.InitWithShallowCopy(dt2_);
   dt3.InitWithShallowCopy(dt3_);
-  Real wi[(NWAVE+NINT)];
+  //Real wi[(NWAVE+NINT)];
+  Real wi[(NHYDRO+2)]; // all hydro variables and the two transverse field components
   Real wicl[(NWAVECL)]; 
 
   Real min_dt = (FLT_MAX);

@@ -151,7 +151,7 @@ Real EquationOfState::SoundSpeed(const Real prim[NHYDRO]) {
 // \!fn Real EquationOfState::FastMagnetosonicSpeed(const Real prim[], const Real bx)
 // \brief returns fast magnetosonic speed given vector of primitive variables
 // Note the formula for (C_f)^2 is positive definite, so this func never returns a NaN
-Real EquationOfState::FastMagnetosonicSpeed(const Real prim[(NWAVE)], const Real bx) {
+Real EquationOfState::FastMagnetosonicSpeed(const Real prim[(NHYDRO+2)], const Real bx) {
   Real asq = GetGamma()*prim[IPR];
   Real vaxsq = bx*bx;
   Real ct2 = (prim[IBY]*prim[IBY] + prim[IBZ]*prim[IBZ]);

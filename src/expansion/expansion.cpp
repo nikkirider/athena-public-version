@@ -83,6 +83,9 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   vf[X1DIR].NewAthenaArray(ncells1+1);
   vf[X2DIR].NewAthenaArray(ncells2+1);
   vf[X3DIR].NewAthenaArray(ncells3+1);
+  vv[X1DIR].NewAthenaArray(ncells1);
+  vv[X2DIR].NewAthenaArray(ncells2);
+  vv[X3DIR].NewAthenaArray(ncells3);
 
   if (x1Move){
     expFlux[X1DIR].NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1+1);
@@ -97,6 +100,9 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   AthenaArray<Real> &v1f = vf[X1DIR];
   AthenaArray<Real> &v2f = vf[X2DIR];
   AthenaArray<Real> &v3f = vf[X3DIR];
+  AthenaArray<Real> &v1v = vv[X1DIR];
+  AthenaArray<Real> &v2v = vv[X2DIR]; 
+  AthenaArray<Real> &v3v = vv[X3DIR]; 
 
   if (MAGNETIC_FIELDS_ENABLED) {
     face_area_old_.NewAthenaArray(ncells1);
@@ -108,15 +114,27 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
     v1f(i) = 0.0;
     x1_0(i) = pmb->pcoord->x1f(i);
   }
+  if (MAGNETIC_FIELDS_ENABLED) {
+#pragma omp simd
+    for (int i=il; i<=iu;++i) v1v(i) = 0.0;
+  }
 #pragma omp simd
   for (int j=jl; j<=ju+1;++j) {
     v2f(j) = 0.0;
     x2_0(j) = pmb->pcoord->x2f(j);
   }
+  if (MAGNETIC_FIELDS_ENABLED) {
+#pragma omp simd
+    for (int j=jl; j<=ju;++j) v2v(j) = 0.0;
+  }
 #pragma omp simd
   for (int k=kl; k<=ku+1;++k) {
     v3f(k) = 0.0;
     x3_0(k) = pmb->pcoord->x3f(k);
+  }
+  if (MAGNETIC_FIELDS_ENABLED) {
+#pragma omp simd
+    for (int k=kl; k<=ku;++k) v3v(k) = 0.0;
   }
   mydt = (FLT_MAX);
 }
@@ -134,24 +152,21 @@ Expansion::~Expansion() {
   x1_2.DeleteAthenaArray();
   x2_2.DeleteAthenaArray();
   x3_2.DeleteAthenaArray();
+  vf[X1DIR].DeleteAthenaArray();
+  vf[X2DIR].DeleteAthenaArray();
+  vf[X3DIR].DeleteAthenaArray();
+  vv[X1DIR].DeleteAthenaArray();
+  vv[X2DIR].DeleteAthenaArray();
+  vv[X3DIR].DeleteAthenaArray();
 
   if (MAGNETIC_FIELDS_ENABLED) {
     face_area_old_.DeleteAthenaArray();
     face_area_new_.DeleteAthenaArray();
   }
 
-  if (x1Move) {
-    expFlux[X1DIR].DeleteAthenaArray();
-    vf[X1DIR].DeleteAthenaArray();
-  }
-  if (x2Move){
-    expFlux[X2DIR].DeleteAthenaArray();
-    vf[X2DIR].DeleteAthenaArray();
-  }
-  if (x3Move) {
-    expFlux[X3DIR].DeleteAthenaArray();
-    vf[X3DIR].DeleteAthenaArray();
-  }
+  if (x1Move) expFlux[X1DIR].DeleteAthenaArray();
+  if (x2Move) expFlux[X2DIR].DeleteAthenaArray();
+  if (x3Move) expFlux[X3DIR].DeleteAthenaArray();
 
 }
 
@@ -303,22 +318,11 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
           }
           cons(n,k,j,i) += dt/vol*(divF1 + divF2 + divF3);
           cons(n,k,j,i) *= oldVol/newVol;
-          //if (n==0) fprintf(stdout,"i,j = %3i %3i new/old=%20.12e divF1=%20.12e divF2=%20.12e A1=%20.12e A2=%20.12e flx=%20.12e flxp=%20.12e\n",
-          //                  i,j,newVol/oldVol,divF1,divF2,A1,A2,x1flux(n,k,j,i),x1flux(n,k,j,i+1)); 
         }
       }
     }
   }
 
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// void Expansion::AddWallEMF()
-//   \brief Adds EMF due to wall motion to e_out, the total EMF used in Field::CT().
-//          This is a copy of Field::CalculateCornerE, restricted to wall velocities.
-//          It uses the wall field fluxes (vb-terms) from Riemann solver.
-void Expansion::AddWallEMF(AthenaArray<Real> &bcc, EdgeField &e_out) {
   return;
 }
 
@@ -357,8 +361,6 @@ void Expansion::RescaleField(const Real dt, FaceField &b_out) {
 #pragma omp simd
           for (int i=is; i<=iu; ++i) {
             areanew           = areaold(i) + darea2 + darea3;
-            //fprintf(stdout,"[RescaleField]: B1: i,j,k=%3i %3i %3i darea2=%17.9e darea3=%17.9e dx2=%17.9e dx3=%17.9e areanew=%17.9e areaold=%17.9e dv2=%17.9e dv3=%17.9e\n",
-            //        i,j,k,darea2,darea3,pmb->pcoord->dx2f(j),pmb->pcoord->dx3f(k),areanew,areaold(i),v2f(j+1)-v2f(j),v3f(k+1)-v3f(k));
             b_out.x1f(k,j,i) *= areaold(i)/areanew;
           }
         } 
@@ -486,6 +488,9 @@ void Expansion::UpdateVelData(MeshBlock *pmb ,Real time, Real dt){
   AthenaArray<Real> &v1f = vf[X1DIR];
   AthenaArray<Real> &v2f = vf[X2DIR];
   AthenaArray<Real> &v3f = vf[X3DIR];
+  AthenaArray<Real> &v1v = vv[X1DIR];
+  AthenaArray<Real> &v2v = vv[X2DIR];
+  AthenaArray<Real> &v3v = vv[X3DIR];
   mydt = dt;
   if (pmb->pmy_mesh->GridDiffEq_ != NULL) {
     //Edit each delx1f, delx2f, delx3f before source terms and editing of grid
@@ -505,6 +510,79 @@ void Expansion::UpdateVelData(MeshBlock *pmb ,Real time, Real dt){
       }
     }
   }
+
+  // for magnetic fields, calculate volume-centered expansion velocity needed in CalculateCornerE
+  if (MAGNETIC_FIELDS_ENABLED) {
+    const bool uniform_ave_x1 = pmb->precon->uniform_limiter[0];
+    const bool uniform_ave_x2 = pmb->precon->uniform_limiter[1];
+    const bool uniform_ave_x3 = pmb->precon->uniform_limiter[2];
+
+    if (x1Move) {
+#pragma omp simd
+      for (int i=il; i<=iu; ++i) {
+        const Real& v1f_i   = v1f(i);
+        const Real& v1f_ip1 = v1f(i+1);
+        Real& vv1 = v1v(i);
+        Real lw, rw;
+        if (uniform_ave_x1 == true) {
+          lw = 0.5;
+          rw = 0.5; 
+        } else {
+          const Real& x1f_i  = pmb->pcoord->x1f(i);
+          const Real& x1f_ip = pmb->pcoord->x1f(i+1);
+          const Real& x1v_i  = pmb->pcoord->x1v(i);
+          const Real& dx1_i  = pmb->pcoord->dx1f(i);
+          lw = (x1f_ip - x1v_i)/dx1_i;
+          rw = (x1v_i  - x1f_i)/dx1_i;
+        }
+        vv1 = lw*v1f_i + rw*v1f_ip1;
+      }
+    }
+    if (x2Move) {
+#pragma omp simd
+      for (int j=jl; j<=ju; ++j) {
+        const Real& v2f_j   = v2f(j);
+        const Real& v2f_jp1 = v2f(j+1);
+        Real& vv2 = v2v(j);
+        Real lw, rw;
+        if (uniform_ave_x2 == true) {
+          lw = 0.5;
+          rw = 0.5;
+        } else {
+          const Real& x2f_j  = pmb->pcoord->x2f(j);
+          const Real& x2f_jp = pmb->pcoord->x2f(j+1);
+          const Real& x2v_j  = pmb->pcoord->x2v(j);
+          const Real& dx2_j  = pmb->pcoord->dx2f(j);
+          lw = (x2f_jp - x2v_j)/dx2_j;
+          rw = (x2v_j  - x2f_j)/dx2_j;
+        }
+        vv2 = lw*v2f_j + rw*v2f_jp1;
+      }
+    }
+    if (x3Move) {
+#pragma omp simd
+      for (int k=kl; k<=ku; ++k) {
+        const Real& v3f_k   = v3f(k);
+        const Real& v3f_kp1 = v3f(k+1);
+        Real& vv3 = v3v(k);
+        Real lw, rw;
+        if (uniform_ave_x3 == true) {
+          lw = 0.5;
+          rw = 0.5;
+        } else {
+          const Real& x3f_k  = pmb->pcoord->x3f(k);
+          const Real& x3f_kp = pmb->pcoord->x3f(k+1);
+          const Real& x3v_k  = pmb->pcoord->x3v(k);
+          const Real& dx3_k  = pmb->pcoord->dx3f(k);
+          lw = (x3f_kp - x3v_k)/dx3_k;
+          rw = (x3v_k  - x3f_k)/dx3_k;
+        }
+        vv3 = lw*v3f_k + rw*v3f_kp1;
+      }
+    }
+
+  }
+
   return;
 }
 
