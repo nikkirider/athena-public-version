@@ -56,6 +56,7 @@ Real Hydro::NewBlockTimeStep(void) {
   AthenaArray<Real> &evel2 = pmb->pex->vv[(IVY-1)];
   AthenaArray<Real> &evel3 = pmb->pex->vv[(IVZ-1)];
   Real ev1=0.0, ev2=0.0, ev3=0.0;
+  const Real safe = 8.0;
 
   AthenaArray<Real> dt1, dt2, dt3;
   dt1.InitWithShallowCopy(dt1_);
@@ -77,12 +78,16 @@ Real Hydro::NewBlockTimeStep(void) {
   }
 
   for (int k=ks; k<=ke; ++k) {
-    if (EXPANDING_ENABLED) ev3 = 2.0*std::max(fabs(evel3(k)),fabs(evel3(k+1)));
+    if (EXPANDING_ENABLED) {
+      if (pmb->pex->x3Move) ev3 = safe*std::max(fabs(evel3(k)),fabs(evel3(k+1)));  
+    }
     for (int j=js; j<=je; ++j) {
       pmb->pcoord->CenterWidth1(k,j,is,ie,dt1);
       pmb->pcoord->CenterWidth2(k,j,is,ie,dt2);
       pmb->pcoord->CenterWidth3(k,j,is,ie,dt3);
-      if (EXPANDING_ENABLED) ev2 = 2.0*std::max(fabs(evel2(j)),fabs(evel2(j+1)));
+      if (EXPANDING_ENABLED) {
+        if (pmb->pex->x2Move) ev2 = safe*std::max(fabs(evel2(j)),fabs(evel2(j+1)));
+      }
       if (!RELATIVISTIC_DYNAMICS) {
 #pragma ivdep
         for (int i=is; i<=ie; ++i) {
@@ -95,7 +100,9 @@ Real Hydro::NewBlockTimeStep(void) {
             if (DUAL_ENERGY) wi[IGE]=w(IGE,k,j,i);
           }
 
-          if (EXPANDING_ENABLED) ev1 = 2.0*std::max(fabs(evel1(i)),fabs(evel1(i+1)));
+          if (EXPANDING_ENABLED) {
+            if (pmb->pex->x1Move) ev1 = safe*std::max(fabs(evel1(i)),fabs(evel1(i+1)));
+          }
 					
           if (CLESS_ENABLED) { // cless + hydro
             Real c1f, c2f, c3f; 
