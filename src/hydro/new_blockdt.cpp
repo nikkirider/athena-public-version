@@ -51,6 +51,11 @@ Real Hydro::NewBlockTimeStep(void) {
   if (CLESS_ENABLED) {
     wcl.InitWithShallowCopy(pmb->pcless->w); 
   }
+  // expanding grid
+  AthenaArray<Real> &evel1 = pmb->pex->vv[(IVX-1)]; // need the volume velocities here
+  AthenaArray<Real> &evel2 = pmb->pex->vv[(IVY-1)];
+  AthenaArray<Real> &evel3 = pmb->pex->vv[(IVZ-1)];
+  Real ev1=0.0, ev2=0.0, ev3=0.0;
 
   AthenaArray<Real> dt1, dt2, dt3;
   dt1.InitWithShallowCopy(dt1_);
@@ -72,10 +77,12 @@ Real Hydro::NewBlockTimeStep(void) {
   }
 
   for (int k=ks; k<=ke; ++k) {
+    if (EXPANDING_ENABLED) ev3 = 2.0*std::max(fabs(evel3(k)),fabs(evel3(k+1)));
     for (int j=js; j<=je; ++j) {
       pmb->pcoord->CenterWidth1(k,j,is,ie,dt1);
       pmb->pcoord->CenterWidth2(k,j,is,ie,dt2);
       pmb->pcoord->CenterWidth3(k,j,is,ie,dt3);
+      if (EXPANDING_ENABLED) ev2 = 2.0*std::max(fabs(evel2(j)),fabs(evel2(j+1)));
       if (!RELATIVISTIC_DYNAMICS) {
 #pragma ivdep
         for (int i=is; i<=ie; ++i) {
@@ -87,6 +94,8 @@ Real Hydro::NewBlockTimeStep(void) {
             wi[IPR]=w(IPR,k,j,i);
             if (DUAL_ENERGY) wi[IGE]=w(IGE,k,j,i);
           }
+
+          if (EXPANDING_ENABLED) ev1 = 2.0*std::max(fabs(evel1(i)),fabs(evel1(i+1)));
 					
           if (CLESS_ENABLED) { // cless + hydro
             Real c1f, c2f, c3f; 
@@ -115,19 +124,19 @@ Real Hydro::NewBlockTimeStep(void) {
             wi[IBY] = bcc(IB2,k,j,i);
             wi[IBZ] = bcc(IB3,k,j,i);
             Real cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt1(i) /= (fabs(wi[IVX]) + cf);
+            dt1(i) /= (fabs(wi[IVX]) + cf + ev1);
 
             wi[IBY] = bcc(IB3,k,j,i);
             wi[IBZ] = bcc(IB1,k,j,i);
             bx = bcc(IB2,k,j,i) + fabs(b_x2f(k,j,i)-bcc(IB2,k,j,i));
             cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt2(i) /= (fabs(wi[IVY]) + cf);
+            dt2(i) /= (fabs(wi[IVY]) + cf + ev2);
 
             wi[IBY] = bcc(IB1,k,j,i);
             wi[IBZ] = bcc(IB2,k,j,i);
             bx = bcc(IB3,k,j,i) + fabs(b_x3f(k,j,i)-bcc(IB3,k,j,i));
             cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt3(i) /= (fabs(wi[IVZ]) + cf);
+            dt3(i) /= (fabs(wi[IVZ]) + cf + ev3);
 
           } 
           else { // hydro only 
@@ -173,9 +182,9 @@ Real Hydro::NewBlockTimeStep(void) {
               }
             }
 
-            dt1(i) /= (fabs(wi[IVX]) + cs);
-            dt2(i) /= (fabs(wi[IVY]) + cs);
-            dt3(i) /= (fabs(wi[IVZ]) + cs);
+            dt1(i) /= (fabs(wi[IVX]) + cs + ev1);
+            dt2(i) /= (fabs(wi[IVY]) + cs + ev2);
+            dt3(i) /= (fabs(wi[IVZ]) + cs + ev3);
 
           }
         }

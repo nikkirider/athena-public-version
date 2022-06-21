@@ -600,7 +600,6 @@ void Expansion::GridEdit(MeshBlock *pmb,bool lastStage){
       pmb->pcoord->dx1f(i) = pmb->pcoord->x1f(i+1)-pmb->pcoord->x1f(i);
     }
   }
-
   //x2
   if (x2Move){
     for (int j=jl; j<=ju+1; ++j){
@@ -1107,6 +1106,8 @@ void Expansion::GridEdit(MeshBlock *pmb,bool lastStage){
 // Real Expansion::GridTimeStep(MeshBlock *pmb)
 //   \brief Sets timestep imposed by co-scaling grid.
 //     Called by MeshBlock::NewBlock_Dt.
+//     Prevents skipping cells by limiting the distance a cell wall can move at a
+//     given wall speed. See new_blockdt.cpp for limits on signal & wall speeds.
 Real Expansion::GridTimeStep(MeshBlock *pmb){
 
   Real nextPosDelta, minCellSize;//, dt;
