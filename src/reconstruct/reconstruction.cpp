@@ -26,6 +26,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) {
 
   // read and set type of spatial reconstruction
   characteristic_reconstruction = false;
+  cons_reconstruction = false;
   uniform_limiter[0] = true;
   uniform_limiter[1] = true;
   uniform_limiter[2] = true;
@@ -37,11 +38,17 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) {
   } else if (input_recon == "2c") {
     xorder = 2;
     characteristic_reconstruction = true;
+  } else if (input_recon == "2cons") {
+    xorder = 2;
+    cons_reconstruction = true;
   } else if ((input_recon == "3") || (input_recon == "4")) {
     xorder = 4;
   } else if ((input_recon == "3c") || (input_recon == "4c")) {
     xorder = 4;
     characteristic_reconstruction = true;
+  } else if ((input_recon == "3cons") || (input_recon == "4cons")) {
+    xorder = 4;
+    cons_reconstruction = true;
   } else {
     std::stringstream msg;
     msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
@@ -84,13 +91,17 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) {
 
   // Allocate memory for scratch arrays used in PLM and PPM
   int ncells1 = pmb->block_size.nx1 + 2*(NGHOST);
-  scr01_i_.NewAthenaArray(ncells1);
-  scr02_i_.NewAthenaArray(ncells1);
-
-  scr1_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-  scr2_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-  scr3_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-  scr4_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
+  int ncells2 = pmb->block_size.nx2 + 2*(NGHOST);
+  int ncells3 = pmb->block_size.nx3 + 2*(NGHOST);
+    scr01_i_.NewAthenaArray(NFLUIDS,ncells1);
+    scr02_i_.NewAthenaArray(NFLUIDS,ncells1);
+    scr1_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+    scr2_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+    scr3_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+    scr4_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+    scr15_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1,ncells2,ncells3);
+    scr16_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1,ncells2,ncells3);
+    scr17_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1,ncells2,ncells3);
 
   if (CLESS_ENABLED) {
     scrcl01_i_.NewAthenaArray(ncells1);
@@ -102,42 +113,44 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) {
   }
 
   if (xorder == 4) {
-    scr03_i_.NewAthenaArray(ncells1);
-    scr04_i_.NewAthenaArray(ncells1);
-    scr05_i_.NewAthenaArray(ncells1);
-    scr06_i_.NewAthenaArray(ncells1);
-    scr07_i_.NewAthenaArray(ncells1);
-    scr08_i_.NewAthenaArray(ncells1);
-    scr09_i_.NewAthenaArray(ncells1);
-    scr10_i_.NewAthenaArray(ncells1);
-    scr11_i_.NewAthenaArray(ncells1);
-    scr12_i_.NewAthenaArray(ncells1);
-    scr13_i_.NewAthenaArray(ncells1);
-    scr14_i_.NewAthenaArray(ncells1);
+      scr03_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr04_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr05_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr06_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr07_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr08_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr09_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr10_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr11_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr12_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr13_i_.NewAthenaArray(NFLUIDS,ncells1);
+      scr14_i_.NewAthenaArray(NFLUIDS,ncells1);
 
-    scr5_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-    scr6_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-    scr7_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-    scr8_ni_.NewAthenaArray(NWAVE+NINT+NSCALARS,ncells1);
-    if (CLESS_ENABLED) {
-      scrcl03_i_.NewAthenaArray(ncells1);
-      scrcl04_i_.NewAthenaArray(ncells1);
-      scrcl05_i_.NewAthenaArray(ncells1);
-      scrcl06_i_.NewAthenaArray(ncells1);
-      scrcl07_i_.NewAthenaArray(ncells1);
-      scrcl08_i_.NewAthenaArray(ncells1);
-      scrcl09_i_.NewAthenaArray(ncells1);
-      scrcl10_i_.NewAthenaArray(ncells1);
-      scrcl11_i_.NewAthenaArray(ncells1);
-      scrcl12_i_.NewAthenaArray(ncells1);
-      scrcl13_i_.NewAthenaArray(ncells1);
-      scrcl14_i_.NewAthenaArray(ncells1);
+      scr5_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+      scr6_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+      scr7_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+      scr8_ni_.NewAthenaArray(NFLUIDS,NWAVE+NINT+NSCALARS,ncells1);
+    
+      if (CLESS_ENABLED) {
+        scrcl03_i_.NewAthenaArray(ncells1);
+        scrcl04_i_.NewAthenaArray(ncells1);
+        scrcl05_i_.NewAthenaArray(ncells1);
+        scrcl06_i_.NewAthenaArray(ncells1);
+        scrcl07_i_.NewAthenaArray(ncells1);
+        scrcl08_i_.NewAthenaArray(ncells1);
+        scrcl09_i_.NewAthenaArray(ncells1);
+        scrcl10_i_.NewAthenaArray(ncells1);
+        scrcl11_i_.NewAthenaArray(ncells1);
+        scrcl12_i_.NewAthenaArray(ncells1);
+        scrcl13_i_.NewAthenaArray(ncells1);
+        scrcl14_i_.NewAthenaArray(ncells1);
 
-      scrcl5_ni_.NewAthenaArray(NWAVECL,ncells1);
-      scrcl6_ni_.NewAthenaArray(NWAVECL,ncells1);
-      scrcl7_ni_.NewAthenaArray(NWAVECL,ncells1);
-      scrcl8_ni_.NewAthenaArray(NWAVECL,ncells1);
-    }
+        scrcl5_ni_.NewAthenaArray(NWAVECL,ncells1);
+        scrcl6_ni_.NewAthenaArray(NWAVECL,ncells1);
+        scrcl7_ni_.NewAthenaArray(NWAVECL,ncells1);
+        scrcl8_ni_.NewAthenaArray(NWAVECL,ncells1);
+      }
+
     // Precompute PPM coefficients in x1-direction ---------------------------------------
     c1i.NewAthenaArray(ncells1);
     c2i.NewAthenaArray(ncells1);
@@ -357,6 +370,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) {
 // destructor
 
 Reconstruction::~Reconstruction() {
+
   scr01_i_.DeleteAthenaArray();
   scr02_i_.DeleteAthenaArray();
 

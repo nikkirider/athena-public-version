@@ -44,6 +44,7 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
       dx3p1.InitWithShallowCopy(pmb->pcoord->dx1v); 
     }
 
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
         // calculate x1-grad
@@ -53,15 +54,15 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
         pmb->pcoord->Face1Pos(k, j, pmb->is-1,pmb->ie+1,x1f); //fh++
 #pragma omp simd
         for (int i=pmb->is; i<=pmb->ie; ++i) {
-          Pc               = prim(IGE,k,j,i)*prim(IDN,k,j,i)*gm1; // IGE is T/(gamma-1)
-          Real vim         = prim(IVX,k,j,i-1);
-          Real vi          = prim(IVX,k,j,i  );
-          Real vip         = prim(IVX,k,j,i+1);
+          Pc               = prim(fluidnum,IGE,k,j,i)*prim(IDN,k,j,i)*gm1; // IGE is T/(gamma-1)
+          Real vim         = prim(fluidnum,IVX,k,j,i-1);
+          Real vi          = prim(fluidnum,IVX,k,j,i  );
+          Real vip         = prim(fluidnum,IVX,k,j,i+1);
           Real vbari       = vim + (vi -vim)*(x1f(i  )-x1v(i-1))/dx1v(i-1);
           Real vbarip      = vi  + (vip-vi )*(x1f(i+1)-x1v(i  ))/dx1v(i  );
           Real dvdx        = ((vi    -vbari)/(x1v(i  )-x1f(i))) * ((x1f(i+1)-x1v(i))/dx1f(i))
                             +((vbarip-vi   )/(x1f(i+1)-x1v(i))) * ((x1v(i  )-x1f(i))/dx1f(i));
-          cons(IIE,k,j,i) -= dt*Pc*dvdx;
+          cons(fluidnum,IIE,k,j,i) -= dt*Pc*dvdx;
           //** old version
           //Real dtodx1 = dt/(dx1(i-1) + dx1(i)); 
           //// cell-centered pressure
@@ -82,12 +83,12 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             Real dtodx2 = dt/((dx2p1(i) + dx2m1(i))); 
             // cell-centered pressure
-            Pc	= prim(IGE,k,j,i)*prim(IDN,k,j,i)*gm1;
+            Pc	= prim(fluidnum,IGE,k,j,i)*prim(fluidnum,IDN,k,j,i)*gm1;
             // vr, vl
-            vr  = prim(IVY,k,j+1,i);
-            vl  = prim(IVY,k,j-1,i); 
+            vr  = prim(fluidnum,IVY,k,j+1,i);
+            vl  = prim(fluidnum,IVY,k,j-1,i); 
             // for the time being, this assumes uniform spacing
-            cons(IIE,k,j,i) -= dtodx2*Pc*(vr-vl); 
+            cons(fluidnum,IIE,k,j,i) -= dtodx2*Pc*(vr-vl); 
           }
         }
         if (pmb->block_size.nx3 > 1) {
@@ -98,15 +99,16 @@ void HydroSourceTerms::InternalEnergy(const Real dt, const AthenaArray<Real> *fl
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             Real dtodx3 = dt/(dx3p1(i) + dx3m1(i)); 
             // cell-centered pressure
-            Pc = prim(IGE,k,j,i)*prim(IDN,k,j,i)*gm1;
+            Pc = prim(fluidnum,IGE,k,j,i)*prim(fluidnum,IDN,k,j,i)*gm1;
             // vr, vl
-            vr  = prim(IVZ,k+1,j,i);
-            vl  = prim(IVZ,k-1,j,i); 
+            vr  = prim(fluidnum,IVZ,k+1,j,i);
+            vl  = prim(fluidnum,IVZ,k-1,j,i); 
             // for the time being, this assumes uniform spacing
-            cons(IIE,k,j,i) -= dtodx3*Pc*(vr-vl); 
+            cons(fluidnum,IIE,k,j,i) -= dtodx3*Pc*(vr-vl); 
           }
         }
       }
+    }
     }
   }
   return;

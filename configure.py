@@ -15,6 +15,7 @@
 #   --fluxcl=xxx      use xxx as the Riemann solver for CLESS 
 #   --nghost=xxx      set NGHOST=xxx
 #   --ns=xxx          set NSCALARS=xxx
+#   --nf=xxx          set NFLUIDS=xxx
 #   -b                enable magnetic fields
 #   -cl               enable collisionless-solver
 #   -clo              only solve collisionless equations 
@@ -63,6 +64,12 @@ parser.add_argument('--prob',
                     default='shock_tube',
                     choices=pgen_choices,
                     help='select problem generator')
+
+# --coord=[name] argument
+parser.add_argument(
+    '--nf',
+    default=1,
+    help='select number of fluids')
 
 # --coord=[name] argument
 parser.add_argument(
@@ -291,6 +298,30 @@ if args['flux'] == 'bgk2' and args['eos'] == 'isothermal':
 if args['flux'] == 'bgk2n' and args['eos'] == 'isothermal':
     raise SystemExit('### CONFIGURE ERROR: BGK2 flux cannot be used with isothemal EOS')
 
+# 2-Fluid compatibility checks
+print(args['nf'])
+if args['flux'] != 'bgk2n' and args['nf'] == 2:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid can only be used with BGK2N flux')
+if args['flux'] == 'bgk2n' and args['nf'] == 1:
+    raise SystemExit('### CONFIGURE ERROR: BGK2N flux should not be used with single-fluid')
+if args['nf'] != 1 and args['g']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with GR')
+if args['nf'] != 1 and args['s']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with SR')
+if args['nf'] != 1 and args['cl']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with collisionless')
+if args['nf'] != 1 and args['clo']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with collisionless')
+if args['nf'] != 1 and args['b']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with mag fields')
+if args['nf'] != 1 and args['t']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with GR')
+if args['nf'] != 1 and args['shear']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with shearing BCs')
+if args['nf'] != 1 and args['de']:
+    raise SystemExit('### CONFIGURE ERROR: 2-fluid not compatible with dual-energy')
+
+
 # Check relativity
 if args['s'] and args['g']:
     raise SystemExit('### CONFIGURE ERROR: '
@@ -377,6 +408,13 @@ definitions['NSCAL_VARIABLE'] = args['ns']
 # add it to NHYDRO
 definitions['NHYDRO_VARIABLES'] = str(int(definitions['NHYDRO_VARIABLES']) + 
                                       int(args['ns']) )  
+
+# --nf=[value] argument
+definitions['NFLUID_VARIABLE'] = args['nf']
+# add it to NHYDRO
+#definitions['NHYDRO_VARIABLES'] = str(int(definitions['NHYDRO_VARIABLES']) +
+#                                      int(args['nf']) )
+
 
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
@@ -706,6 +744,7 @@ with open(makefile_output, 'w') as current_file:
 # Finish with diagnostic output
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:       ' + args['prob'])
+print('  Number of fluids::       ' + args['nf'])
 print('  Coordinate system:       ' + args['coord'])
 print('  Equation of state:       ' + args['eos'])
 print('  Riemann solver:          ' + args['flux'])

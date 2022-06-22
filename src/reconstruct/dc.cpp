@@ -22,16 +22,21 @@ void Reconstruction::DonorCellX1(MeshBlock *pmb,
   const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
   AthenaArray<Real> &wl, AthenaArray<Real> &wr) {
   // compute L/R states for each variable
-  for (int n=0; n<(NHYDRO); ++n) {
-    for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
+  for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+   for (int n=0; n<(NHYDRO); ++n) {
+     for (int k=kl; k<=ku; ++k) {
+     for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-        wl(n,k,j,i) = w(n,k,j,i-1);
-        wr(n,k,j,i) = w(n,k,j,i  );
+            wl(fluidnum,n,k,j,i) = w(fluidnum,n,k,j,i-1);
+            wr(fluidnum,n,k,j,i) = w(fluidnum,n,k,j,i  );
+
+          }
+        }
       }
     }}
-  }
+  
+  //fprintf(stdout,"axu1_f1=%13.5e,axu2_f1=%13.5e,axu1_f2=%13.5e,axu2_f2=%13.5e\n",wl(0,IVX,0,0,0),wr(0,IVX,0,0,0),wl(1,IVX,0,0,0),wr(1,IVX,0,0,0));
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
@@ -60,13 +65,17 @@ void Reconstruction::DonorCellX2(MeshBlock *pmb,
   const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
   AthenaArray<Real> &wl, AthenaArray<Real> &wr) {
   // compute L/R states for each variable
-  for (int n=0; n<(NHYDRO); ++n) {
-    for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
+  for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+    for (int n=0; n<(NHYDRO); ++n) {
+      for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-        wl(n,k,j,i) = w(n,k,j-1,i);
-        wr(n,k,j,i) = w(n,k,j  ,i);
+        if(NFLUIDS==1){
+            wl(fluidnum,n,k,j,i) = w(fluidnum,n,k,j-1,i);
+            wr(fluidnum,n,k,j,i) = w(fluidnum,n,k,j  ,i);
+          }
+        }
       }
     }}
   }
@@ -98,16 +107,19 @@ void Reconstruction::DonorCellX3(MeshBlock *pmb,
   const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
   AthenaArray<Real> &wl, AthenaArray<Real> &wr) {
   // compute L/R states for each variable
-  for (int n=0; n<(NHYDRO); ++n) {
-    for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
+  for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+    for (int n=0; n<(NHYDRO); ++n) {
+      for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-        wl(n,k,j,i) = w(n,k-1,j,i);
-        wr(n,k,j,i) = w(n,k  ,j,i);
+            wl(fluidnum,n,k,j,i) = w(fluidnum,n,k-1,j,i);
+            wr(fluidnum,n,k,j,i) = w(fluidnum,n,k  ,j,i);
+          }
+        }
       }
     }}
-  }
+  
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {

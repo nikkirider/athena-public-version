@@ -27,6 +27,7 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
     Real grav_mean_rho = pgrav->grav_mean_rho;
     Real phic, phir, phil;
 // acceleration in 1-direction
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
@@ -39,14 +40,16 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
           phil = 0.5*(pgrav->phi(k,j,i-1)+pgrav->phi(k,j,i  ));
           phir = 0.5*(pgrav->phi(k,j,i  )+pgrav->phi(k,j,i+1));
           // Update momenta and energy with d/dx1 terms
-          cons(IEN,k,j,i) -= dtodx1*(flux[X1DIR](IDN,k,j,i  )*(phic - phil) +
-                                         flux[X1DIR](IDN,k,j,i+1)*(phir - phic));
+          cons(fluidnum,IEN,k,j,i) -= dtodx1*(flux[X1DIR](fluidnum,IDN,k,j,i  )*(phic - phil) +
+                                         flux[X1DIR](fluidnum,IDN,k,j,i+1)*(phir - phic));
         }
       }
+    }
     }
 
     if (pmb->block_size.nx2 > 1) {
       // acceleration in 2-direction
+      for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
       for (int k=pmb->ks; k<=pmb->ke; ++k) {
         for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
@@ -58,15 +61,17 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
             phic = pgrav->phi(k,j,i);
             phil = 0.5*(pgrav->phi(k,j-1,i)+pgrav->phi(k,j  ,i));
             phir = 0.5*(pgrav->phi(k,j  ,i)+pgrav->phi(k,j+1,i));
-            cons(IEN,k,j,i) -= dtodx2*(flux[X2DIR](IDN,k,j  ,i)*(phic - phil) +
-                                           flux[X2DIR](IDN,k,j+1,i)*(phir - phic));
+            cons(fluidnum,IEN,k,j,i) -= dtodx2*(flux[X2DIR](fluidnum,IDN,k,j  ,i)*(phic - phil) +
+                                           flux[X2DIR](fluidnum,IDN,k,j+1,i)*(phir - phic));
           }
         }
+      }
       }
     }
 
     if (pmb->block_size.nx3 > 1) {
       // acceleration in 3-direction
+      for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
       for (int k=pmb->ks; k<=pmb->ke; ++k) {
         for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
@@ -78,10 +83,11 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
             phic = pgrav->phi(k,j,i);
             phil = 0.5*(pgrav->phi(k-1,j,i)+pgrav->phi(k  ,j,i));
             phir = 0.5*(pgrav->phi(k  ,j,i)+pgrav->phi(k+1,j,i));
-            cons(IEN,k,j,i) -= dtodx3*(flux[X3DIR](IDN,k  ,j,i)*(phic - phil) +
-                                           flux[X3DIR](IDN,k+1,j,i)*(phir - phic));
+            cons(fluidnum,IEN,k,j,i) -= dtodx3*(flux[X3DIR](fluidnum,IDN,k  ,j,i)*(phic - phil) +
+                                           flux[X3DIR](fluidnum,IDN,k+1,j,i)*(phir - phic));
           }
         }
+      }
       }
     }
   }

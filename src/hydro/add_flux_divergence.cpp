@@ -36,6 +36,9 @@ void Hydro::AddFluxDivergenceToAverage(AthenaArray<Real> &w, AthenaArray<Real> &
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
+  fprintf(stdout,"FIRST FLUID DENS AT 34: %11.3e, SECOND FLUID DENS AT 34: %11.3e\n",x1flux(0,IDN,0,0,34),x1flux(1,IDN,0,0,34));
+  fprintf(stdout,"FIRST FLUID ENERGY AT 34: %11.3e, SECOND FLUID ENERGY AT 34: %11.3e\n",x1flux(0,IEN,0,0,34),x1flux(1,IEN,0,0,34));
+
   int tid=0;
   AthenaArray<Real> x1area, x2area, x2area_p1, x3area, x3area_p1, vol, dflx;
   x1area.InitWithShallowCopy(x1face_area_);
@@ -51,45 +54,52 @@ void Hydro::AddFluxDivergenceToAverage(AthenaArray<Real> &w, AthenaArray<Real> &
 
       // calculate x1-flux divergence
       pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
+      for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
       for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          dflx(n,i) = (x1area(i+1) *x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
+          dflx(fluidnum,n,i) = (x1area(i+1) *x1flux(fluidnum,n,k,j,i+1) - x1area(i)*x1flux(fluidnum,n,k,j,i));
         }
-      }
+      }}
+
+      fprintf(stdout,"interface dens dflx0=%11.5e, dflx1=%11.5e\n",dflx(0,IDN,34),dflx(1,IDN,34));
+      fprintf(stdout,"interface mom dflx0=%11.5e, dflx1=%11.5e\n",dflx(0,IM1,34),dflx(1,IM1,34));
 
       // calculate x2-flux divergence
       if (pmb->block_size.nx2 > 1) {
         pmb->pcoord->Face2Area(k,j  ,is,ie,x2area   );
         pmb->pcoord->Face2Area(k,j+1,is,ie,x2area_p1);
+        for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
         for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x2area_p1(i)*x2flux(n,k,j+1,i) - x2area(i)*x2flux(n,k,j,i));
+            dflx(fluidnum,n,i) += (x2area_p1(i)*x2flux(fluidnum,n,k,j+1,i) - x2area(i)*x2flux(fluidnum,n,k,j,i));
           }
-        }
+        }}
       }
 
       // calculate x3-flux divergence
       if (pmb->block_size.nx3 > 1) {
         pmb->pcoord->Face3Area(k  ,j,is,ie,x3area   );
         pmb->pcoord->Face3Area(k+1,j,is,ie,x3area_p1);
+        for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
         for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
+            dflx(fluidnum,n,i) += (x3area_p1(i)*x3flux(fluidnum,n,k+1,j,i) - x3area(i)*x3flux(fluidnum,n,k,j,i));
           }
-        }
+        }}
       }
 
       // update conserved variables
       pmb->pcoord->CellVolume(k,j,is,ie,vol);
+      for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
       for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          u_out(n,k,j,i) -= wght*(pmb->pmy_mesh->dt)*dflx(n,i)/vol(i);
+          u_out(fluidnum,n,k,j,i) -= wght*(pmb->pmy_mesh->dt)*dflx(fluidnum,n,i)/vol(i);
         }
-      }
+      }}
     }
   }
 
@@ -115,52 +125,56 @@ void Hydro::WeightedAveU(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
 
   // u_in2 may be an unallocated AthenaArray if using a 2S time integrator
   if (wght[2] != 0.0) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int n=0; n<NHYDRO; ++n) {
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i)
-                + wght[2]*u_in2(n,k,j,i);
+            u_out(fluidnum,n,k,j,i) = wght[0]*u_out(fluidnum,n,k,j,i) + wght[1]*u_in1(fluidnum,n,k,j,i)
+                + wght[2]*u_in2(fluidnum,n,k,j,i);
           }
         }
       }
-    }
+    }}
   } else { // do not dereference u_in2
     if (wght[1] != 0.0) {
+      for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
       for (int n=0; n<NHYDRO; ++n) {
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
-              u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i);
+              u_out(fluidnum,n,k,j,i) = wght[0]*u_out(fluidnum,n,k,j,i) + wght[1]*u_in1(fluidnum,n,k,j,i);
             }
           }
         }
-      }
+      }}
     } else { // do not dereference u_in1
       if (wght[0] != 0.0) {
+        for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
         for (int n=0; n<NHYDRO; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
 #pragma omp simd
               for (int i=is; i<=ie; ++i) {
-                u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i);
+                u_out(fluidnum,n,k,j,i) = wght[0]*u_out(fluidnum,n,k,j,i);
               }
             }
           }
-        }
+        }}
       } else { // directly initialize u_out to 0
+        for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
         for (int n=0; n<NHYDRO; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
 #pragma omp simd
               for (int i=is; i<=ie; ++i) {
-                u_out(n,k,j,i) = 0.0;
+                u_out(fluidnum,n,k,j,i) = 0.0;
               }
             }
           }
-        }
+        }}
       }
     }
   }

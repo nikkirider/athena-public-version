@@ -147,19 +147,21 @@ void FFTBlock::RetrieveResult(AthenaArray<Real> &dst, int ns, int ngh,
   int jl = bsize.nx2>1 ? ngh:0;
   int kl = bsize.nx3>1 ? ngh:0;
 
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<ns; n++) {
     for (int k=kl, mk=ks; mk<=ke; k++, mk++) {
       for (int j=jl, mj=js; mj<=je; j++, mj++) {
         for (int i=ngh, mi=is; mi<=ie; i++, mi++) {
           int64_t idx=GetIndex(mi,mj,mk,b_out_);
           if (ns == 1) {
-            dst(k,j,i)=src[idx][0]*norm_factor_;
+            dst(fluidnum,k,j,i)=src[idx][0]*norm_factor_;
           } else {
-            dst(n,k,j,i)=src[idx][n]*norm_factor_;
+            dst(fluidnum,n,k,j,i)=src[idx][n]*norm_factor_;
           }
         }
       }
     }
+  }
   }
   return;
 }
@@ -183,20 +185,22 @@ void FFTBlock::LoadSource(const AthenaArray<Real> &src0, const AthenaArray<Real>
   int jl = bsize.nx2>1 ? ngh:0;
   int kl = bsize.nx3>1 ? ngh:0;
 
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<ns; n++) {
     for (int k=kl, mk=ks; mk<=ke; k++, mk++) {
       for (int j=jl, mj=js; mj<=je; j++, mj++) {
         for (int i=ngh, mi=is; mi<=ie; i++, mi++) {
           int64_t idx=GetIndex(mi,mj,mk,f_in_);
           if (ns == 1) {
-            dst[idx][0]=src0(n,k,j,i) + src1(n,k,j,i);
+            dst[idx][0]=src0(fluidnum,n,k,j,i) + src1(fluidnum,n,k,j,i);
             dst[idx][1]=0.0;
           } else {
-            dst[idx][n]=src0(n,k,j,i) + src1(n,k,j,i);
+            dst[idx][n]=src0(fluidnum,n,k,j,i) + src1(fluidnum,n,k,j,i);
           }
         }
       }
     }
+  }
   }
   return;
 }

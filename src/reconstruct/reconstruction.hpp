@@ -27,6 +27,9 @@ public:
   // data
   // order and type of reconstruction algorithm
   int xorder;   // order of hydro reconstruction
+//NEW LINES
+  bool cons_reconstruction;
+//END NEW LINES
   bool characteristic_reconstruction;  // TRUE for characteristic recon
   bool uniform_limiter[3]; // TRUE to use the PLM or PPM limiter option w/o coord terms
   AthenaArray<Real> c1i,c2i,c3i,c4i,c5i,c6i;  // coefficients for PPM in x1
@@ -137,8 +140,9 @@ private:
   AthenaArray<Real> scr11_i_,scr12_i_,scr13_i_,scr14_i_;
   AthenaArray<Real> scr1_ni_, scr2_ni_, scr3_ni_, scr4_ni_, scr5_ni_;
   AthenaArray<Real> scr6_ni_, scr7_ni_, scr8_ni_;
-	
-	// scratch arrays used for CLESS reconstruction PLM, PPM 
+  AthenaArray<Real> scr15_ni_, scr16_ni_, scr17_ni_;
+
+  // scratch arrays used for CLESS reconstruction PLM, PPM 
   AthenaArray<Real> scrcl01_i_,scrcl02_i_,scrcl03_i_,scrcl04_i_,scrcl05_i_;
   AthenaArray<Real> scrcl06_i_,scrcl07_i_,scrcl08_i_,scrcl09_i_,scrcl10_i_;
   AthenaArray<Real> scrcl11_i_,scrcl12_i_,scrcl13_i_,scrcl14_i_;

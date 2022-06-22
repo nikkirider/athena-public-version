@@ -23,41 +23,47 @@ void HydroSourceTerms::ConstantAcceleration(const Real dt,const AthenaArray<Real
 
   // acceleration in 1-direction
   if (g1_!=0.0) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
       for (int i=pmb->is; i<=pmb->ie; ++i) {
-        Real src = dt*prim(IDN,k,j,i)*g1_;
-        cons(IM1,k,j,i) += src;
-        if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVX,k,j,i);
+        Real src = dt*prim(fluidnum,IDN,k,j,i)*g1_;
+        cons(fluidnum,IM1,k,j,i) += src;
+        if (NON_BAROTROPIC_EOS) cons(fluidnum,IEN,k,j,i) += src*prim(fluidnum,IVX,k,j,i);
       }
     }}
+    }
   }
 
   // acceleration in 2-direction
   if (g2_!=0.0) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
       for (int i=pmb->is; i<=pmb->ie; ++i) {
-          Real src = dt*prim(IDN,k,j,i)*g2_;
-          cons(IM2,k,j,i) += src;
-          if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVY,k,j,i);
+          Real src = dt*prim(fluidnum,IDN,k,j,i)*g2_;
+          cons(fluidnum,IM2,k,j,i) += src;
+          if (NON_BAROTROPIC_EOS) cons(fluidnum,IEN,k,j,i) += src*prim(fluidnum,IVY,k,j,i);
       }
     }}
+    }
   }
 
   // acceleration in 3-direction
   if (g3_!=0.0) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
       for (int i=pmb->is; i<=pmb->ie; ++i) {
-          Real src = dt*prim(IDN,k,j,i)*g3_;
-          cons(IM3,k,j,i) += src;
-          if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVZ,k,j,i);
+          Real src = dt*prim(fluidnum,IDN,k,j,i)*g3_;
+          cons(fluidnum,IM3,k,j,i) += src;
+          if (NON_BAROTROPIC_EOS) cons(fluidnum,IEN,k,j,i) += src*prim(fluidnum,IVZ,k,j,i);
       }
     }}
+    }
   }
 
   return;

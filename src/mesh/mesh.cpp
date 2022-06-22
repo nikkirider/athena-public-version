@@ -1023,6 +1023,7 @@ void Mesh::OutputMeshStructure(int dim) {
 void Mesh::NewTimeStep(void) {
   MeshBlock *pmb = pblock;
   Real min_dt=pmb->new_block_dt;
+  fprintf(stdout,"NTS 1 min_dt=%11.5e\n",min_dt);
   pmb=pmb->next;
   while (pmb != NULL)  {
     min_dt=std::min(min_dt,pmb->new_block_dt);
@@ -1033,6 +1034,7 @@ void Mesh::NewTimeStep(void) {
 #endif
   // set it
   dt=std::min(min_dt,static_cast<Real>(2.0)*dt);
+  fprintf(stdout,"NTS 2 min_dt=%11.5e\n",min_dt);
   if (time < tlim && tlim-time < dt)  // timestep would take us past desired endpoint
     dt = tlim-time;
   return;
@@ -1922,7 +1924,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         sendbuf[k] = new Real[bssame];
         // pack
         int p=0;
-        BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
+        BufferUtility::Pack5DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
                        pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         if (MAGNETIC_FIELDS_ENABLED) {
           BufferUtility::Pack3DData(pb->pfield->b.x1f, sendbuf[k],
@@ -1953,7 +1955,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           if (ox3==0) ks=pb->ks-f3,                      ke=pb->ks+pb->block_size.nx3/2;
           else        ks=pb->ks+pb->block_size.nx3/2-f3, ke=pb->ke+f3;
           int p=0;
-          BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
+          BufferUtility::Pack5DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
                                     is, ie, js, je, ks, ke, p);
           if (MAGNETIC_FIELDS_ENABLED) {
             BufferUtility::Pack3DData(pb->pfield->b.x1f, sendbuf[k],
@@ -1981,7 +1983,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         pmr->RestrictCellCenteredValues(pb->phydro->u, pmr->coarse_cons_,
              0, NHYDRO-1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
         int p=0;
-        BufferUtility::Pack4DData(pmr->coarse_cons_, sendbuf[k], 0, NHYDRO-1,
+        BufferUtility::Pack5DData(pmr->coarse_cons_, sendbuf[k], 0, NHYDRO-1,
                        pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
         if (MAGNETIC_FIELDS_ENABLED) {
           pmr->RestrictFieldX1(pb->pfield->b.x1f, pmr->coarse_b_.x1f,
@@ -2066,12 +2068,13 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           int ks=pmb->ks+(loclist[on+ll].lx3&1L)*pmb->block_size.nx3/2;
           AthenaArray<Real> &src=pmr->coarse_cons_;
           AthenaArray<Real> &dst=pmb->phydro->u;
+          for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
           for (int nv=0; nv<NHYDRO; nv++) {
             for (int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
               for (int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
                 for (int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
-                  dst(nv, k, j, i)=src(nv, fk, fj, fi);
-          }}}
+                  dst(fluidnum, nv, k, j, i)=src(fluidnum, nv, fk, fj, fi);
+          }}}}
           if (MAGNETIC_FIELDS_ENABLED) {
             pmr->RestrictFieldX1(pob->pfield->b.x1f, pmr->coarse_b_.x1f,
                          pob->cis, pob->cie+1, pob->cjs, pob->cje, pob->cks, pob->cke);
@@ -2136,12 +2139,13 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         AthenaArray<Real> &src=pob->phydro->u;
         AthenaArray<Real> &dst=pmr->coarse_cons_;
         // fill the coarse buffer
+        for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
         for (int nv=0; nv<NHYDRO; nv++) {
           for (int k=ks, ck=cks; k<=ke; k++, ck++) {
             for (int j=js, cj=cjs; j<=je; j++, cj++) {
               for (int i=is, ci=cis; i<=ie; i++, ci++)
-                dst(nv, k, j, i)=src(nv, ck, cj, ci);
-        }}}
+                dst(fluidnum, nv, k, j, i)=src(fluidnum, nv, ck, cj, ci);
+        }}}}
         pmr->ProlongateCellCenteredValues(dst, pmb->phydro->u, 0, NHYDRO-1,
                        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
         if (MAGNETIC_FIELDS_ENABLED) {
@@ -2214,7 +2218,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         if (ranklist[on]==Globals::my_rank) continue;
         MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
         int p=0;
-        BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
+        BufferUtility::Unpack5DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
                        pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         if (MAGNETIC_FIELDS_ENABLED) {
           FaceField &dst=pb->pfield->b;
@@ -2256,7 +2260,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           if (ox3==0) ks=pb->ks,                      ke=pb->ks+pb->block_size.nx3/2-f3;
           else        ks=pb->ks+pb->block_size.nx3/2, ke=pb->ke;
           MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
-          BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
+          BufferUtility::Unpack5DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
                          is, ie, js, je, ks, ke, p);
           if (MAGNETIC_FIELDS_ENABLED) {
             FaceField &dst=pb->pfield->b;
@@ -2290,7 +2294,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         int is=pb->cis-1, ie=pb->cie+1, js=pb->cjs-f2,
             je=pb->cje+f2, ks=pb->cks-f3, ke=pb->cke+f3;
         MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
-        BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_cons_,
+        BufferUtility::Unpack5DData(recvbuf[k], pmr->coarse_cons_,
                                     0, NHYDRO-1, is, ie, js, je, ks, ke, p);
         pmr->ProlongateCellCenteredValues(pmr->coarse_cons_, pb->phydro->u, 0, NHYDRO-1,
                                    pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);

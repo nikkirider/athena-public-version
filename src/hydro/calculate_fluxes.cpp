@@ -24,6 +24,7 @@
 
 // OpenMP header
 #ifdef OPENMP_PARALLEL
+#define DEBUG_ALL
 #include <omp.h>
 #endif
 
@@ -62,6 +63,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   wr.InitWithShallowCopy(wr_);
   dxw.InitWithShallowCopy(dxw_);
 
+
 //----------------------------------------------------------------------------------------
 // i-direction
 
@@ -79,10 +81,13 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   // reconstruct L/R states
   if (order == 1) {
     pmb->precon->DonorCellX1(pmb,kl,ku,jl,ju,is,ie+1,w,bcc,wl,wr);
+//  fprintf(stdout,"DCX1 wr(0)=%13.5e, wr(1)=%13.5e\n",wr(0,IVX,0,0,16),wr(1,IVX,0,0,16));
   } else if (order == 2) {
     pmb->precon->PiecewiseLinearX1(pmb,kl,ku,jl,ju,is,ie+1,w,bcc,wl,wr);
+    fprintf(stdout,"PLX1 wr(0)=%13.5e\n",wr(0,IVX,0,0,28));
   } else {
     pmb->precon->PiecewiseParabolicX1(pmb,kl,ku,jl,ju,is,ie+1,w,bcc,wl,wr);
+//    fprintf(stdout,"PPX1 wr(0)=%13.5e, wr(1)=%13.5e\n",wr(0,IVX,0,0,16),wr(1,IVX,0,0,16));
   }
 
   // compute fluxes, store directly into 3D arrays
@@ -90,8 +95,8 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   // x1flux(IBZ) = (v1*b3 - v3*b1) =  EMFY
   RiemannSolver(kl,ku,jl,ju,is,ie+1,IVX,b1,wl,wr,x1flux,e3x1,e2x1);
 
-  //for (int i=is; i<=ie+1; ++i) {
-    //fprintf(stdout, "i=%3i d=%13.5e mx=%13.5e e=%13.5e\n", i,d,mx,
+  fprintf(stdout,"cell 34 ivx=%11.3e, ivxl=%11.3e, ivxr=%11.3e, fluidnum=0\n",w(0,IVX,0,0,34),wl(0,IVX,0,0,34),wr(0,IVX,0,0,34));
+  fprintf(stdout,"cell 34 ivx=%11.3e, ivxl=%11.3e, ivxr=%11.3e, fluidnum=1\n",w(1,IVX,0,0,34),wl(1,IVX,0,0,34),wr(1,IVX,0,0,34));
 
   // compute weights for GS07 CT algorithm
   if (MAGNETIC_FIELDS_ENABLED) {

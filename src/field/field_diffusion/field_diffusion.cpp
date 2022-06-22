@@ -38,23 +38,23 @@ FieldDiffusion::FieldDiffusion(MeshBlock *pmb, ParameterInput *pin) {
   if ((eta_ohm != 0.0) || (eta_hall != 0.0) || (eta_ad != 0.0)) {
     field_diffusion_defined = true;
     // Allocate memory for scratch vectors
-    etaB.NewAthenaArray(3,ncells3,ncells2,ncells1);
+    etaB.NewAthenaArray(NFLUIDS,3,ncells3,ncells2,ncells1);
     e_oa.x1e.NewAthenaArray(ncells3+1,ncells2+1,ncells1);
     e_oa.x2e.NewAthenaArray(ncells3+1,ncells2,ncells1+1);
     e_oa.x3e.NewAthenaArray(ncells3,ncells2+1,ncells1+1);
     e_h.x1e.NewAthenaArray(ncells3+1,ncells2+1,ncells1);
     e_h.x2e.NewAthenaArray(ncells3+1,ncells2,ncells1+1);
     e_h.x3e.NewAthenaArray(ncells3,ncells2+1,ncells1+1);
-    pflux.x1f.NewAthenaArray(ncells3,ncells2,ncells1+1);
-    pflux.x2f.NewAthenaArray(ncells3,ncells2+1,ncells1);
-    pflux.x3f.NewAthenaArray(ncells3+1,ncells2,ncells1);
+    pflux.x1f.NewAthenaArray(NFLUIDS,ncells3,ncells2,ncells1+1);
+    pflux.x2f.NewAthenaArray(NFLUIDS,ncells3,ncells2+1,ncells1);
+    pflux.x3f.NewAthenaArray(NFLUIDS,ncells3+1,ncells2,ncells1);
 
     jfx.NewAthenaArray(3,ncells3+1,ncells2+1,ncells1+1);
     jfy.NewAthenaArray(3,ncells3+1,ncells2+1,ncells1+1);
     jfz.NewAthenaArray(3,ncells3+1,ncells2+1,ncells1+1);
     jcc.NewAthenaArray(3,ncells3+1,ncells2+1,ncells1+1);
 
-    eta_tot_.NewAthenaArray(ncells1);
+    eta_tot_.NewAthenaArray(NFLUIDS,ncells1);
     bmag_.NewAthenaArray(ncells3,ncells2,ncells1);
 
     jedge_.x1e.NewAthenaArray(ncells3+1,ncells2+1,ncells1);
@@ -237,35 +237,41 @@ void FieldDiffusion::AddPoyntingFlux(FaceField &p_src) {
 
   // 1D update:
   if (pmb->block_size.nx2 == 1) {
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
 #pragma omp simd
     for (int i=is; i<=ie+1; ++i) {
-      x1flux(IEN,ks,js,i) += f1(ks,js,i);
+      x1flux(fluidnum,IEN,ks,js,i) += f1(fluidnum,ks,js,i);
+    }
     }
     return;
   }
 
   // 2D update:
   if (pmb->block_size.nx3 == 1) {
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int j=js; j<=je+1; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie+1; ++i) {
-        x1flux(IEN,ks,j,i) += f1(ks,j,i);
-        x2flux(IEN,ks,j,i) += f2(ks,j,i);
+        x1flux(fluidnum,IEN,ks,j,i) += f1(fluidnum,ks,j,i);
+        x2flux(fluidnum,IEN,ks,j,i) += f2(fluidnum,ks,j,i);
       }
+    }
     }
     return;
   }
 
   // 3D update:
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie+1; ++i) {
-        x1flux(IEN,k,j,i) += f1(k,j,i);
-        x2flux(IEN,k,j,i) += f2(k,j,i);
-        x3flux(IEN,k,j,i) += f3(k,j,i);
+        x1flux(fluidnum,IEN,k,j,i) += f1(fluidnum,k,j,i);
+        x2flux(fluidnum,IEN,k,j,i) += f2(fluidnum,k,j,i);
+        x3flux(fluidnum,IEN,k,j,i) += f3(fluidnum,k,j,i);
       }
     }
+  }
   }
   return;
 }
@@ -295,22 +301,23 @@ void FieldDiffusion::NewFieldDiffusionDt(Real &dt_oa, Real &dt_h) {
   dx2.InitWithShallowCopy(dx2_);
   dx3.InitWithShallowCopy(dx3_);
 
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        eta_t(i) = 0.0;
+        eta_t(fluidnum,i) = 0.0;
       }
       if (eta_ohm > 0.0) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          eta_t(i) += etaB(I_O,k,j,i);
+          eta_t(fluidnum,i) += etaB(fluidnum,I_O,k,j,i);
         }
       }
       if (eta_ad > 0.0) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          eta_t(i) += etaB(I_A,k,j,i);
+          eta_t(fluidnum,i) += etaB(fluidnum,I_A,k,j,i);
         }
       }
       pmb->pcoord->CenterWidth1(k,j,is,ie,len);
@@ -324,14 +331,15 @@ void FieldDiffusion::NewFieldDiffusionDt(Real &dt_oa, Real &dt_h) {
       if ((eta_ohm > 0.0) || (eta_ad > 0.0)) {
         for (int i=is; i<=ie; ++i)
           dt_oa = std::min(dt_oa, static_cast<Real>(fac_oa*SQR(len(i))
-                                             /(eta_t(i)+TINY_NUMBER)));
+                                             /(eta_t(fluidnum,i)+TINY_NUMBER)));
       }
       if (eta_hall > 0.0) {
         for (int i=is; i<=ie; ++i)
           dt_h = std::min(dt_h,static_cast<Real>(fac_h*SQR(len(i))
-                       /(std::fabs(etaB(I_H,k,j,i))+TINY_NUMBER)));
+                       /(std::fabs(etaB(fluidnum,I_H,k,j,i))+TINY_NUMBER)));
       }
     }
+  }
   }
   return;
 }

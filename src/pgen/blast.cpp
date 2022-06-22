@@ -50,6 +50,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real gamma = peos->GetGamma();
   Real gm1 = gamma - 1.0;
 
+  fprintf(stdout,"rout=%11.3e,rin=%11.3e,pa=%11.3e,da=%11.3e,drat=%11.3e,prat=%11.3e\n",rout,rin,pa,da,drat,prat);
+
   // get coordinates of center of blast, and convert to Cartesian if necessary
   Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);
   Real x2_0   = pin->GetOrAddReal("problem","x2_0",0.0);
@@ -96,10 +98,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       Real z = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
       rad = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
     }
+   
+    fprintf(stdout,"rad=%11.3e,i=%4i\n",rad,i);
 
     Real den = da;
     if (rad < rout) {
+      fprintf(stdout,"rad<rout\n");
       if (rad < rin) {
+        fprintf(stdout,"rad<rin\n");
         den = drat*da;
       } else {   // add smooth ramp in density
         Real f = (rad-rin) / (rout-rin);
@@ -150,6 +156,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         phydro->u(n,k,j,i) = den;
       }
     }
+    
+    fprintf(stdout,"idn=%11.3e,im1=%11.3e,im2=%11.3e,im3=%11.3e,ien=%11.3e\n",phydro->u(IDN,k,j,i),phydro->u(IM1,k,j,i),phydro->u(IM2,k,j,i),phydro->u(IM3,k,j,i),phydro->u(IEN,k,j,i));
 		
   }}}
 

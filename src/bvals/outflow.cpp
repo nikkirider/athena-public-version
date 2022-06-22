@@ -22,14 +22,16 @@ void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
                     FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NHYDRO); ++n) {
     for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=1; i<=ngh; ++i) {
-        prim(n,k,j,is-i) = prim(n,k,j,is);
+        prim(fluidnum,n,k,j,is-i) = prim(fluidnum,n,k,j,is);
       }
     }}
+  }
   }
 
   // copy face-centered magnetic fields into ghost zones
@@ -71,16 +73,17 @@ void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
                     FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NHYDRO); ++n) {
     for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=1; i<=ngh; ++i) {
-        prim(n,k,j,ie+i) = prim(n,k,j,ie);
+        prim(fluidnum,n,k,j,ie+i) = prim(fluidnum,n,k,j,ie);
       }
     }}
   }
-
+  }
   // copy face-centered magnetic fields into ghost zones
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=ks; k<=ke; ++k) {
@@ -121,16 +124,17 @@ void OutflowInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
                     FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NHYDRO); ++n) {
     for (int k=ks; k<=ke; ++k) {
     for (int j=1; j<=ngh; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        prim(n,k,js-j,i) = prim(n,k,js,i);
+        prim(fluidnum,n,k,js-j,i) = prim(fluidnum,n,k,js,i);
       }
     }}
   }
-
+  }
   // copy face-centered magnetic fields into ghost zones
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=ks; k<=ke; ++k) {
@@ -171,16 +175,17 @@ void OutflowOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
                     FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NHYDRO); ++n) {
     for (int k=ks; k<=ke; ++k) {
     for (int j=1; j<=ngh; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        prim(n,k,je+j,i) = prim(n,k,je,i);
+        prim(fluidnum,n,k,je+j,i) = prim(fluidnum,n,k,je,i);
       }
     }}
   }
-
+  }
   // copy face-centered magnetic fields into ghost zones
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=ks; k<=ke; ++k) {
@@ -221,14 +226,16 @@ void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
                     FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NHYDRO); ++n) {
     for (int k=1; k<=ngh; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        prim(n,ks-k,j,i) = prim(n,ks,j,i);
+        prim(fluidnum,n,ks-k,j,i) = prim(fluidnum,n,ks,j,i);
       }
     }}
+  }
   }
 
   // copy face-centered magnetic fields into ghost zones
@@ -271,16 +278,17 @@ void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
                     FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NHYDRO); ++n) {
     for (int k=1; k<=ngh; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        prim(n,ke+k,j,i) = prim(n,ke,j,i);
+        prim(fluidnum,n,ke+k,j,i) = prim(fluidnum,n,ke,j,i);
       }
     }}
   }
-
+  }
   // copy face-centered magnetic fields into ghost zones
   if (MAGNETIC_FIELDS_ENABLED) {
     for (int k=1; k<=ngh; ++k) {
@@ -321,14 +329,16 @@ void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 void OutflowInnerCLX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      Real time, Real dt, int is, int ie, int js, int je, int ks, int ke) {
   // copy hydro variables into ghost zones
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int n=0; n<(NCLESS); ++n) {
     for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=1; i<=(NGHOST); ++i) {
-        prim(n,k,j,is-i) = prim(n,k,j,is);
+        prim(fluidnum,n,k,j,is-i) = prim(fluidnum,n,k,j,is);
       }
     }}
+  }
   }
   return;
 }

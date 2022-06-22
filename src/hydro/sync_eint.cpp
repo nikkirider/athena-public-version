@@ -38,27 +38,30 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
   // 1D-case
   if ( dim == 1 ) {
 // Pretty sure that vectorization does not allow if statements (loop actions must be known in advance)
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
 //#pragma omp simd
     for (int i=is; i<=ie; ++i) {
-      eint = u(IEN,ks,js,i) - 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
-      emax = u(IEN,ks,js,i); 
+      eint = u(fluidnum,IEN,ks,js,i) - 0.5*(SQR(u(fluidnum,IM1,ks,js,i)))/u(fluidnum,IDN,ks,js,i);
+      emax = u(fluidnum,IEN,ks,js,i); 
 
-      emax = std::max(emax,u(IEN,ks,js,std::max(is,i-1)));
-      emax = std::max(emax,u(IEN,ks,js,std::min(ie,i+1)));
+      emax = std::max(emax,u(fluidnum,IEN,ks,js,std::max(is,i-1)));
+      emax = std::max(emax,u(fluidnum,IEN,ks,js,std::min(ie,i+1)));
 			
       if ((eint/emax > i2) && (eint > 0.0)) {
-	u(IIE,ks,js,i) = eint; 
+	u(fluidnum,IIE,ks,js,i) = eint; 
       }
+    }
     }
   }
   // 2D-case
   else if ( dim == 2 ) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int j=js; j<=je; ++j) {
 // Pretty sure that vectorization does not allow if statements (loop actions must be known in advance)
 //#pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        eint = u(IEN,ks,j,i) - 0.5*(SQR(u(IM1,ks,j,i)) + SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
-        emax = u(IEN,ks,j,i); 
+        eint = u(fluidnum,IEN,ks,j,i) - 0.5*(SQR(u(fluidnum,IM1,ks,j,i)) + SQR(u(fluidnum,IM2,ks,j,i)))/u(fluidnum,IDN,ks,j,i);
+        emax = u(fluidnum,IEN,ks,j,i); 
 
         // this is should be equivalent to the commented out for-loop below
         //emax = std::max(emax,u(IEN,ks,std::max(js,j-1),std::max(is,i-1)));
@@ -73,26 +76,28 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
 				
         for (int jj=std::max(js,j-1); jj<=std::min(je,j+1); jj++) {
           for (int ii=std::max(is,i-1); ii<=std::min(ie,i+1); ii++) {
-            emax = std::max(emax,u(IEN,ks,jj,ii));
+            emax = std::max(emax,u(fluidnum,IEN,ks,jj,ii));
           }
         }
         if ((eint/emax > i2) && (eint > 0.0)) {
           //std::cout << "[SyncEint]: k " << ks << " j " << j  << " i "  << i << " eint=" << eint
           //          << " IE: " << u(IIE,ks,j,i) << " ieta2: " << i2 << std::endl;
-          u(IIE,ks,j,i) = eint; 
+          u(fluidnum,IIE,ks,j,i) = eint; 
         }
       }
+    }
     }
   }
   // 3D-case
   else {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=ks; k<=ke; ++k) {
       for (int j=js; j<=je; ++j) {
 // Pretty sure that vectorization does not allow if statements (loop actions must be known in advance)
 //#pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          eint = u(IEN,k,j,i) - 0.5*(SQR(u(IM1,k,j,i)) + SQR(u(IM2,k,j,i)) + SQR(u(IM3,k,j,i)))/u(IDN,k,j,i);
-          emax = u(IEN,k,j,i); 
+          eint = u(fluidnum,IEN,k,j,i) - 0.5*(SQR(u(fluidnum,IM1,k,j,i)) + SQR(u(fluidnum,IM2,k,j,i)) + SQR(u(fluidnum,IM3,k,j,i)))/u(fluidnum,IDN,k,j,i);
+          emax = u(fluidnum,IEN,k,j,i); 
 
           // this is should be equivalent to the commented out for-loop below
           //emax = std::max(emax,u(IEN,std::max(ks,k-1),std::max(js,j-1),std::max(is,i-1)));
@@ -128,15 +133,16 @@ void Hydro::SyncEint(AthenaArray<Real> &u) {
           for (int kk=std::max(ks,k-1); kk<=std::min(ke,k+1); kk++) {
             for (int jj=std::max(js,j-1); jj<=std::min(je,j+1); jj++) {
               for (int ii=std::max(is,i-1); ii<=std::min(ie,i+1); ii++) {
-                emax = std::max(emax,u(IEN,kk,jj,ii));
+                emax = std::max(emax,u(fluidnum,IEN,kk,jj,ii));
               }
             }
           }
           if ((eint/emax > i2) && (eint > 0.0)) {
-            u(IIE,k,j,i) = eint; 
+            u(fluidnum,IIE,k,j,i) = eint; 
           }
         }
       }
+    }
     }
   }
   return;
@@ -160,44 +166,50 @@ void Hydro::CheckEint(AthenaArray<Real> &u) {
 
   // 1D-case
   if ( dim == 1 ) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
 //#pragma omp simd
     for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
-      etot = u(IEN,ks,js,i);
-      kine = 0.5*(SQR(u(IM1,ks,js,i)))/u(IDN,ks,js,i);
+      etot = u(fluidnum,IEN,ks,js,i);
+      kine = 0.5*(SQR(u(fluidnum,IM1,ks,js,i)))/u(fluidnum,IDN,ks,js,i);
       eint = etot - kine;
       if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
-        u(IEN,ks,js,i)  = u(IIE,ks,js,i) + kine;
+        u(fluidnum,IEN,ks,js,i)  = u(fluidnum,IIE,ks,js,i) + kine;
       }
+    }
     }
   }
   // 2D-case
   else if ( dim == 2 ) {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int j=js-NGHOST; j<=je+NGHOST; ++j) {
 //#pragma omp simd
       for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
-        etot = u(IEN,ks,j,i);
-        kine = 0.5*(SQR(u(IM1,ks,j,i))+SQR(u(IM2,ks,j,i)))/u(IDN,ks,j,i);
+        etot = u(fluidnum,IEN,ks,j,i);
+        kine = 0.5*(SQR(u(fluidnum,IM1,ks,j,i))+SQR(u(fluidnum,IM2,ks,j,i)))/u(fluidnum,IDN,ks,j,i);
         eint = etot - kine;
         if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
-          u(IEN,ks,j,i)  = u(IIE,ks,j,i) + kine;
+          u(fluidnum,IEN,ks,j,i)  = u(fluidnum,IIE,ks,j,i) + kine;
         }
       }
+    }
     }
   }
   // 3D-case
   else {
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=ks-NGHOST; k<=ke+NGHOST; ++k) {
       for (int j=js-NGHOST; j<=je+NGHOST; ++j) {
 //#pragma omp simd
         for (int i=is-NGHOST; i<=ie+NGHOST; ++i) {
-          etot = u(IEN,k,j,i); 
-          kine = 0.5*(SQR(u(IM1,k,j,i))+SQR(u(IM2,k,j,i))+SQR(u(IM3,k,j,i)) )/u(IDN,k,j,i);
+          etot = u(fluidnum,IEN,k,j,i); 
+          kine = 0.5*(SQR(u(fluidnum,IM1,k,j,i))+SQR(u(fluidnum,IM2,k,j,i))+SQR(u(fluidnum,IM3,k,j,i)) )/u(fluidnum,IDN,k,j,i);
           eint = etot - kine; 
           if ( ((eint/etot) < i1) || (etot <= 0.0) || (eint <= 0.0) ) {
-            u(IEN,k,j,i)  = u(IIE,k,j,i) + kine;
+            u(fluidnum,IEN,k,j,i)  = u(fluidnum,IIE,k,j,i) + kine;
           }
         }
       }
+    }
     }
   }
   return;

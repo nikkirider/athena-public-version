@@ -195,8 +195,9 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 
         for (int i=out_is; i<=out_ie; ++i) {
         for (int n=0; n<nvar; ++n) {
-          data[nvar*(i-out_is)+n] = static_cast<float>(pdata->data(n,k,j,i));
-        }}
+        for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+          data[(nvar*(i-out_is)+n)*fluidnum] = static_cast<float>(pdata->data(fluidnum,n,k,j,i));
+        }}}
 
         // write data in big endian order
         if (!big_end) {for (int i=0; i<(nvar*ncells1); ++i) Swap4Bytes(&data[i]);}

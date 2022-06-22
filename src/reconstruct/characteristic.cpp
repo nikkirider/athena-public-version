@@ -16,6 +16,8 @@
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 
+#define DEBUG_ALL
+
 //----------------------------------------------------------------------------------------
 //! \fn Reconstruction::LeftEigenmatrixDotVector()
 //  \brief Computes inner-product of left-eigenmatrix of Roe's matrix A in the primitive
@@ -220,43 +222,62 @@ void Reconstruction::LeftEigenmatrixDotVector(MeshBlock *pmb, const int ivx,
     // Adiabatic hydrodynamics -----------------------------------------------------------
     if (NON_BAROTROPIC_EOS) {
       Real gamma = pmb->peos->GetGamma();
+      for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+        Real gamma = pmb->peos->GetGamma();
+        if(fluidnum==1){
+          gamma = pmb->peos->GetGamma2();
+        }
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-        Real asq = gamma*w(IPR,i)/w(IDN,i);
-        Real a   = std::sqrt(asq);
+            Real asq = gamma*w(fluidnum,IPR,i)/w(fluidnum,IDN,i);
+            Real a   = std::sqrt(asq);
 
-        // Multiply row of L-eigenmatrix with vector using matrix elements from eq. A4
-        Real v_0 = 0.5*(vect(IPR,i)/asq - w(IDN,i)*vect(ivx,i)/a);
-        Real v_1 = vect(IDN,i) - vect(IPR,i)/asq;
-        Real v_2 = vect(ivy,i);
-        Real v_3 = vect(ivz,i);
-        Real v_4 = 0.5*(vect(IPR,i)/asq + w(IDN,i)*vect(ivx,i)/a);
+#ifdef DEBUG_ALL
+              fprintf(stdout,"CHARACTERISTIC_L! f%4i, idn=%13.5e, ivx=%13.5e, ivy=%13.5e, ivz=%13.5e, ipr=%13.5e\n",fluidnum,vect(fluidnum,IDN,i),vect(fluidnum,ivx,i),vect(fluidnum,ivy,i),vect(fluidnum,ivz,i),vect(fluidnum,IPR,i));
+#endif
 
-        vect(0,i) = v_0;
-        vect(1,i) = v_1;
-        vect(2,i) = v_2;
-        vect(3,i) = v_3;
-        vect(4,i) = v_4;
-      }
+          // Multiply row of L-eigenmatrix with vector using matrix elements from eq. A4
+            Real v_0 = 0.5*(vect(fluidnum,IPR,i)/asq - w(fluidnum,IDN,i)*vect(fluidnum,ivx,i)/a);
+            Real v_1 = vect(fluidnum,IDN,i) - vect(fluidnum,IPR,i)/asq;
+            Real v_2 = vect(fluidnum,ivy,i);
+            Real v_3 = vect(fluidnum,ivz,i);
+            Real v_4 = 0.5*(vect(fluidnum,IPR,i)/asq + w(fluidnum,IDN,i)*vect(fluidnum,ivx,i)/a);
+          
+            vect(fluidnum,0,i) = v_0;
+            vect(fluidnum,1,i) = v_1;
+            vect(fluidnum,2,i) = v_2;
+            vect(fluidnum,3,i) = v_3;
+            vect(fluidnum,4,i) = v_4;
+
+#ifdef DEBUG_ALL
+              fprintf(stdout,"CHARACTERISTICVECL! f%4i, v_0=%13.5e, v_1=%13.5e, v_2=%13.5e, v_3=%13.5e, v_4=%13.5e\n",fluidnum,v_0,v_1,v_2,v_3,v_4);
+#endif
+
+          }
+        }
+      
 
     // Isothermal hydrodynamics ----------------------------------------------------------
     } else {
       Real iso_cs = pmb->peos->GetIsoSoundSpeed();
+      for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
 #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+        for (int i=il; i<=iu; ++i) {
         // Multiply row of L-eigenmatrix with vector using matrix elements from eq. A7
-        Real v_0 = 0.5*(vect(IDN,i) - w(IDN,i)*vect(ivx,i)/iso_cs);
-        Real v_1 = vect(ivy,i);
-        Real v_2 = vect(ivz,i);
-        Real v_3 = 0.5*(vect(IDN,i) + w(IDN,i)*vect(ivx,i)/iso_cs);
+            Real v_0 = 0.5*(vect(fluidnum,IDN,i) - w(fluidnum,IDN,i)*vect(fluidnum,ivx,i)/iso_cs);
+            Real v_1 = vect(fluidnum,ivy,i);
+            Real v_2 = vect(fluidnum,ivz,i);
+            Real v_3 = 0.5*(vect(fluidnum,IDN,i) + w(fluidnum,IDN,i)*vect(fluidnum,ivx,i)/iso_cs);
 
-        vect(0,i) = v_0;
-        vect(1,i) = v_1;
-        vect(2,i) = v_2;
-        vect(3,i) = v_3;
+            vect(fluidnum,0,i) = v_0;
+            vect(fluidnum,1,i) = v_1;
+            vect(fluidnum,2,i) = v_2;
+            vect(fluidnum,3,i) = v_3;
+          }
+        }
       }
     }
-  }
+  
   return;
 }
 
@@ -457,47 +478,66 @@ void Reconstruction::RightEigenmatrixDotVector(MeshBlock *pmb, const int ivx,
   } else {
     // Adiabatic hydrodynamics -----------------------------------------------------------
     if (NON_BAROTROPIC_EOS) {
-      Real gamma = pmb->peos->GetGamma();
+      for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+        Real gamma = pmb->peos->GetGamma();
+        if(fluidnum==1){
+          gamma = pmb->peos->GetGamma2();
+        }
 #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
-        Real asq = gamma*w(IPR,i)/w(IDN,i);
-        Real a   = std::sqrt(asq);
+         for (int i=il; i<=iu; ++i) {
+             Real asq = gamma*w(fluidnum,IPR,i)/w(fluidnum,IDN,i);
+             Real a   = std::sqrt(asq);
 
-        // Multiply row of R-eigenmatrix with vector using matrix elements from eq. A3
-        // Components of vect() are addressed directly as they are input in permuted order
-        Real v_0 = vect(0,i) + vect(1,i) + vect(4,i);
-        Real v_1 = a*(vect(4,i) - vect(0,i))/w(IDN,i);
-        Real v_2 = vect(2,i);
-        Real v_3 = vect(3,i);
-        Real v_4 = asq*(vect(0,i) + vect(4,i));
+#ifdef DEBUG_ALL
+              fprintf(stdout,"CHARACTERISTIC_R! f%4i, idn=%13.5e, ivx=%13.5e, ivy=%13.5e, ivz=%13.5e, ipr=%13.5e\n",fluidnum,vect(fluidnum,IDN,i),vect(fluidnum,ivx,i),vect(fluidnum,ivy,i),vect(fluidnum,ivz,i),vect(fluidnum,IPR,i));
+#endif
 
-        // Permute components back into standard order for primitives on output
-        vect(IDN,i) = v_0;
-        vect(ivx,i) = v_1;
-        vect(ivy,i) = v_2;
-        vect(ivz,i) = v_3;
-        vect(IPR,i) = v_4;
-      }
+           // Multiply row of R-eigenmatrix with vector using matrix elements from eq. A3
+           //Components of vect() are addressed directly as they are input in permuted order
+             Real v_0 = vect(fluidnum,0,i) + vect(fluidnum,1,i) + vect(fluidnum,4,i);
+             Real v_1 = a*(vect(fluidnum,4,i) - vect(fluidnum,0,i))/w(fluidnum,IDN,i);
+             Real v_2 = vect(fluidnum,2,i);
+             Real v_3 = vect(fluidnum,3,i);
+             Real v_4 = asq*(vect(fluidnum,0,i) + vect(fluidnum,4,i));
+
+             vect(fluidnum,IDN,i) = v_0;
+             vect(fluidnum,ivx,i) = v_1;
+             vect(fluidnum,ivy,i) = v_2;
+             vect(fluidnum,ivz,i) = v_3;
+             vect(fluidnum,IPR,i) = v_4;
+
+#ifdef DEBUG_ALL
+              fprintf(stdout,"CHARACTERISTICVECR! f%4i, v_0=%13.5e, v_1=%13.5e, v_2=%13.5e, v_3=%13.5e, v_4=%13.5e\n",fluidnum,v_0,v_1,v_2,v_3,v_4);
+#endif
+
+        }
+        
+       }
+
 
     // Isothermal hydrodynamics ----------------------------------------------------------
     } else {
       Real iso_cs = pmb->peos->GetIsoSoundSpeed();
+      for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
 #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+        for (int i=il; i<=iu; ++i) {
         // Multiply row of R-eigenmatrix with vector using matrix elements from eq. A3
         // Components of vect() are addressed directly as they are input in permuted order
-        Real v_0 = vect(0,i) + vect(3,i);
-        Real v_1 = iso_cs*(vect(3,i) - vect(0,i))/w(IDN,i);
-        Real v_2 = vect(1,i);
-        Real v_3 = vect(2,i);
+ 
 
-        // Permute components back into standard order for primitives on output
-        vect(IDN,i) = v_0;
-        vect(ivx,i) = v_1;
-        vect(ivy,i) = v_2;
-        vect(ivz,i) = v_3;
+          Real v_0 = vect(fluidnum,0,i) + vect(fluidnum,3,i);
+          Real v_1 = iso_cs*(vect(fluidnum,3,i) - vect(fluidnum,0,i))/w(fluidnum,IDN,i);
+          Real v_2 = vect(fluidnum,1,i);
+          Real v_3 = vect(fluidnum,2,i);
+
+          vect(fluidnum,IDN,i) = v_0;
+          vect(fluidnum,ivx,i) = v_1;
+          vect(fluidnum,ivy,i) = v_2;
+          vect(fluidnum,ivz,i) = v_3;
+        }
       }
     }
   }
+  
   return;
 }

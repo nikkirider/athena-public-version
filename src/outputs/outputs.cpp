@@ -70,6 +70,8 @@
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
 
+#define DEBUG_ALL
+
 //Fix for to_string not being in std library:
 namespace patch
 {
@@ -202,12 +204,17 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
         // read ghost cell option
         op.include_ghost_zones=pin->GetOrAddBoolean(op.block_name,"ghost_zones",false);
 
-        // read ghost cell option
-        if (COORDINATE_SYSTEM == "cylindrical" || COORDINATE_SYSTEM == "spherical_polar")
-          op.cartesian_vector=pin->GetOrAddBoolean(op.block_name, "cartesian_vector",
-                                                   false);
-        else
+        // read cartesian vector option
+        if (NFLUIDS == 1) {
+          if (COORDINATE_SYSTEM == "cylindrical" || COORDINATE_SYSTEM == "spherical_polar")
+            op.cartesian_vector=pin->GetOrAddBoolean(op.block_name, "cartesian_vector",
+                                                     false);
+          else
+            op.cartesian_vector=false;
+        } else {
           op.cartesian_vector=false;
+          std::cout << "WARNING: No Cartesian vectors for NFLUIDS>1" << std::endl;
+        }
 
         // set output variable and optional data format string used in formatted writes
         if (op.file_type.compare("hst") != 0 && op.file_type.compare("rst") != 0) {
@@ -324,12 +331,37 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   // (lab-frame) density
   if (output_params.variable.compare("D") == 0 ||
       output_params.variable.compare("cons") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "dens";
-    pod->data.InitWithShallowSlice(phyd->u,4,IDN,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "dens";
+#ifdef DEBUG_ALL
+      fprintf(stdout,"VN=%s,pod=%p\n",pod->name.c_str(),pod);
+#endif
+      pod->data.InitWithShallowSlice(phyd->u,4,IDN,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        char vn[6];
+        sprintf(vn, "f%1ddens", fluidnum);
+        pod->name = vn;
+#ifdef DEBUG_ALL
+        fprintf(stdout,"FLUIDNUM=%1d,VN=%s,pod=%p\n",fluidnum,vn,pod);
+#endif
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->u,4,IDN,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   // (rest-frame) density
@@ -337,34 +369,93 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       output_params.variable.compare("prim") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "rho";
-    pod->data.InitWithShallowSlice(phyd->w,4,IDN,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+        pod->name = "rho";
+        pod->data.InitWithShallowSlice(phyd->w,4,IDN,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1drho", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->w,4,IDN,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   // total energy
   if (NON_BAROTROPIC_EOS) {
     if (output_params.variable.compare("E") == 0 ||
         output_params.variable.compare("cons") == 0) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = "Etot";
-      pod->data.InitWithShallowSlice(phyd->u,4,IEN,1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
+      if(NFLUIDS==1){
+          pod = new OutputData;
+          pod->type = "SCALARS";
+          pod->name = "Etot";
+#ifdef DEBUG_ALL
+          fprintf(stdout,"VN=%s,pod=%p\n",pod->name.c_str(),pod);
+#endif
+          pod->data.InitWithShallowSlice(phyd->u,4,IEN,1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+      }else{
+        for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+          pod = new OutputData;
+          pod->type = "SCALARS";
+          char vn[6];
+          sprintf(vn, "f%1dEtot", fluidnum);
+          pod->name = vn;
+          int fluidnum_new;
+          if(fluidnum==0){
+            fluidnum_new=fluidnum;
+          }else{
+            fluidnum_new=NHYDRO;
+          }
+#ifdef DEBUG_ALL
+          fprintf(stdout,"FLUIDNUM=%1d,VN=%s,pod=%p\n",fluidnum,vn,pod);
+#endif
+          pod->data.InitWithShallowSlice2Index(phyd->u,4,IEN,1,fluidnum_new);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }
+      }
     }
-		if (DUAL_ENERGY) {
-			if (output_params.variable.compare("IE") == 0 ||
-					output_params.variable.compare("cons") == 0) {
-				pod = new OutputData;
-				pod->type = "SCALARS";
-				pod->name = "Eint";
-				pod->data.InitWithShallowSlice(phyd->u,4,IIE,1);
-				AppendOutputDataNode(pod);
-				num_vars_++;
-			}
-		}
+    if (DUAL_ENERGY) {
+      if (output_params.variable.compare("IE") == 0 ||
+	  output_params.variable.compare("cons") == 0) {
+        pod = new OutputData;
+	pod->type = "SCALARS";
+        if(NFLUIDS==1){
+          pod->name = "Eint";
+          pod->data.InitWithShallowSlice(phyd->u,4,IIE,1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }else{
+          for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+            char vn[6];
+            sprintf(vn, "f%1dEint", fluidnum);
+            pod->name = vn;
+            int fluidnum_new;
+            if(fluidnum==0){
+              fluidnum_new=fluidnum;
+            }else{
+              fluidnum_new=NHYDRO;
+            }
+            pod->data.InitWithShallowSlice2Index(phyd->u,4,IIE,1,fluidnum_new);
+            AppendOutputDataNode(pod);
+            num_vars_++;
+          }
+      } 
+      }
+    }
   }
 
   // pressure
@@ -373,43 +464,114 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         output_params.variable.compare("prim") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
-      pod->name = "press";
-      pod->data.InitWithShallowSlice(phyd->w,4,IPR,1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
+        if(NFLUIDS==1){
+          pod->name = "press";
+          pod->data.InitWithShallowSlice(phyd->w,4,IPR,1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }else{
+          for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+            char vn[6];
+            sprintf(vn, "f%1dpress", fluidnum);
+            pod->name = vn;
+            int fluidnum_new;
+            if(fluidnum==0){
+              fluidnum_new=fluidnum;
+            }else{
+              fluidnum_new=NHYDRO;
+            }
+            pod->data.InitWithShallowSlice2Index(phyd->w,4,IPR,1,fluidnum_new);
+            AppendOutputDataNode(pod);
+            num_vars_++;
+          }
+        }
+      }
+    if (DUAL_ENERGY) {
+      if (output_params.variable.compare("IGE") == 0 ||
+          output_params.variable.compare("prim") == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        if(NFLUIDS==1){
+          pod->name = "IGint";
+          pod->data.InitWithShallowSlice(phyd->w,4,IGE,1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }else{
+          for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+            char vn[6];
+            sprintf(vn, "f%1dIGint", fluidnum);
+            pod->name = vn;
+            int fluidnum_new;
+            if(fluidnum==0){
+              fluidnum_new=fluidnum;
+            }else{
+              fluidnum_new=NHYDRO;
+            }
+            pod->data.InitWithShallowSlice2Index(phyd->w,4,IGE,1,fluidnum_new);
+            AppendOutputDataNode(pod);
+            num_vars_++;
+          }
+      }
+      }
     }
-		if (DUAL_ENERGY) {
-			if (output_params.variable.compare("IGE") == 0 ||
-					output_params.variable.compare("prim") == 0) {
-				pod = new OutputData;
-				pod->type = "SCALARS";
-				pod->name = "IGint";
-				pod->data.InitWithShallowSlice(phyd->w,4,IGE,1);
-				AppendOutputDataNode(pod);
-				num_vars_++;
-			}
-		}
   }
 
   // momentum vector
   if (output_params.variable.compare("m") == 0 ||
       output_params.variable.compare("cons") == 0) {
-    pod = new OutputData;
-    pod->type = "VECTORS";
-    pod->name = "mom";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM1,3);
-    AppendOutputDataNode(pod);
-    num_vars_+=3;
-    if (output_params.cartesian_vector) {
-      AthenaArray<Real> src;
-      src.InitWithShallowSlice(phyd->u,4,IM1,3);
+    if(NFLUIDS==1){
       pod = new OutputData;
       pod->type = "VECTORS";
-      pod->name = "mom_xyz";
-      pod->data.NewAthenaArray(3,phyd->u.GetDim3(),phyd->u.GetDim2(),phyd->u.GetDim1());
-      CalculateCartesianVector(src, pod->data, pmb->pcoord);
+      pod->name = "mom";
+#ifdef DEBUG_ALL
+      fprintf(stdout,"VN=%s,pod=%p\n",pod->name.c_str(),pod);
+#endif
+      pod->data.InitWithShallowSlice(phyd->u,4,IM1,3);
       AppendOutputDataNode(pod);
       num_vars_+=3;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        pod = new OutputData;
+        pod->type = "VECTORS";
+        char vn[8];
+        sprintf(vn, "f%1dmom", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+#ifdef DEBUG_ALL
+        fprintf(stdout,"FLUIDNUM=%1d,VN=%s,pod=%p\n",fluidnum,vn,pod);
+#endif
+        pod->data.InitWithShallowSlice2Index(phyd->u,4,IM1,3,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      }
+    }
+    if (output_params.cartesian_vector) {
+      AthenaArray<Real> srcf1, srcf2;
+      srcf1.InitWithShallowSlice2Index(phyd->u,4,IM1,3,0);
+      srcf2.InitWithShallowSlice2Index(phyd->u,4,IM1,3,1);
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        if(fluidnum==0){
+          pod->name = "mom_xyz";
+          pod->data.NewAthenaArray(3,phyd->u.GetDim3(),phyd->u.GetDim2(),phyd->u.GetDim1());
+          CalculateCartesianVector(srcf1, pod->data, pmb->pcoord);
+          AppendOutputDataNode(pod);
+        }else{
+          char vn[6];
+          sprintf(vn, "f%1dmom_xyz", fluidnum);
+          pod->name = vn;
+          pod->data.NewAthenaArray(3,phyd->u.GetDim3(),phyd->u.GetDim2(),phyd->u.GetDim1());
+          CalculateCartesianVector(srcf2, pod->data, pmb->pcoord);
+          AppendOutputDataNode(pod);
+        }
+        num_vars_+=3; 
+      }       
     }
   }
 
@@ -417,26 +579,77 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   if (output_params.variable.compare("m1") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "mom1";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM1,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+      pod->name = "mom1";
+      pod->data.InitWithShallowSlice(phyd->u,4,IM1,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1dmom1", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->u,4,IM1,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
   if (output_params.variable.compare("m2") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "mom2";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM2,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+        pod->name = "mom2";
+        pod->data.InitWithShallowSlice(phyd->u,4,IM2,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1dmom2", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->u,4,IM2,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
   if (output_params.variable.compare("m3") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "mom3";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM3,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+        pod->name = "mom3";
+        pod->data.InitWithShallowSlice(phyd->u,4,IM3,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){  
+        char vn[6];
+        sprintf(vn, "f%1dmom3", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->u,4,IM3,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   // velocity vector
@@ -444,20 +657,49 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       output_params.variable.compare("prim") == 0) {
     pod = new OutputData;
     pod->type = "VECTORS";
-    pod->name = "vel";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVX,3);
-    AppendOutputDataNode(pod);
-    num_vars_+=3;
+    if(NFLUIDS==1){
+        pod->name = "vel";
+        pod->data.InitWithShallowSlice(phyd->w,4,IVX,3);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1dvel", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->w,4,IVX,3,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      } 
+    }
     if (output_params.cartesian_vector) {
-      AthenaArray<Real> src;
-      src.InitWithShallowSlice(phyd->w,4,IVX,3);
+      AthenaArray<Real> srcf1, srcf2;
+      srcf1.InitWithShallowSlice2Index(phyd->w,4,IVX,3,0);
+      srcf2.InitWithShallowSlice2Index(phyd->w,4,IVX,3,1);
       pod = new OutputData;
       pod->type = "VECTORS";
-      pod->name = "vel_xyz";
-      pod->data.NewAthenaArray(3,phyd->w.GetDim3(),phyd->w.GetDim2(),phyd->w.GetDim1());
-      CalculateCartesianVector(src, pod->data, pmb->pcoord);
-      AppendOutputDataNode(pod);
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        if(fluidnum==0){
+          pod->name = "vel_xyz";
+          pod->data.NewAthenaArray(3,phyd->w.GetDim3(),phyd->w.GetDim2(),phyd->w.GetDim1());
+          CalculateCartesianVector(srcf1, pod->data, pmb->pcoord);
+          AppendOutputDataNode(pod);
+        }else{
+          char vn[6];
+          sprintf(vn, "f%1dvel_xyz", fluidnum);
+          pod->name = vn;
+          pod->data.NewAthenaArray(3,phyd->w.GetDim3(),phyd->w.GetDim2(),phyd->w.GetDim1());
+          CalculateCartesianVector(srcf2, pod->data, pmb->pcoord);
+          AppendOutputDataNode(pod);
+        }
       num_vars_+=3;
+      }
     }
   }
 
@@ -466,28 +708,79 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       output_params.variable.compare("v1") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "vel1";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVX,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+        pod->name = "vel1";
+        pod->data.InitWithShallowSlice(phyd->w,4,IVX,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1dvel1", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->w,4,IVX,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
   if (output_params.variable.compare("vy") == 0 ||
       output_params.variable.compare("v2") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "vel2";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVY,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==1){
+        pod->name = "vel2";
+        pod->data.InitWithShallowSlice(phyd->w,4,IVY,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1dvel2", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->w,4,IVY,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
   if (output_params.variable.compare("vz") == 0 ||
       output_params.variable.compare("v3") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
-    pod->name = "vel3";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVZ,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    if(NFLUIDS==0){
+        pod->name = "vel3";
+        pod->data.InitWithShallowSlice(phyd->w,4,IVZ,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+    }else{
+      for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        char vn[6];
+        sprintf(vn, "f%1dvel3", fluidnum);
+        pod->name = vn;
+        int fluidnum_new;
+        if(fluidnum==0){
+          fluidnum_new=fluidnum;
+        }else{
+          fluidnum_new=NHYDRO;
+        }
+        pod->data.InitWithShallowSlice2Index(phyd->w,4,IVZ,1,fluidnum_new);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   if (SELF_GRAVITY_ENABLED) {
@@ -496,99 +789,127 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         output_params.variable.compare("cons") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
-      pod->name = "Phi";
-      pod->data.InitWithShallowSlice(pgrav->phi,4,0,1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
+      if(NFLUIDS==1){
+          pod->name = "Phi";
+          pod->data.InitWithShallowSlice(pgrav->phi,4,0,1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+      }else{
+        for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+          char vn[6];
+          sprintf(vn, "f%1dPhi", fluidnum);
+          pod->name = vn;
+          int fluidnum_new;
+          if(fluidnum==0){
+            fluidnum_new=fluidnum;
+          }else{
+            fluidnum_new=NHYDRO;
+          }
+          pod->data.InitWithShallowSlice2Index(pgrav->phi,4,0,1,fluidnum_new);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }
+      }
     }
   } // endif (SELF_GRAVITY_ENABLED)
 
-	if (NSCALARS > 0) {
-		if (output_params.variable.compare("prim") == 0 ||
-			  output_params.variable.compare("cons") == 0 ) {
-			for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) {
-				pod = new OutputData;
-				pod->type = "SCALARS";
-				pod->name = "s" + patch::to_string(n-NHYDRO+NSCALARS); 
-				pod->data.InitWithShallowSlice(phyd->u,4,n,1);
-				AppendOutputDataNode(pod);
-				num_vars_++; 
-			}
-		}
-	}
+  if (NSCALARS > 0) {
+    if (output_params.variable.compare("prim") == 0 ||
+        output_params.variable.compare("cons") == 0 ) {
+      for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        if(NFLUIDS==1){
+            pod->name = "s" + patch::to_string(n-NHYDRO+NSCALARS);
+            pod->data.InitWithShallowSlice(phyd->u,4,n,1);
+            AppendOutputDataNode(pod);
+            num_vars_++;
+        }else{
+          for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+            char vn[6];
+            sprintf(vn, "%1d", fluidnum);
+            pod->name = "s" + patch::to_string(n-NHYDRO+NSCALARS)+vn;
+            pod->data.InitWithShallowSlice2Index(phyd->u,4,n,1,fluidnum);
+            AppendOutputDataNode(pod);
+	    num_vars_++; 
+          }
+        }
+      }
+    }
+  }
 
-	if (CLESS_ENABLED) {
-		if (output_params.variable.compare("cons") == 0) {
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "dcl"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IDN,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+  if (CLESS_ENABLED) {
+    if (output_params.variable.compare("cons") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "dcl"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IDN,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-			pod = new OutputData;
-			pod->type = "VECTORS";
-			pod->name = "Mcl";
-			pod->data.InitWithShallowSlice(pcle->u,4,IM1,3);
-			AppendOutputDataNode(pod);
-			num_vars_+=3;
-			if (output_params.cartesian_vector) {
-				AthenaArray<Real> src;
-				src.InitWithShallowSlice(pcle->u,4,IM1,3);
-				pod = new OutputData;
-				pod->type = "VECTORS";
-				pod->name = "Mcl_xyz";
-				pod->data.NewAthenaArray(3,pcle->u.GetDim3(),pcle->u.GetDim2(),pcle->u.GetDim1());
-				CalculateCartesianVector(src, pod->data, pmb->pcoord);
-				AppendOutputDataNode(pod);
-				num_vars_+=3;
-			}
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "Mcl";
+      pod->data.InitWithShallowSlice(pcle->u,4,IM1,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+      if (output_params.cartesian_vector) {
+        AthenaArray<Real> src;
+	src.InitWithShallowSlice(pcle->u,4,IM1,3);
+	pod = new OutputData;
+	pod->type = "VECTORS";
+	pod->name = "Mcl_xyz";
+	pod->data.NewAthenaArray(3,pcle->u.GetDim3(),pcle->u.GetDim2(),pcle->u.GetDim1());
+	CalculateCartesianVector(src, pod->data, pmb->pcoord);
+	AppendOutputDataNode(pod);
+	num_vars_+=3;
+      }
 
-			// output Eij as scalars 
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "E11"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IE11,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+      // output Eij as scalars 
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "E11"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IE11,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "E22"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IE22,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "E22"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IE22,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "E33"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IE33,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "E33"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IE33,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "E12"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IE12,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "E12"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IE12,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "E13"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IE13,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "E13"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IE13,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-			pod = new OutputData;
-			pod->type = "SCALARS";
-			pod->name = "E23"; 
-			pod->data.InitWithShallowSlice(pcle->u,4,IE23,1);
-			AppendOutputDataNode(pod);
-			num_vars_++; 
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "E23"; 
+      pod->data.InitWithShallowSlice(pcle->u,4,IE23,1);
+      AppendOutputDataNode(pod);
+      num_vars_++; 
 
-		}
-	}
+    }
+  }
 
   if (MAGNETIC_FIELDS_ENABLED) {
     // vector of cell-centered magnetic field
@@ -607,7 +928,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         pod = new OutputData;
         pod->type = "VECTORS";
         pod->name = "Bcc_xyz";
-        pod->data.NewAthenaArray(3, pfld->bcc.GetDim3(), pfld->bcc.GetDim2(),
+        pod->data.NewAthenaArray(NFLUIDS,3, pfld->bcc.GetDim3(), pfld->bcc.GetDim2(),
                                  pfld->bcc.GetDim1());
         CalculateCartesianVector(src, pod->data, pmb->pcoord);
         AppendOutputDataNode(pod);
@@ -672,6 +993,8 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   if (output_params.variable.compare(0, 3, "uov") == 0
    || output_params.variable.compare(0, 12, "user_out_var") == 0) {
     int iv, ns=0, ne=pmb->nuser_out_var-1;
+
+
     if (sscanf(output_params.variable.c_str(), "uov%d", &iv)>0) {
       if (iv>=0 && iv<pmb->nuser_out_var)
         ns=iv, ne=iv;
@@ -679,24 +1002,33 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       if (iv>=0 && iv<pmb->nuser_out_var)
         ns=iv, ne=iv;
     }
-    for (int n = ns; n <= ne; ++n) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      if (pmb->user_out_var_names_[n].length()!=0) {
-        pod->name=pmb->user_out_var_names_[n];
-      } else {
-        char vn[16];
-        sprintf(vn, "user_out_var%d", n);
-        pod->name = vn;
+      for (int n = ns; n <= ne; ++n) {
+//    for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        if (pmb->user_out_var_names_[n].length()!=0) {
+          pod->name=pmb->user_out_var_names_[n];  
+        } else {
+          char vn[16];
+          sprintf(vn, "user_out_var%d", n);
+          pod->name = vn;
+        }
+        if(NFLUIDS==1){
+          pod->data.InitWithShallowSlice(pmb->user_out_var,4,n,1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }else{
+          for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+            pod->data.InitWithShallowSlice2Index(pmb->user_out_var,4,n,1,fluidnum);
+            AppendOutputDataNode(pod);
+            num_vars_++;
+          }
+        }
       }
-      pod->data.InitWithShallowSlice(pmb->user_out_var,4,n,1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
+//    }
   }
 
   for (int n = 0; n < pmb->nuser_out_var; ++n) {
-    if (pmb->user_out_var_names_[n].length()!=0) {
       if (output_params.variable.compare(pmb->user_out_var_names_[n]) == 0) {
         pod = new OutputData;
         pod->type = "SCALARS";
@@ -705,7 +1037,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         AppendOutputDataNode(pod);
         num_vars_++;
       }
-    }
   }
 
   // throw an error if output variable name not recognized
@@ -798,6 +1129,7 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
       }
       ptype->WriteOutputFile(pm, pin, wtflag);
     }
+    //fprintf(stdout,"ptype=%p\n",ptype);
     ptype = ptype->pnext_type; // move to next OutputType in list
   }
 }
@@ -897,29 +1229,32 @@ bool OutputType::SliceOutputData(MeshBlock *pmb, int dim) {
 
     // Loop over variables and dimensions, extract slice
     if (dim == 3) {
-      pnew->data.NewAthenaArray(nx4,1,nx2,nx1);
+      pnew->data.NewAthenaArray(NFLUIDS,nx4,1,nx2,nx1);
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int n=0; n<nx4; ++n) {
       for (int j=out_js; j<=out_je; ++j) {
         for (int i=out_is; i<=out_ie; ++i) {
-          pnew->data(n,0,j,i) = pdata->data(n,kslice,j,i);
+          pnew->data(fluidnum,n,0,j,i) = pdata->data(fluidnum,n,kslice,j,i);
         }
-      }}
+      }}}
     } else if (dim == 2) {
-      pnew->data.NewAthenaArray(nx4,nx3,1,nx1);
+      pnew->data.NewAthenaArray(NFLUIDS,nx4,nx3,1,nx1);
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int n=0; n<nx4; ++n) {
       for (int k=out_ks; k<=out_ke; ++k) {
         for (int i=out_is; i<=out_ie; ++i) {
-          pnew->data(n,k,0,i) = pdata->data(n,k,jslice,i);
+          pnew->data(fluidnum,n,k,0,i) = pdata->data(fluidnum,n,k,jslice,i);
         }
-      }}
+      }}}
     } else {
-      pnew->data.NewAthenaArray(nx4,nx3,nx2,1);
+      pnew->data.NewAthenaArray(NFLUIDS,nx4,nx3,nx2,1);
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int n=0; n<nx4; ++n) {
       for (int k=out_ks; k<=out_ke; ++k) {
         for (int j=out_js; j<=out_je; ++j) {
-          pnew->data(n,k,j,0) = pdata->data(n,k,j,islice);
+          pnew->data(fluidnum,n,k,j,0) = pdata->data(fluidnum,n,k,j,islice);
         }
-      }}
+      }}}
     }
 
     ReplaceOutputDataNode(pdata,pnew);
@@ -963,32 +1298,35 @@ void OutputType::SumOutputData(MeshBlock* pmb, int dim) {
 
     // Loop over variables and dimensions, sum over specified dimension
     if (dim == 3) {
-      pnew->data.NewAthenaArray(nx4,1,nx2,nx1);
+      pnew->data.NewAthenaArray(NFLUIDS,nx4,1,nx2,nx1);
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int n=0; n<nx4; ++n) {
       for (int k=out_ks; k<=out_ke; ++k) {
       for (int j=out_js; j<=out_je; ++j) {
         for (int i=out_is; i<=out_ie; ++i) {
-          pnew->data(n,0,j,i) += pdata->data(n,k,j,i);
+          pnew->data(fluidnum,n,0,j,i) += pdata->data(fluidnum,n,k,j,i);
         }
-      }}}
+      }}}}
     } else if (dim == 2) {
-      pnew->data.NewAthenaArray(nx4,nx3,1,nx1);
+      pnew->data.NewAthenaArray(NFLUIDS,nx4,nx3,1,nx1);
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int n=0; n<nx4; ++n) {
       for (int k=out_ks; k<=out_ke; ++k) {
       for (int j=out_js; j<=out_je; ++j) {
         for (int i=out_is; i<=out_ie; ++i) {
-          pnew->data(n,k,0,i) += pdata->data(n,k,j,i);
+          pnew->data(fluidnum,n,k,0,i) += pdata->data(fluidnum,n,k,j,i);
         }
-      }}}
+      }}}}
     } else {
-      pnew->data.NewAthenaArray(nx4,nx3,nx2,1);
+      pnew->data.NewAthenaArray(NFLUIDS,nx4,nx3,nx2,1);
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int n=0; n<nx4; ++n) {
       for (int k=out_ks; k<=out_ke; ++k) {
       for (int j=out_js; j<=out_je; ++j) {
         for (int i=out_is; i<=out_ie; ++i) {
-          pnew->data(n,k,j,0) += pdata->data(n,k,j,i);
+          pnew->data(fluidnum,n,k,j,0) += pdata->data(fluidnum,n,k,j,i);
         }
-      }}}
+      }}}}
     }
 
     ReplaceOutputDataNode(pdata,pnew);
@@ -1021,6 +1359,7 @@ void OutputType::CalculateCartesianVector(AthenaArray<Real> &src, AthenaArray<Re
   Real n1x,n1y,n1z,n2x,n2y,n2z,n3x,n3y,n3z;
   if (COORDINATE_SYSTEM == "spherical_polar") {
     if (out_ks==out_ke) { // 2D
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
       for (int k=out_ks; k<=out_ke; k++) {
         for (int j=out_js; j<=out_je; j++) {
           n1x=sin(pco->x2v(j));
@@ -1028,14 +1367,15 @@ void OutputType::CalculateCartesianVector(AthenaArray<Real> &src, AthenaArray<Re
           n2x=cos(pco->x2v(j));
           n2z=-sin(pco->x2v(j));
           for (int i=out_is; i<=out_ie; i++) {
-            dst(0,k,j,i)=src(0,k,j,i)*n1x+src(1,k,j,i)*n2x;
-            dst(1,k,j,i)=src(2,k,j,i);
-            dst(2,k,j,i)=src(0,k,j,i)*n1z+src(1,k,j,i)*n2z;
+            dst(fluidnum,0,k,j,i)=src(fluidnum,0,k,j,i)*n1x+src(fluidnum,1,k,j,i)*n2x;
+            dst(fluidnum,1,k,j,i)=src(fluidnum,2,k,j,i);
+            dst(fluidnum,2,k,j,i)=src(fluidnum,0,k,j,i)*n1z+src(fluidnum,1,k,j,i)*n2z;
           }
         }
-      }
+      }}
     } else { // 3D
       for (int k=out_ks; k<=out_ke; k++) {
+      for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
         n3x=-sin(pco->x3v(k));
         n3y=cos(pco->x3v(k));
         n3z=0.0;
@@ -1047,15 +1387,16 @@ void OutputType::CalculateCartesianVector(AthenaArray<Real> &src, AthenaArray<Re
           n2y=cos(pco->x2v(j))*sin(pco->x3v(k));
           n2z=-sin(pco->x2v(j));
           for (int i=out_is; i<=out_ie; i++) {
-            dst(0,k,j,i)=src(0,k,j,i)*n1x+src(1,k,j,i)*n2x+src(2,k,j,i)*n3x;
-            dst(1,k,j,i)=src(0,k,j,i)*n1y+src(1,k,j,i)*n2y+src(2,k,j,i)*n3y;
-            dst(2,k,j,i)=src(0,k,j,i)*n1z+src(1,k,j,i)*n2z+src(2,k,j,i)*n3z;
-          }
+            dst(fluidnum,0,k,j,i)=src(fluidnum,0,k,j,i)*n1x+src(fluidnum,1,k,j,i)*n2x+src(fluidnum,2,k,j,i)*n3x;
+            dst(fluidnum,1,k,j,i)=src(fluidnum,0,k,j,i)*n1y+src(fluidnum,1,k,j,i)*n2y+src(fluidnum,2,k,j,i)*n3y;
+            dst(fluidnum,2,k,j,i)=src(fluidnum,0,k,j,i)*n1z+src(fluidnum,1,k,j,i)*n2z+src(fluidnum,2,k,j,i)*n3z;
+         } 
         }
-      }
+      }}
     }
   }
   if (COORDINATE_SYSTEM == "cylindrical") {
+    for (int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
     for (int k=out_ks; k<=out_ke; k++) {
       for (int j=out_js; j<=out_je; j++) {
         n1x=cos(pco->x2v(j));
@@ -1063,12 +1404,12 @@ void OutputType::CalculateCartesianVector(AthenaArray<Real> &src, AthenaArray<Re
         n2x=-sin(pco->x2v(j));
         n2y=cos(pco->x2v(j));
         for (int i=out_is; i<=out_ie; i++) {
-          dst(0,k,j,i)=src(0,k,j,i)*n1x+src(1,k,j,i)*n2x;
-          dst(1,k,j,i)=src(0,k,j,i)*n1y+src(1,k,j,i)*n2y;
-          dst(2,k,j,i)=src(2,k,j,i);
+          dst(fluidnum,0,k,j,i)=src(fluidnum,0,k,j,i)*n1x+src(fluidnum,1,k,j,i)*n2x;
+          dst(fluidnum,1,k,j,i)=src(fluidnum,0,k,j,i)*n1y+src(fluidnum,1,k,j,i)*n2y;
+          dst(fluidnum,2,k,j,i)=src(fluidnum,2,k,j,i);
         }
       }
-    }
+    }}
   }
   return;
 }

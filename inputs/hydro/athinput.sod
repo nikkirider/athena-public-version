@@ -51,6 +51,7 @@ num_threads = 1         # maximum number of OMP threads
 
 <hydro>
 gamma           = 3.0   # gamma = C_p/C_v
+gamma2          = 2.0
 iso_sound_speed = 1.0   # isothermal sound speed
 
 <problem>

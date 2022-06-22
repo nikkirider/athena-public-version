@@ -353,7 +353,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, enum BoundaryFlag *input_bcs,
           block_bcs[INNER_X1] = SHEAR_PERIODIC_BNDRY;
           BoundaryFunction_[INNER_X1] = NULL;
         }
-        shboxvar_inner_hydro_.NewAthenaArray(NHYDRO,ncells3,ncells2,NGHOST);
+        shboxvar_inner_hydro_.NewAthenaArray(NFLUIDS,NHYDRO,ncells3,ncells2,NGHOST);
         flx_inner_hydro_.NewAthenaArray(ncells2);
         if (MAGNETIC_FIELDS_ENABLED) {
           shboxvar_inner_field_.x1f.NewAthenaArray(ncells3,ncells2,NGHOST);
@@ -442,7 +442,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, enum BoundaryFlag *input_bcs,
           block_bcs[OUTER_X1] = SHEAR_PERIODIC_BNDRY;
           BoundaryFunction_[OUTER_X1] = NULL;
         }
-        shboxvar_outer_hydro_.NewAthenaArray(NHYDRO,ncells3,ncells2,NGHOST);
+        shboxvar_outer_hydro_.NewAthenaArray(NFLUIDS,NHYDRO,ncells3,ncells2,NGHOST);
         flx_outer_hydro_.NewAthenaArray(ncells2);
         if (MAGNETIC_FIELDS_ENABLED) {
           shboxvar_outer_field_.x1f.NewAthenaArray(ncells3,ncells2,NGHOST);
@@ -1596,6 +1596,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
       pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
         pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
     }
+    fprintf(stdout,"inner bvals\n");
     pmb->peos->PrimitiveToConserved(pdst, bcdst, cdst, pco,
       pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
   }
@@ -1608,6 +1609,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
       pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
         pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
     }
+    fprintf(stdout,"outer bvals\n");
     pmb->peos->PrimitiveToConserved(pdst, bcdst, cdst, pco,
       pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
   }
@@ -1909,6 +1911,7 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
       }
     }
 
+    fprintf(stdout,"bvals later\n");
     pmb->peos->ConservedToPrimitive(pmr->coarse_cons_, pmr->coarse_prim_,
                  pmr->coarse_b_, pmr->coarse_prim_, pmr->coarse_bcc_, pmr->pcoarsec,
                  si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p);

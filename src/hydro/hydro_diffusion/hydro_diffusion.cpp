@@ -38,9 +38,9 @@ HydroDiffusion::HydroDiffusion(Hydro *phyd, ParameterInput *pin) {
   if (nu_iso > 0.0 || nu_aniso  > 0.0) {
     hydro_diffusion_defined = true;
     // Allocate memory for fluxes.
-    visflx[X1DIR].NewAthenaArray(NHYDRO,ncells3,ncells2,ncells1+1);
-    visflx[X2DIR].NewAthenaArray(NHYDRO,ncells3,ncells2+1,ncells1);
-    visflx[X3DIR].NewAthenaArray(NHYDRO,ncells3+1,ncells2,ncells1);
+    visflx[X1DIR].NewAthenaArray(NFLUIDS,NHYDRO,ncells3,ncells2,ncells1+1);
+    visflx[X2DIR].NewAthenaArray(NFLUIDS,NHYDRO,ncells3,ncells2+1,ncells1);
+    visflx[X3DIR].NewAthenaArray(NFLUIDS,NHYDRO,ncells3+1,ncells2,ncells1);
     x1area_.NewAthenaArray(ncells1+1);
     x2area_.NewAthenaArray(ncells1);
     x3area_.NewAthenaArray(ncells1);
@@ -52,7 +52,7 @@ HydroDiffusion::HydroDiffusion(Hydro *phyd, ParameterInput *pin) {
     fz_.NewAthenaArray(ncells1);
     divv_.NewAthenaArray(ncells3,ncells2,ncells1);
 
-    nu.NewAthenaArray(2,ncells3,ncells2,ncells1);
+    nu.NewAthenaArray(NFLUIDS,2,ncells3,ncells2,ncells1);
     if(pmb_->pmy_mesh->ViscosityCoeff_==NULL)
       CalcViscCoeff_ = ConstViscosity;
     else
@@ -65,11 +65,13 @@ HydroDiffusion::HydroDiffusion(Hydro *phyd, ParameterInput *pin) {
     kappa_aniso  = pin->GetOrAddReal("problem","kappa_aniso",0.0); // aniso conduction
     if (kappa_iso > 0.0 || kappa_aniso > 0.0) {
       hydro_diffusion_defined = true;
-      cndflx[X1DIR].NewAthenaArray(ncells3,ncells2,ncells1+1);
-      cndflx[X2DIR].NewAthenaArray(ncells3,ncells2+1,ncells1);
-      cndflx[X3DIR].NewAthenaArray(ncells3+1,ncells2,ncells1);
+      for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+        cndflx[X1DIR].NewAthenaArray(fluidnum,ncells3,ncells2,ncells1+1);
+        cndflx[X2DIR].NewAthenaArray(fluidnum,ncells3,ncells2+1,ncells1);
+        cndflx[X3DIR].NewAthenaArray(fluidnum,ncells3+1,ncells2,ncells1);
+      }
 
-      kappa.NewAthenaArray(2,ncells3,ncells2,ncells1);
+      kappa.NewAthenaArray(NFLUIDS,2,ncells3,ncells2,ncells1);
       if(pmb_->pmy_mesh->ConductionCoeff_==NULL)
         CalcCondCoeff_ = ConstConduction;
       else
@@ -159,22 +161,24 @@ void HydroDiffusion::AddHydroDiffusionEnergyFlux(AthenaArray<Real> *flux_src,
   AthenaArray<Real> &x2diflx=flux_src[X2DIR];
   AthenaArray<Real> &x3diflx=flux_src[X3DIR];
 
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        x1flux(IEN,k,j,i) += x1diflx(k,j,i);
-        if(i==ie) x1flux(IEN,k,j,i+1) += x1diflx(k,j,i+1);
+        x1flux(fluidnum,IEN,k,j,i) += x1diflx(fluidnum,k,j,i);
+        if(i==ie) x1flux(fluidnum,IEN,k,j,i+1) += x1diflx(fluidnum,k,j,i+1);
         if (pmb_->block_size.nx2 > 1) {
-          x2flux(IEN,k,j,i) += x2diflx(k,j,i);
-          if(j==je) x2flux(IEN,k,j+1,i) += x2diflx(k,j+1,i);
+          x2flux(fluidnum,IEN,k,j,i) += x2diflx(fluidnum,k,j,i);
+          if(j==je) x2flux(fluidnum,IEN,k,j+1,i) += x2diflx(fluidnum,k,j+1,i);
        }
         if (pmb_->block_size.nx3 > 1) {
-          x3flux(IEN,k,j,i) += x3diflx(k,j,i);
-          if(k==ke) x3flux(IEN,k+1,j,i) += x3diflx(k+1,j,i);
+          x3flux(fluidnum,IEN,k,j,i) += x3diflx(fluidnum,k,j,i);
+          if(k==ke) x3flux(fluidnum,IEN,k+1,j,i) += x3diflx(fluidnum,k+1,j,i);
         }
       }
     }
+  }
   }
 
   return;
@@ -281,6 +285,7 @@ void HydroDiffusion::NewHydroDiffusionDt(Real &dt_vis, Real &dt_cnd) {
   dx2.InitWithShallowCopy(dx2_);
   dx3.InitWithShallowCopy(dx3_);
 
+  for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
@@ -290,19 +295,19 @@ void HydroDiffusion::NewHydroDiffusionDt(Real &dt_vis, Real &dt_cnd) {
       }
       if (nu_iso > 0.0) {
 #pragma omp simd
-        for (int i=is; i<=ie; ++i) nu_t(i) += nu(ISO,k,j,i);
+        for (int i=is; i<=ie; ++i) nu_t(i) += nu(fluidnum,ISO,k,j,i);
       }
       if (nu_aniso > 0.0) {
 #pragma omp simd
-        for (int i=is; i<=ie; ++i) nu_t(i) += nu(ANI,k,j,i);
+        for (int i=is; i<=ie; ++i) nu_t(i) += nu(fluidnum,ANI,k,j,i);
       }
       if (kappa_iso > 0.0) {
 #pragma omp simd
-        for (int i=is; i<=ie; ++i) kappa_t(i) += kappa(ISO,k,j,i);
+        for (int i=is; i<=ie; ++i) kappa_t(i) += kappa(fluidnum,ISO,k,j,i);
       }
       if (kappa_aniso > 0.0) {
 #pragma omp simd
-        for (int i=is; i<=ie; ++i) kappa_t(i) += kappa(ANI,k,j,i);
+        for (int i=is; i<=ie; ++i) kappa_t(i) += kappa(fluidnum,ANI,k,j,i);
       }
       pmb_->pcoord->CenterWidth1(k,j,is,ie,len);
       pmb_->pcoord->CenterWidth2(k,j,is,ie,dx2);
@@ -323,6 +328,6 @@ void HydroDiffusion::NewHydroDiffusionDt(Real &dt_vis, Real &dt_cnd) {
                                   *fac/(kappa_t(i)+TINY_NUMBER)));
       }
     }
-  }
+  }}
   return;
 }

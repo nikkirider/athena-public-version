@@ -113,6 +113,7 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
     fprintf(pfile,"\n"); // terminate line
 
     // loop over all cells in data arrays
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=out_ks; k<=out_ke; ++k) {
     for (int j=out_js; j<=out_je; ++j) {
     for (int i=out_is; i<=out_ie; ++i) {
@@ -135,13 +136,13 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
       OutputData *pdata = pfirst_data_;
       while (pdata != NULL) {
         for (int n=0; n<(pdata->data.GetDim4()); ++n) {
-          fprintf(pfile, output_params.data_format.c_str(), pdata->data(n,k,j,i));
+          fprintf(pfile, output_params.data_format.c_str(), pdata->data(fluidnum,n,k,j,i));
         }
         pdata = pdata->pnext;
       }
 
       fprintf(pfile,"\n"); // terminate line
-    }}}
+    }}}}
 
     // don't forget to close the output file and clean up ptrs to data in OutputData
     fclose(pfile);

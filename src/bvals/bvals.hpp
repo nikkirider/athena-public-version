@@ -308,7 +308,7 @@ public:
                                             const int nb);
   bool ReceiveHydroShearingboxBoundaryBuffers(AthenaArray<Real> &dst);
   void FindShearBlock(const Real time);
-  void RemapFlux(const int n, const int k, const int jinner, const int jouter,
+  void RemapFlux(const int fluidnum, const int n, const int k, const int jinner, const int jouter,
                  const int i, const Real eps, const AthenaArray<Real> &U,
                  AthenaArray<Real> &Flux);
   // Shearingbox Field

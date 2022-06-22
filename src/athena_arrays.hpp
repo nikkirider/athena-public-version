@@ -81,6 +81,8 @@ public:
   void InitWithShallowCopy(AthenaArray<T> &src);
   void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx,
     const int nvar);
+  void InitWithShallowSlice2Index(AthenaArray<T> &src, const int dim, const int indx,
+    const int nvar, const int fluidnum);
 
 private:
   T *pdata_;
@@ -198,6 +200,58 @@ void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
     nx2_=1;
     nx1_=nvar;
     pdata_ += indx;
+  }
+  scopy_ = true;
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+////! \fn AthenaArray::InitWithShallowSlice2Index()
+////  \brief shallow copy of nvar elements in dimension dim of an array, starting at
+////  index=indx.  Copies pointers to data, but not data itself.
+//
+
+template<typename T>
+void AthenaArray<T>::InitWithShallowSlice2Index(AthenaArray<T> &src, const int dim,
+  const int indx, const int nvar, const int fluidnum) {
+  
+  pdata_ = src.pdata_;
+ 
+  if (dim == 5) {
+    nx5_=nvar;
+    nx4_=src.nx4_;
+    nx3_=src.nx3_;
+    nx2_=src.nx2_;
+    nx1_=src.nx1_;
+    pdata_ += (fluidnum+indx)*(nx1_*nx2_*nx3_*nx4_);
+  } else if (dim == 4) {//our case
+    nx5_=1;
+    nx4_=nvar;
+    nx3_=src.nx3_;
+    nx2_=src.nx2_;
+    nx1_=src.nx1_;
+    pdata_ += (fluidnum+indx)*(nx1_*nx2_*nx3_);
+  } else if (dim == 3) {
+    nx5_=1;
+    nx4_=1;
+    nx3_=nvar;
+    nx2_=src.nx2_;
+    nx1_=src.nx1_;
+    pdata_ += (fluidnum+indx)*(nx1_*nx2_);
+  } else if (dim == 2) {
+    nx5_=1;
+    nx4_=1;
+    nx3_=1;
+    nx2_=nvar;
+    nx1_=src.nx1_;
+    pdata_ += (fluidnum+indx)*(nx1_);
+  } else if (dim == 1) {
+    nx5_=1;
+    nx4_=1;
+    nx3_=1;
+    nx2_=1;
+    nx1_=nvar;
+    pdata_ += (fluidnum+indx);
   }
   scopy_ = true;
   return;

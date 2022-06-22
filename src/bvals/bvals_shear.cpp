@@ -94,7 +94,7 @@ void BoundaryValues::LoadHydroShearing(AthenaArray<Real> &src, Real *buf, int nb
   }
 
   int p=0;
-  BufferUtility::Pack4DData(src, buf, 0, NHYDRO-1, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::Pack5DData(src, buf, 0, NHYDRO-1, si, ei, sj, ej, sk, ek, p);
 
   return;
 }
@@ -126,41 +126,45 @@ void BoundaryValues::SendHydroShearingboxBoundaryBuffersForInit(AthenaArray<Real
 
   if (shbb_.inner == true) {
     // step 1. -- add shear to the inner periodic boundary values
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int k=kl; k<=ku; k++) {
       for (int j=js-NGHOST; j<=je+NGHOST; j++) {
         for (int i=0; i<NGHOST; i++) {
           // add shear to conservative
-          shboxvar_inner_hydro_(IM2,k,j,i) = src(IM2,k,j,i)
-                                            +qomL*src(IDN,k,j,i);
+          shboxvar_inner_hydro_(fluidnum,IM2,k,j,i) = src(fluidnum,IM2,k,j,i)
+                                            +qomL*src(fluidnum,IDN,k,j,i);
           if (NON_BAROTROPIC_EOS) {
-            src(IEN,k,j,i) += (0.5/src(IDN,k,j,i))
-                             *(SQR(shboxvar_inner_hydro_(IM2,k,j,i))
-                             -SQR(src(IM2,k,j,i)));
+            src(fluidnum,IEN,k,j,i) += (0.5/src(fluidnum,IDN,k,j,i))
+                             *(SQR(shboxvar_inner_hydro_(fluidnum,IM2,k,j,i))
+                             -SQR(src(fluidnum,IM2,k,j,i)));
           } // update energy
-          src(IM2,k,j,i) = shboxvar_inner_hydro_(IM2,k,j,i);// update IM2
+          src(fluidnum,IM2,k,j,i) = shboxvar_inner_hydro_(fluidnum,IM2,k,j,i);// update IM2
         }
     }}
+    }
   }
 
   if (shbb_.outer == true) {
     int  ib = ie+1;
     int ii;
     // step 2. -- add shear to the outer periodic boundary values
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int k=kl; k<=ku; k++) {
       for (int j=js-NGHOST; j<=je+NGHOST; j++) {
         for (int i=0; i<NGHOST; i++) {
           ii = ib+i;
           // add shear to conservative
-          shboxvar_outer_hydro_(IM2,k,j,i) = src(IM2,k,j,ii)
-                                            -qomL*src(IDN,k,j,ii);
+          shboxvar_outer_hydro_(fluidnum,IM2,k,j,i) = src(fluidnum,IM2,k,j,ii)
+                                            -qomL*src(fluidnum,IDN,k,j,ii);
           if (NON_BAROTROPIC_EOS) {
-            src(IEN,k,j,ii) += (0.5/src(IDN,k,j,ii))
-                              *(SQR(shboxvar_outer_hydro_(IM2,k,j,i))
-                              -SQR(src(IM2,k,j,ii)));
+            src(fluidnum,IEN,k,j,ii) += (0.5/src(fluidnum,IDN,k,j,ii))
+                              *(SQR(shboxvar_outer_hydro_(fluidnum,IM2,k,j,i))
+                              -SQR(src(fluidnum,IM2,k,j,ii)));
           } // update energy
-          src(IM2,k,j,ii) = shboxvar_outer_hydro_(IM2,k,j,i);// update IM2
+          src(fluidnum,IM2,k,j,ii) = shboxvar_outer_hydro_(fluidnum,IM2,k,j,i);// update IM2
         }
     }}
+    }
   }
   return;
 }
@@ -193,35 +197,39 @@ void BoundaryValues::SendHydroShearingboxBoundaryBuffers(AthenaArray<Real> &src,
     int ib = is-NGHOST;
     int ii;
     // step 1. -- load shboxvar_hydro_
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int k=kl; k<=ku; k++) {
       for (int j=js-NGHOST; j<=je+NGHOST; j++) {
         for (int i=0; i<NGHOST; i++) {
           ii = ib+i;
-          shboxvar_inner_hydro_(IDN,k,j,i) = src(IDN,k,j,ii);
-          shboxvar_inner_hydro_(IM1,k,j,i) = src(IM1,k,j,ii);
-          shboxvar_inner_hydro_(IM2,k,j,i) = src(IM2,k,j,ii)
-                                            +qomL*src(IDN,k,j,ii);
-          shboxvar_inner_hydro_(IM3,k,j,i) = src(IM3,k,j,ii);
+          shboxvar_inner_hydro_(fluidnum,IDN,k,j,i) = src(fluidnum,IDN,k,j,ii);
+          shboxvar_inner_hydro_(fluidnum,IM1,k,j,i) = src(fluidnum,IM1,k,j,ii);
+          shboxvar_inner_hydro_(fluidnum,IM2,k,j,i) = src(fluidnum,IM2,k,j,ii)
+                                            +qomL*src(fluidnum,IDN,k,j,ii);
+          shboxvar_inner_hydro_(fluidnum,IM3,k,j,i) = src(fluidnum,IM3,k,j,ii);
           if (NON_BAROTROPIC_EOS) {
-            shboxvar_inner_hydro_(IEN,k,j,i) = src(IEN,k,j,ii)
-                                      +(0.5/src(IDN,k,j,ii))
-                                      *(SQR(shboxvar_inner_hydro_(IM2,k,j,i))
-                                      - SQR(src(IM2,k,j,ii)));
+            shboxvar_inner_hydro_(fluidnum,IEN,k,j,i) = src(fluidnum,IEN,k,j,ii)
+                                      +(0.5/src(fluidnum,IDN,k,j,ii))
+                                      *(SQR(shboxvar_inner_hydro_(fluidnum,IM2,k,j,i))
+                                      - SQR(src(fluidnum,IM2,k,j,ii)));
           }
         }
     }}
+    }
 
     // step 2. -- conservative remaping
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int n=0; n<NHYDRO; n++) {
       for (int k=kl; k<=ku; k++) {
         for (int i=0; i<NGHOST; i++) {
-          RemapFlux(n,k,js,je+2,i,eps_,shboxvar_inner_hydro_,flx_inner_hydro_);
+          RemapFlux(fluidnum,n,k,js,je+2,i,eps_,shboxvar_inner_hydro_,flx_inner_hydro_);
           for (int j=js; j<=je+1; j++) {
-            shboxvar_inner_hydro_(n,k,j,i) -= flx_inner_hydro_(j+1)
+            shboxvar_inner_hydro_(fluidnum,n,k,j,i) -= flx_inner_hydro_(j+1)
                                              -flx_inner_hydro_(j);
           }
         }
     }}
+    }
 
   // step 3. -- load sendbuf; memcpy to recvbuf if on same rank, post
   // MPI_Isend otherwise
@@ -249,36 +257,40 @@ void BoundaryValues::SendHydroShearingboxBoundaryBuffers(AthenaArray<Real> &src,
     qomL = -qomL;
     int ii;
     // step 1. -- load shboxvar_hydro_
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int k=kl; k<=ku; k++) {
       for (int j=js-NGHOST; j<=je+NGHOST; j++) {
         for (int i=0; i<NGHOST; i++) {
           ii = ib+i;
-          shboxvar_outer_hydro_(IDN,k,j,i) = src(IDN,k,j,ii);
-          shboxvar_outer_hydro_(IM1,k,j,i) = src(IM1,k,j,ii);
-          shboxvar_outer_hydro_(IM2,k,j,i) = src(IM2,k,j,ii)
-                                            +qomL*src(IDN,k,j,ii);
-          shboxvar_outer_hydro_(IM3,k,j,i) = src(IM3,k,j,ii);
+          shboxvar_outer_hydro_(fluidnum,IDN,k,j,i) = src(fluidnum,IDN,k,j,ii);
+          shboxvar_outer_hydro_(fluidnum,IM1,k,j,i) = src(fluidnum,IM1,k,j,ii);
+          shboxvar_outer_hydro_(fluidnum,IM2,k,j,i) = src(fluidnum,IM2,k,j,ii)
+                                            +qomL*src(fluidnum,IDN,k,j,ii);
+          shboxvar_outer_hydro_(fluidnum,IM3,k,j,i) = src(fluidnum,IM3,k,j,ii);
           if (NON_BAROTROPIC_EOS) {
-            shboxvar_outer_hydro_(IEN,k,j,i) = src(IEN,k,j,ii)
-                                      +(0.5/src(IDN,k,j,ii))
-                                      *(SQR(shboxvar_outer_hydro_(IM2,k,j,i))
-                                      -SQR(src(IM2,k,j,ii)));
+            shboxvar_outer_hydro_(fluidnum,IEN,k,j,i) = src(fluidnum,IEN,k,j,ii)
+                                      +(0.5/src(fluidnum,IDN,k,j,ii))
+                                      *(SQR(shboxvar_outer_hydro_(fluidnum,IM2,k,j,i))
+                                      -SQR(src(fluidnum,IM2,k,j,ii)));
           }
         }
     }}
+    }
 
     // step 2. -- conservative remaping
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int n=0; n<NHYDRO; n++) {
       for (int k=kl; k<=ku; k++) {
         for (int i=0; i<NGHOST; i++) {
-          RemapFlux(n,k,js-1,je+1,i,-eps_,shboxvar_outer_hydro_,
+          RemapFlux(fluidnum,n,k,js-1,je+1,i,-eps_,shboxvar_outer_hydro_,
                     flx_outer_hydro_);
           for (int j=js-1; j<=je; j++) {
-            shboxvar_outer_hydro_(n,k,j,i) -= flx_outer_hydro_(j+1)
+            shboxvar_outer_hydro_(fluidnum,n,k,j,i) -= flx_outer_hydro_(j+1)
                                              -flx_outer_hydro_(j);
           }
         }
     }}
+    }
 
   // step 3. -- load sendbuf; memcpy to recvbuf if on same rank, post
   // MPI_Isend otherwise
@@ -366,7 +378,7 @@ void BoundaryValues::SetHydroShearingboxBoundarySameLevel(AthenaArray<Real>
 
   // set [sj:ej] of current meshblock
   int p=0;
-  BufferUtility::Unpack4DData(buf, dst, 0, NHYDRO-1, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::Unpack5DData(buf, dst, 0, NHYDRO-1, si, ei, sj, ej, sk, ek, p);
   return;
 }
 
@@ -856,7 +868,7 @@ void BoundaryValues::FindShearBlock(const Real time) {
 //  \brief compute the flux along j indices for remapping adopted from 2nd
 //  order RemapFlux of Athena4.0
 
-void BoundaryValues::RemapFlux(const int n, const int k, const int jinner,
+void BoundaryValues::RemapFlux(const int fluidnum, const int n, const int k, const int jinner,
                                const int jouter, const int i, const Real eps,
                                const AthenaArray<Real> &U, AthenaArray<Real> &Flux) {
   int j,jl,ju;
@@ -874,9 +886,9 @@ void BoundaryValues::RemapFlux(const int n, const int k, const int jinner,
   }
 
   for (j=jl; j<=ju; j++) {
-      dUc = U(n,k,j+1,i) - U(n,k,j-1,i);
-      dUl = U(n,k,j,  i) - U(n,k,j-1,i);
-      dUr = U(n,k,j+1,i) - U(n,k,j,  i);
+      dUc = U(fluidnum,n,k,j+1,i) - U(fluidnum,n,k,j-1,i);
+      dUl = U(fluidnum,n,k,j,  i) - U(fluidnum,n,k,j-1,i);
+      dUr = U(fluidnum,n,k,j+1,i) - U(fluidnum,n,k,j,  i);
 
       dUm = 0.0;
       if (dUl*dUr > 0.0) {
@@ -885,9 +897,9 @@ void BoundaryValues::RemapFlux(const int n, const int k, const int jinner,
       }
 
     if (eps > 0.0) { // eps always > 0 for inner i boundary
-      Flux(j+1) = eps*(U(n,k,j,i) + 0.5*(1.0 - eps)*dUm);
+      Flux(j+1) = eps*(U(fluidnum,n,k,j,i) + 0.5*(1.0 - eps)*dUm);
     } else {         // eps always < 0 for outer i boundary
-      Flux(j  ) = eps*(U(n,k,j,i) - 0.5*(1.0 + eps)*dUm);
+      Flux(j  ) = eps*(U(fluidnum,n,k,j,i) - 0.5*(1.0 + eps)*dUm);
     }
   }
 

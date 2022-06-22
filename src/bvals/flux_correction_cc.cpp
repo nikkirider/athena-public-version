@@ -72,6 +72,7 @@ void BoundaryValues::SendFluxCorrection(enum FluxCorrectionType type) {
       if (nb.fid==INNER_X1 || nb.fid==OUTER_X1) {
         int i=pmb->is+(pmb->ie-pmb->is+1)*nb.fid;
         if (pmb->block_size.nx3>1) { // 3D
+          for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
           for (int nn=ns; nn<=ne; nn++) {
             for (int k=pmb->ks; k<=pmb->ke; k+=2) {
               for (int j=pmb->js; j<=pmb->je; j+=2) {
@@ -80,72 +81,84 @@ void BoundaryValues::SendFluxCorrection(enum FluxCorrectionType type) {
                 Real apm=pco->GetFace1Area(k+1, j,   i);
                 Real app=pco->GetFace1Area(k+1, j+1, i);
                 Real tarea=amm+amp+apm+app;
-                sbuf[p++]= (x1flux(nn, k  , j  , i)*amm
-                           +x1flux(nn, k  , j+1, i)*amp
-                           +x1flux(nn, k+1, j  , i)*apm
-                           +x1flux(nn, k+1, j+1, i)*app)/tarea;
+                sbuf[p++]= (x1flux(fluidnum, nn, k  , j  , i)*amm
+                           +x1flux(fluidnum, nn, k  , j+1, i)*amp
+                           +x1flux(fluidnum, nn, k+1, j  , i)*apm
+                           +x1flux(fluidnum, nn, k+1, j+1, i)*app)/tarea;
               }
             }
           }
+          }
         } else if (pmb->block_size.nx2>1) { // 2D
           int k=pmb->ks;
+          for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
           for (int nn=ns; nn<=ne; nn++) {
             for (int j=pmb->js; j<=pmb->je; j+=2) {
               Real am=pco->GetFace1Area(k, j,   i);
               Real ap=pco->GetFace1Area(k, j+1, i);
               Real tarea=am+ap;
-              sbuf[p++]=(x1flux(nn, k, j  , i)*am
-                        +x1flux(nn, k, j+1, i)*ap)/tarea;
+              sbuf[p++]=(x1flux(fluidnum, nn, k, j  , i)*am
+                        +x1flux(fluidnum, nn, k, j+1, i)*ap)/tarea;
             }
+          }
           }
         } else { // 1D
           int k=pmb->ks, j=pmb->js;
-          for (int nn=ns; nn<=ne; nn++)
-            sbuf[p++]=x1flux(nn, k, j, i);
+          for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
+          for (int nn=ns; nn<=ne; nn++){
+            sbuf[p++]=x1flux(fluidnum, nn, k, j, i);
+          }
+          }
         }
         // x2 direction
       } else if (nb.fid==INNER_X2 || nb.fid==OUTER_X2) {
         int j=pmb->js+(pmb->je-pmb->js+1)*(nb.fid&1);
         if (pmb->block_size.nx3>1) { // 3D
+          for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
           for (int nn=ns; nn<=ne; nn++) {
             for (int k=pmb->ks; k<=pmb->ke; k+=2) {
               pco->Face2Area(k  , j, pmb->is, pmb->ie, sarea_[0]);
               pco->Face2Area(k+1, j, pmb->is, pmb->ie, sarea_[1]);
               for (int i=pmb->is; i<=pmb->ie; i+=2) {
                 Real tarea=sarea_[0](i)+sarea_[0](i+1)+sarea_[1](i)+sarea_[1](i+1);
-                sbuf[p++]=(x2flux(nn, k  , j, i  )*sarea_[0](i  )
-                          +x2flux(nn, k  , j, i+1)*sarea_[0](i+1)
-                          +x2flux(nn, k+1, j, i  )*sarea_[1](i  )
-                          +x2flux(nn, k+1, j, i+1)*sarea_[1](i+1))/tarea;
+                sbuf[p++]=(x2flux(fluidnum, nn, k  , j, i  )*sarea_[0](i  )
+                          +x2flux(fluidnum, nn, k  , j, i+1)*sarea_[0](i+1)
+                          +x2flux(fluidnum, nn, k+1, j, i  )*sarea_[1](i  )
+                          +x2flux(fluidnum, nn, k+1, j, i+1)*sarea_[1](i+1))/tarea;
               }
             }
           }
+          }
         } else if (pmb->block_size.nx2>1) { // 2D
           int k=pmb->ks;
+          for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
           for (int nn=ns; nn<=ne; nn++) {
             pco->Face2Area(0, j, pmb->is ,pmb->ie, sarea_[0]);
             for (int i=pmb->is; i<=pmb->ie; i+=2) {
               Real tarea=sarea_[0](i)+sarea_[0](i+1);
-              sbuf[p++]=(x2flux(nn, k, j, i  )*sarea_[0](i  )
-                        +x2flux(nn, k, j, i+1)*sarea_[0](i+1))/tarea;
+              sbuf[p++]=(x2flux(fluidnum, nn, k, j, i  )*sarea_[0](i  )
+                        +x2flux(fluidnum, nn, k, j, i+1)*sarea_[0](i+1))/tarea;
             }
+          }
           }
         }
         // x3 direction - 3D only
       } else if (nb.fid==INNER_X3 || nb.fid==OUTER_X3) {
         int k=pmb->ks+(pmb->ke-pmb->ks+1)*(nb.fid&1);
+        for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
         for (int nn=ns; nn<=ne; nn++) {
           for (int j=pmb->js; j<=pmb->je; j+=2) {
             pco->Face3Area(k, j,   pmb->is, pmb->ie, sarea_[0]);
             pco->Face3Area(k, j+1, pmb->is, pmb->ie, sarea_[1]);
             for (int i=pmb->is; i<=pmb->ie; i+=2) {
               Real tarea=sarea_[0](i)+sarea_[0](i+1)+sarea_[1](i)+sarea_[1](i+1);
-              sbuf[p++]=(x3flux(nn, k, j  , i  )*sarea_[0](i  )
-                        +x3flux(nn, k, j  , i+1)*sarea_[0](i+1)
-                        +x3flux(nn, k, j+1, i  )*sarea_[1](i  )
-                        +x3flux(nn, k, j+1, i+1)*sarea_[1](i+1))/tarea;
+              sbuf[p++]=(x3flux(fluidnum, nn, k, j  , i  )*sarea_[0](i  )
+                        +x3flux(fluidnum, nn, k, j  , i+1)*sarea_[0](i+1)
+                        +x3flux(fluidnum, nn, k, j+1, i  )*sarea_[1](i  )
+                        +x3flux(fluidnum, nn, k, j+1, i+1)*sarea_[1](i+1))/tarea;
             }
           }
+        }
         }
       }
       if (nb.rank==Globals::my_rank) { // on the same node
@@ -228,11 +241,13 @@ bool BoundaryValues::ReceiveFluxCorrection(enum FluxCorrectionType type) {
         else          js+=pmb->block_size.nx2/2;
         if (nb.fi2==0) ke-=pmb->block_size.nx3/2;
         else          ks+=pmb->block_size.nx3/2;
+        for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
         for (int nn=ns; nn<=ne; nn++) {
           for (int k=ks; k<=ke; k++) {
             for (int j=js; j<=je; j++)
-              x1flux(nn,k,j,is)=rbuf[p++];
+              x1flux(fluidnum,nn,k,j,is)=rbuf[p++];
           }
+        }
         }
       } else if (nb.fid==INNER_X2 || nb.fid==OUTER_X2) {
         int js=pmb->js+(pmb->je-pmb->js)*(nb.fid&1)+(nb.fid&1);
@@ -241,11 +256,13 @@ bool BoundaryValues::ReceiveFluxCorrection(enum FluxCorrectionType type) {
         else          is+=pmb->block_size.nx1/2;
         if (nb.fi2==0) ke-=pmb->block_size.nx3/2;
         else          ks+=pmb->block_size.nx3/2;
+        for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
         for (int nn=ns; nn<=ne; nn++) {
           for (int k=ks; k<=ke; k++) {
             for (int i=is; i<=ie; i++)
-              x2flux(nn,k,js,i)=rbuf[p++];
+              x2flux(fluidnum,nn,k,js,i)=rbuf[p++];
           }
+        }
         }
       } else if (nb.fid==INNER_X3 || nb.fid==OUTER_X3) {
         int ks=pmb->ks+(pmb->ke-pmb->ks)*(nb.fid&1)+(nb.fid&1);
@@ -254,11 +271,13 @@ bool BoundaryValues::ReceiveFluxCorrection(enum FluxCorrectionType type) {
         else          is+=pmb->block_size.nx1/2;
         if (nb.fi2==0) je-=pmb->block_size.nx2/2;
         else          js+=pmb->block_size.nx2/2;
+        for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
         for (int nn=ns; nn<=ne; nn++) {
           for (int j=js; j<=je; j++) {
             for (int i=is; i<=ie; i++)
-              x3flux(nn,ks,j,i)=rbuf[p++];
+              x3flux(fluidnum,nn,ks,j,i)=rbuf[p++];
           }
+        }
         }
       }
 

@@ -1,5 +1,3 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
@@ -34,7 +32,7 @@
 
 #define FLUXES_RECON
 #define FLUXES_G0
-#define FLUXES_ABAR
+//#define FLUXES_ABAR
 #define DEBUG_ALL
 //
 
@@ -74,13 +72,11 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
 
 #ifdef DEBUG_ALL
   fprintf(stdout,"[bgk2]: called with bgkc1=%13.5e bgkc2=%13.5e\n",bgkc1,bgkc2);
-  //fprintf(stdout,"kl=%6i,ku=%6i,jl=%6i,ju=%6i,ivx=%6i\n",kl,ku,jl,ju,ivx);
 #endif
 
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
 //#pragma distribute_point
-    fprintf(stdout,"j= %4i\n",j);
 //#pragma omp simd private(wli,wri,wroe,flxi,fl,fr)
   for (int i=il; i<=iu; ++i) {
 
@@ -125,7 +121,6 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     ck  = dof + 3.0-ddim;
 
 
-    //fprintf(stdout, "kdif=%6i,jdif=%6i,idif=%6i,k=%6i,j=%6i,i=%6i,koff=%6i,joff=%6i,ioff=%6i\n",kdif,jdif,idif,k,j,i,koff,joff,ioff);
 
     // Get the conserved quantities at the center of cell "i-1"
     ad[0] = pmb->phydro->w(IDN,kdif,jdif,idif);
@@ -133,7 +128,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     ay[0] = pmb->phydro->w(ivy,kdif,jdif,idif)*ad[0];
     az[0] = pmb->phydro->w(ivz,kdif,jdif,idif)*ad[0];
     ap[0] = pmb->phydro->w(IPR,kdif,jdif,idif); // this is the pressure
-    al[0] = 0.5*ad[0]/ap[0]; // lambda (inverse temperature)
+    al[0] = 0.25*((ck+3.0)*ad[0])/(iGamma_1*ap[0]);
+//    al[0] = 0.5*ad[0]/ap[0]; // lambda (inverse temperature)
     ae[0] = ap[0]/Gamma_1 + 0.5*(SQR(ax[0])+SQR(ay[0])+SQR(az[0]))/ad[0]; // total energy
 
     // Get the conserved quantities at the center of cell "i"
@@ -142,7 +138,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     ay[1] = pmb->phydro->w(ivy,k,j,i)*ad[1];
     az[1] = pmb->phydro->w(ivz,k,j,i)*ad[1];
     ap[1] = pmb->phydro->w(IPR,k,j,i); // this is the pressure
-    al[1] = 0.5*ad[1]/ap[1]; // lambda (inverse temperature)
+    al[1] = 0.25*((ck+3.0)*ad[1])/(iGamma_1*ap[1]);
+//    al[1] = 0.5*ad[1]/ap[1]; // lambda (inverse temperature)
     ae[1] = ap[1]/Gamma_1 + 0.5*(SQR(ax[1])+SQR(ay[1])+SQR(az[1]))/ad[1]; // total energy
 
     // conservative variables at cell walls (left): 
@@ -155,7 +152,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     aym1  = ayu1*ade1;
     azm1  = azu1*ade1;
     aen1  = apr1/Gamma_1 + 0.5*ade1*(SQR(axu1) + SQR(ayu1) + SQR(azu1));
-    ae1   = 0.5*ade1/apr1;
+    ae1 = 0.25*((ck+3.0)*ade1)/(iGamma_1*apr1);
+//    ae1   = 0.5*ade1/apr1;
     
     // conservative variables at cell walls (right):
     ade2  = wr(IDN,k,j,i);
@@ -167,7 +165,8 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     aym2  = ayu2*ade2;
     azm2  = azu2*ade2;
     aen2  = apr2/Gamma_1 + 0.5*ade2*(SQR(axu2) + SQR(ayu2) + SQR(azu2));
-    ae2   = 0.5*ade2/apr2;
+    ae2 = 0.25*((ck+3.0)*ade2)/(iGamma_1*apr2);
+//    ae2   = 0.5*ade2/apr2;
    
 #ifdef DEBUG_ALL
     fprintf(stdout,"    initcond : i=%4i x1f=%13.5e dens: ad[0]=%13.5e,ade1=%13.5e,ade2=%13.5e,ad[1]=%13.5e\n", i,x1f,ad[0],ade1,ade2,ad[1]);
@@ -177,7 +176,10 @@ void Hydro::RiemannSolver(const int kl, const int ku, const int jl, const int ju
     fprintf(stdout,"    initcond : i=%4i x1f=%13.5e lamb: ap[0]=%13.5e,apr1=%13.5e,apr2=%13.5e,ap[1]=%13.5e\n", i,x1f,ap[0],apr1,apr2,ap[1]);
 #endif
 
-
+#ifdef DEBUG_ALL
+fprintf(stdout," VAR CHECK!!! axu1=%13.5e, ayu1=%13.5e, azu1=%13.5e, al_l=%13.5e\n", axu1,ayu1,azu1,ae1);
+fprintf(stdout," VAR CHECK!!! axu2=%13.5e, ayu2=%13.5e, azu2=%13.5e, al_r=%13.5e\n", axu2,ayu2,azu2,ae2);
+#endif
 //------------------------------------------------------------------------------------------------------
 // Declare the moments 
 /* Convention:
@@ -386,6 +388,7 @@ dxe3d gives the algebraic equation for the inverted matrix M_alpha_beta
   rae1 = one/ae1;
   rae2 = one/ae2;
 
+  fprintf(stdout,"rae1=%13.5e, rae2=%13.5e\n",rae1,rae2);
 
   sae1 = std::sqrt(ae1);
   sae2 = std::sqrt(ae2);
@@ -408,6 +411,7 @@ or 0.
   te1 = 0.5*erfc(precision_arg);
   te2 = 0.5*std::exp(-SQR(precision_arg))/std::sqrt(ae1*pi);
 
+  fprintf(stdout,"precision_arg=%13.5e\n",precision_arg);
 
   teu[1] = axu1*te1+te2;
   teu[2] = axu1*teu[1]+0.5*te1*rae1;
@@ -429,6 +433,10 @@ or 0.
   tgu[4] = axu2*tgu[3]+1.5*tgu[2]*rae2;
   tgu[5] = axu2*tgu[4]+2.0*tgu[3]*rae2;
   tgu[6] = axu2*tgu[5]+2.5*tgu[4]*rae2;
+
+#ifdef DEBUG_ALL
+  fprintf(stdout,"axu2=%11.3e,tgu[5]=%11.3e,tgu[4]=%11.3e,tgu[6]=%11.3e,rae2=%11.3e\n",axu2,tgu[5],tgu[4],tgu[6],rae2);
+#endif
 
 // Extra moments for the Navier Stokes version
 
@@ -768,6 +776,10 @@ or 0.
 =====================================================================
 */
 
+#ifdef DEBUG_ALL
+  fprintf(stdout,"ade1=%11.3e, te1=%11.3e, ade2=%11.3e, tg1=%11.3e, teu[1]=%11.3e, tgu[1]=%11.3e, te1y1=%11.3e, tg1y1=%11.3e, te1z1=%11.3e, tg1z1=%11.3e, teu[2]=%11.3e, te1y2=%11.3e, te1z2=%11.3e, te1i2=%11.3e, tgu[2]=%11.3e, tg1y2=%11.3e, tg1z2=%11.3e, tg1i2=%11.3e\n",ade1, te1, ade2, tg1, teu[1], tgu[1], te1y1, tg1y1, te1z1, tg1z1, teu[2], te1y2, te1z2, te1i2, tgu[2], tg1y2, tg1z2, tg1i2);
+#endif
+
 // conservative variables
   ade  = ade1*te1+ade2*tg1;
   axm  = ade1*teu[1]+ade2*tgu[1];
@@ -788,8 +800,8 @@ or 0.
   fprintf(stdout,"    fluxesg0: ade=%13.5e,Gamma_1=%13.5e,aen=%13.5e,ekin=%13.5e\n",ade,Gamma_1,aen,ekin);
 #endif
 #endif
-  ae0 = 0.5*ade/(Gamma_1*(aen-ekin));
-
+//  ae0 = 0.5*ade/(Gamma_1*(aen-ekin));
+  ae0=0.25*((ck+3.0)*ade)/(Gamma_1*(aen-ekin));
 
   if ((ae0 < 0.0) || (ade < 0.0)) perror("[bgk2]: ae0 or ade < 0\n");
 
@@ -837,16 +849,53 @@ discontinuities.
  // Real BGK_c1 = pin->GetReal("hydro","BGK_c1");
  // Real BGK_c2 = pin->GetReal("hydro","BGK_c2");
 
-//  te = bgkc1*tau + tau*std::min(1.0,bgkc2*(fabs(aa1-aa2)/(aa1+aa2)));
+  te = bgkc1*tau + tau*bgkc2*(fabs(aa1-aa2)/(aa1+aa2));
 
 //}else if(ieuler == 2) // Navier Stokes with diffusivity nu=c_1
 //{
 //    te = 2.0*c_1*ae0 + c_2*tau*(fabs(aa1-aa2)/(aa1+aa2));
 //}else if(ieuler == 3) // Kun's suggestion
 //{
-    te = bgkc1*sqrt(ae0)/ade*dxx + bgkc2*tau*(fabs(aa1-aa2)/(aa1+aa2));
+//te = bgkc1*sqrt(ae0)/ade*dxx + bgkc2*tau*(fabs(aa1-aa2)/(aa1+aa2));
+//    te = bgkc1*tau*sqrt(ae0)/ade + bgkc2*tau*(fabs(aa1-aa2)/(aa1+aa2));
+    fprintf(stdout,"te=%13.5e, tau=%13.5e, sqrt(ae0)=%13.5e, ade=%13.5e, aa1-aa2=%13.5e, aa1+aa2=%13.5e\n",te,tau,sqrt(ae0),ade,aa1-aa2,aa1+aa2);
+
+//Force quit code at 1st order if criterion not met
+    if(te>(10.0*tau)){
+      fprintf(stdout,"***only 1st order fluxes used\n");
+//TEST: no g0 or Abar fluxes yet      
+
+      fm1 = ade1*teu[1]*tau;
+      fp1 = ade1*teu[2]*tau;
+      fpx1= ade1*teu1y1*tau;
+      fpz1= ade1*teu1z1*tau;
+      fe1 = ade1*0.5*(teu[3]+teu1i2+teu1y2+teu1z2)*tau;
+
+      fm2 = ade2*tgu[1]*tau;
+      fp2 = ade2*tgu[2]*tau;
+      fpx2= ade2*tgu1y1*tau;
+      fpz2= ade2*tgu1z1*tau;
+      fe2 = ade2*0.5*(tgu[3]+tgu1i2+tgu1y2+tgu1z2)*tau;
+
+      afm= fm1 + fm2;
+      afp= fp1 + fp2;
+      afpx= fpx1 + fpx2;
+      afpz= fpz1 + fpz2;
+      afe= fe1 + fe2;
+
+      flx(IDN,k,j,i)  = afm /tau;
+      flx(im1,k,j,i) = afp /tau;
+      flx(im2,k,j,i) = afpx/tau;
+      flx(im3,k,j,i) = afpz/tau;
+      flx(IEN,k,j,i)  = afe /tau;    
+
+      fprintf(stdout,"idnflux=%13.5e, im1flux=%13.5e, im2flux=%13.5e, im3flux=%13.5e, ienflux=%13.5e\n",flx(IDN,k,j,i),flx(im1,k,j,i),flx(im2,k,j,i),flx(im3,k,j,i),flx(IEN,k,j,i));
+ 
+    }else{
+
     te = std::max(0.01*tau,std::min(1.0*te,10.0*tau));
-//    fprintf(stdout, "TAU=%13.5e\n",te);
+ 
+    fprintf(stdout,"te=%13.5e\n",te); 
 //}else if(ieuler == 4) // Attempt to include heat conduction
 //{
 //    pfrac = fabs(aa1-aa2)/(aa1+aa2);
@@ -950,7 +999,16 @@ discontinuities.
         + set1*2.0*gra1*ade1*ae1*(teu[2]-axu1*teu[1])
 #endif
         ;
+#ifdef DEBUG_ALL
 fprintf(stdout,"ade1=%11.3e,se1=%11.3e,teu[1]=%11.3e,set1=%11.3e,te=%11.3e,teu[2]=%11.3e,y1=%11.3e,teu[3]=%11.3e,yx1=%11.3e,teu2y1=%11.3e,zx1=%11.3e,teu2z1=%11.3e,z1=%11.3e,teu[4]=%11.3e,teu2y2=%11.3e,teu2z2=%11.3e,teu2i2=%11.3e\n",ade1,se1,teu[1],set1,te,teu[2],y1,teu[3],yx1,teu2y1,zx1,teu2z1,z1,teu[4],teu2y2,teu2z2,teu2i2);
+#endif
+#ifdef DEBUG_ALL
+fprintf(stdout,"ade2=%11.3e,tgu[1]=%11.3e,tgu[2]=%11.3e,tgu[3]=%11.3e,tgu2y1=%11.3e,tgu2z1=%11.3e,tgu[4]=%11.3e,tgu2y2=%11.3e,tgu2z2=%11.3e,tgu2i2=%11.3e,tgu1i2=%11.3e,tgu1y2=%11.3e,tgu1z2=%11.3e,x2=%11.3e,y2=%11.3e,yx2=%11.3e,zx2=%11.3e,z2=%11.3e\n",ade2,tgu[1],tgu[2],tgu[3],tgu2y1,tgu2z1,tgu[4],tgu2y2,tgu2z2,tgu2i2,tgu1i2,tgu1y2,tgu1z2,x2,y2,yx2,zx2,z2);
+#endif
+#ifdef DEBUG_ALL
+fprintf(stdout,"tgu[4]=%11.3e,tgu[5]=%11.3e,tgu[6]=%11.3e,tgu3y2=%11.3e,tgu3z2=%11.3e,tgu3i2=%11.3e,tgu2y4=%11.3e,tgu2z4=%11.3e,tgu2i4=%11.3e,tgu4y2=%11.3e,tgu4z2=%11.3e,tgu2y2z2=%11.3e,tgu2z2i2=%11.3e,tgu4i2=%11.3e,tgu2y2i2=%11.3e\n",tgu[4],tgu[5],tgu[6],tgu3y2,tgu3z2,tgu3i2,tgu2y4,tgu2z4,tgu2i4,tgu4y2,tgu4z2,tgu2y2z2,tgu2z2i2,tgu4i2,tgu2y2i2);
+#endif
+
 
   fp1 =   ade1*se1*teu[2]  
 #ifdef FLUXES_RECON
@@ -1043,6 +1101,7 @@ fprintf(stdout,"ade1=%11.3e,se1=%11.3e,teu[1]=%11.3e,set1=%11.3e,te=%11.3e,teu[2
 // Extra stuff for the Navier Stokes version
   a1=-(x1*tlu1+y1*tlu2+yx1*tlu1y1+zx1*tlu1z1+z1* 
       (tlu3+tlu1y2+tlu1z2+tlu1*ei2));
+
   a2=-(x1*tlu2+y1*tlu3+yx1*tlu2y1+zx1*tlu2z1+z1* 
       (tlu4+tlu2y2+tlu2z2+tlu2*ei2));
   a3=-(x1*tlu1y1+y1*tlu2y1+yx1*tlu1y2+zx1*tlu1y1z1+z1* 
@@ -1137,6 +1196,11 @@ AND time.
 
 // Slopes for "g" (Kun Xu pg. 69-70)
 
+#ifdef DEBUG_ALL
+fprintf(stdout,"aen=%13.5e,ae[0]=%13.5e,ae[1]=%13.5e,aen-ae[0]=%13.5e,ae[1]-aen=%13.5e,dxx=%13.5e\n",aen,ae[0],ae[1],aen-ae[0],ae[1]-aen,dxx);
+fprintf(stdout,"ae[0]-ae[1]=%11.5e\n",ae[0]-ae[1]);
+#endif
+
   awl  = 2.0*(ade-ad[0])/dxx;
   bxwl = 2.0*(axm-ax[0])/dxx;
   bywl = 2.0*(aym-ay[0])/dxx;
@@ -1149,8 +1213,10 @@ AND time.
   bzwr = 2.0*(az[1]-azm)/dxx;
   cwr  = 2.0*(ae[1]-aen)/dxx;
 
-//  fprintf(stdout,"  dxx=%13.5e awl=%13.5e bxwl=%13.5e bywl=%13.5e bzwl=%13.5e cwl=%13.5e\n", dxx,awl,bxwl,bywl,bzwl,cwl);
-//  fprintf(stdout,"  dxx=%13.5e awr=%13.5e bxwr=%13.5e bywr=%13.5e bzwr=%13.5e cwr=%13.5e\n", dxx,awr,bxwr,bywr,bzwr,cwr); 
+#ifdef DEBUG_ALL
+fprintf(stdout,"GRAPE awl=%13.5e,bxwl=%13.5e,bywl=%13.5e,bzwl=%13.5e,cwl=%13.5e\n",awl,bxwl,bywl,bzwl,cwl);
+fprintf(stdout,"GRAPE awr=%13.5e,bxwr=%13.5e,bywr=%13.5e,bzwr=%13.5e,cwr=%13.5e\n",awr,bxwr,bywr,bzwr,cwr);
+#endif
 
   dxe3d(axu0,ayu0,azu0,ae0,awl,bxwl,bywl,bzwl,cwl,&x1,&y1,&yx1,&zx1,&z1,ck,ddim);
   dxe3d(axu0,ayu0,azu0,ae0,awr,bxwr,bywr,bzwr,cwr,&x2,&y2,&yx2,&zx2,&z2,ck,ddim);
@@ -1166,6 +1232,9 @@ AND time.
 // NOTE: teu and tgu are being recomputed here for axu0. Thus,
 // we CANNOT use TEU/TGU for f0 fluxes after this point!
 
+  fprintf(stdout,"x1=%11.5e,y1=%11.5e,yx1=%11.5e,zx1=%11.5e,z1=%11.5e\n",x1,y1,yx1,zx1,z1);
+  fprintf(stdout,"x2=%11.5e,y2=%11.5e,yx2=%11.5e,zx2=%11.5e,z2=%11.5e\n",x2,y2,yx2,zx2,z2);
+ 
   t0 = 1.0;
   t1 = axu0;
   t2 = axu0*t1+0.5*t0*rae0;
@@ -1464,6 +1533,10 @@ precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
            +2.0*tgu3y2+2.0*tgu3z2+2.0*tgu3i2+2.0*tgu1y2i2 
            +2.0*tgu1y2z2 + 2.0*tgu1z2i2));
 
+//#ifdef DEBUG_ALL
+//fprintf(stdout,"TANGERINE x1=%13.5e, y1=%13.5e, teu[4]=%13.5e, teu2y2=%13.5e, teu2z2=%13.5e, teu2i2=%13.5e, yx1=%13.5e, teu3y1=%13.5e, teu1y3=%13.5e, teu1y1z2=%13.5e, teu1y1i2=%13.5e, zx1=%13.5e, teu3z1=%13.5e, teu1y2z1=%13.5e, teu1z3=%13.5e, teu1z1i2=%13.5e, z1=%13.5e, teu[5]=%13.5e, teu1y4=%13.5e, teu1z4=%13.5e, teu1i4=%13.5e, teu3y2=%13.5e, teu3z2=%13.5e, teu3i2=%13.5e, teu1y2i2=%13.5e, teu1y2z2=%13.5e, teu1z2i2=%13.5e, x2=%13.5e, y2=%13.5e, tgu[4]=%13.5e, tgu2y2=%13.5e, tgu2z2=%13.5e, tgu2i2=%13.5e, yx2=%13.5e, tgu3y1=%13.5e, tgu1y3=%13.5e, tgu1y1z2=%13.5e, tgu1y1i2=%13.5e, zx2=%13.5e, tgu3z1=%13.5e, tgu1z3=%13.5e, tgu1y2z1=%13.5e, tgu1z1i2=%13.5e, z2=%13.5e, tgu[5]=%13.5e, tgu1y4=%13.5e, tgu1z4=%13.5e, tgu1i4=%13.5e, tgu3y2=%13.5e, tgu3z2=%13.5e, tgu3i2=%13.5e, tgu1y2i2=%13.5e, tgu1y2z2=%13.5e, tgu1z2i2=%13.5e\n",x1,y1,teu[4],teu2y2,teu2z2,teu2i2,yx1,teu3y1,teu1y3,teu1y1z2,teu1y1i2,zx1,teu3z1,teu1y2z1,teu1z3,teu1z1i2,z1,teu[5],teu1y4,teu1z4,teu1i4,teu3y2,teu3z2,teu3i2,teu1y2i2,teu1y2z2,teu1z2i2,x2,y2,tgu[4],tgu2y2,tgu2z2,tgu2i2,yx2,tgu3y1,tgu1y3,tgu1y1z2,tgu1y1i2,zx2,tgu3z1,tgu1z3,tgu1y2z1,tgu1z1i2,z2,tgu[5],tgu1y4,tgu1z4,tgu1i4,tgu3y2,tgu3z2,tgu3i2,tgu1y2i2,tgu1y2z2,tgu1z2i2); 
+//#endif
+
   gpx1   = (x1*teu[3]+y1*teu[4]+yx1*teu3y1+zx1*teu3z1+ 
            z1*(teu[5]+teu3y2+teu3z2+teu3i2));
 
@@ -1528,9 +1601,21 @@ precision_arg = std::min(axu2*std::sqrt(ae2),mach_precision);
       +  gra2*(tgu[3]+tgu1y2+tgu1z2+tgu1i2 
       -  axu0*tgu[2]-axu0*tg1y2-axu0*tg1z2-axu0*tg1i2));
 
+//#ifdef DEBUG_ALL
+//fprintf(stdout,"PEACH trieu=%13.5e, set2=%13.5e, se1=%13.5e,\n aen=%13.5e, aei=%13.5e, set0=%13.5e,\n et=%13.5e, ade=%13.5e,\n gra1=%13.5e, teu[3]=%13.5e, teu1y2=%13.5e,\n teu1z2=%13.5e, teu1i2=%13.5e, teu[2]=%13.5e,\n te1y2=%13.5e, te1z2=%13.5e, te1i2=%13.5e,\n gra2=%13.5e, tgu[3]=%13.5e, tgu1y2=%13.5e,\n tgu1z2=%13.5e, tgu1i2=%13.5e,\n tgu[2]=%13.5e, tg1y2=%13.5e, tg1z2=%13.5e, tg1i2=%13.5e\n", trieu, set2, se1, aen, aei, set0, et, ade, gra1, teu[3], teu1y2, teu1z2, teu1i2, teu[2], te1y2, te1z2, te1i2, gra2, tgu[3], tgu1y2, tgu1z2, tgu1i2, tgu[2], tg1y2, tg1z2,tg1i2);
+//#endif
+
+
+#ifdef DEBUG_ALL
+fprintf(stdout,"PAPAYA axu0=%13.5e,ayu0=%13.5e,azu0=%13.5e,ae0=%13.5e,as=%13.5e,bs=%13.5e,bsx=%13.5e,bsz=%13.5e,cs=%13.5e,ck=%13.5e,ddim=%13.5e\n",axu0,ayu0,azu0,ae0,as,bs,bsx,bsz,cs,ck,ddim);
+#endif
+
 // Calculate the A_bar (A1,B1,C1,F1,D1)
   dxe3d(axu0,ayu0,azu0,ae0,as,bs,bsx,bsz,cs,&a1,&b1,&c1,&f1,&d1,ck,ddim);
 
+#ifdef DEBUG_ALL
+fprintf(stdout,"YEE! a1=%13.5e,b1=%13.5e,c1=%13.5e,f1=%13.5e,ck=%13.5e,ddim=%13.5e\n",a1,b1,c1,f1,ck,ddim);
+#endif
 /*
 =====================================================================
 
@@ -1643,6 +1728,10 @@ moments of the first term in eqn. (4.34) over a time step.
   atriuz1 = a1*t1z1+b1*t2z1+c1*t1y1z1+f1*t1z2+ 
             d1*(t3z1+t12z1+t1z3+t1y2z1) ;
   atriu2  = a1*t2+b1*t3+c1*t2y1+f1*t2z1+d1*(t4+t22+t2y2+t2z2);
+#ifdef DEBUG_ALL
+  fprintf(stdout,"GUAVA a1=%13.5e,t2=%13.5e,b1=%13.5e,t3=%13.e,c1=%13.5e,t2y1=%13.5e,f1=%13.5e,t2z1=%13.5e,d1=%13.5e,t4=%13.5e,t22=%13.5e,t2y2=%13.5e,t2z2=%13.5e\n",a1,t2,b1,t3,c1,t2y1,f1,t2z1,d1,t4,t22,t2y2,t2z2);
+#endif
+
   atrieu  = 0.5*(a1*(t3+t12+t1y2+t1z2)+b1*(t4+t22+t2y2+t2z2) 
             +c1*(t3y1+t12y1+t1y3+t1y1z2) 
             +f1*(t3z1+t12z1+t1z3+t1y2z1) 
@@ -1656,7 +1745,10 @@ moments of the first term in eqn. (4.34) over a time step.
   b = set2;
   d = 0.5*tau*tau-te*tau+te*te*(1.0-sw);
 
-//fprintf(stdout,"t1=%13.5e,t2=%13.5e,t3=%13.5e,t1y1=%13.5e,t1z1=%13.5e,a=%13.5e,b=%13.5e,triu2=%13.5e,triu3=%13.5e,triu2y1=%13.5e,triu2z1=%13.5e,t12=%13.5e,t1y2=%13.5e,t1z2=%13.5e,trieu2=%13.5e\n", t1,t2,t3,t1y1,t1z1,a,b,triu2,triu3,triu2y1,triu2z1,t12,t1y2,t1z2,trieu2);
+#ifdef DEBUG_ALL
+fprintf(stdout,"t1=%13.5e,t2=%13.5e,t3=%13.5e,t1y1=%13.5e,t1z1=%13.5e,a=%13.5e,b=%13.5e,triu2=%13.5e,triu3=%13.5e,triu2y1=%13.5e,triu2z1=%13.5e,t12=%13.5e,t1y2=%13.5e,t1z2=%13.5e,trieu2=%13.5e\n", t1,t2,t3,t1y1,t1z1,a,b,triu2,triu3,triu2y1,triu2z1,t12,t1y2,t1z2,trieu2);
+fprintf(stdout,"a=%13.5e,b=%13.5e,d=%13.5e\n",a,b,d);
+#endif
 
 #ifdef FLUXES_G0
   fmg0    = a*t1   + b*triu2;
@@ -1697,10 +1789,8 @@ moments of the first term in eqn. (4.34) over a time step.
 //    the collisionless Boltzmann equation and therefore should be the best 
 //    approximation to rarefied gas dynamics ...
 
-  //fprintf(stdout, "f1=%13.5e,f2=%13.5e,mp=%13.5e,axu1t=%13.5e,ae1t=%13.5e,axu2t=%13.5e,ae2t=%13.5e\n",-axu1t*std::sqrt(ae1t), axu2t*std::sqrt(ae2t), mach_precision,axu1t,ae1t,axu2t,ae2t);
  
   if ( (-axu1t*std::sqrt(ae1t) <= mach_precision) ||  (axu2t*std::sqrt(ae2t) <= mach_precision)) {
-    //fprintf(stdout,"    with flux i=%4i\n",i);
 
     afm =   fmg0
           + fmAbar
@@ -1773,6 +1863,9 @@ moments of the first term in eqn. (4.34) over a time step.
   fprintf(stdout,"    allfluxes: feg0 ,feAbar ,fe1 ,fe2 ,afe  = %11.3e %11.3e %11.3e %11.3e %11.3e\n",feg0 /tau,feAbar /tau,fe1 /tau,fe2 /tau,afe /tau);
 
 #endif 
+
+  fprintf(stdout,"AFM=%13.5e, AFP=%13.5e, AFPX=%13.5e, AFPZ=%13.5e, AFE=%13.5e\n",afm,afp,afpx,afpz,afe);
+  fprintf(stdout,"AFM/tau=%13.5e, AFP/tau=%13.5e, AFPX/tau=%13.5e, AFPZ/tau=%13.5e, AFE/tau=%13.5e\n",afm/tau,afp/tau,afpx/tau,afpz/tau,afe/tau);
  
 // NOTE: Divison by tau (=pGrid->dt) to make consistent with Athena. 
 // bgk2 calculates absolute changes (F(W)*dt), Athena expects F(W).
@@ -1785,6 +1878,7 @@ moments of the first term in eqn. (4.34) over a time step.
   //if (i>4){
    //exit(0);
   // }
+  }
   }
  }
 }

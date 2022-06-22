@@ -23,6 +23,7 @@ void HydroSourceTerms::StaticGravity(const Real dt,const Real time, const Athena
   MeshBlock *pmb = pmy_hydro_->pmy_block;
   Real phic, phir, phil;
   // acceleration in 1-direction
+  for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
   for (int k=pmb->ks; k<=pmb->ke; ++k) {
     Real x3v = pmb->pcoord->x3v(k);
     for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -35,16 +36,18 @@ void HydroSourceTerms::StaticGravity(const Real dt,const Real time, const Athena
         phic             = StaticGravPot(x1v         ,x2v,x3v,time);
         phir             = StaticGravPot(x1v+0.5*dx1v,x2v,x3v,time);
         phil             = StaticGravPot(x1v-0.5*dx1v,x2v,x3v,time);
-        cons(IM1,k,j,i) -= dtodx1*cons(IDN,k,j,i)*(phir-phil);
+        cons(fluidnum,IM1,k,j,i) -= dtodx1*cons(fluidnum,IDN,k,j,i)*(phir-phil);
         if (NON_BAROTROPIC_EOS)
-          cons(IEN,k,j,i) -= dtodx1*( flux[X1DIR](IDN,k,j,i  )*(phic-phil)
-                                     +flux[X1DIR](IDN,k,j,i+1)*(phir-phic));
+          cons(fluidnum,IEN,k,j,i) -= dtodx1*( flux[X1DIR](fluidnum,IDN,k,j,i  )*(phic-phil)
+                                     +flux[X1DIR](fluidnum,IDN,k,j,i+1)*(phir-phic));
       }
     }
+  }
   }
 
   if (pmb->block_size.nx2 > 1) {
     // acceleration in 2-direction
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       Real x3v = pmb->pcoord->x3v(k);
       for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -57,17 +60,19 @@ void HydroSourceTerms::StaticGravity(const Real dt,const Real time, const Athena
           phic             = StaticGravPot(x1v,x2v         ,x3v,time);
           phir             = StaticGravPot(x1v,x2v+0.5*dx2v,x3v,time);
           phil             = StaticGravPot(x1v,x2v-0.5*dx2v,x3v,time);
-          cons(IM2,k,j,i) -= dtodx2*cons(IDN,k,j,i)*(phir-phil);
+          cons(fluidnum,IM2,k,j,i) -= dtodx2*cons(fluidnum,IDN,k,j,i)*(phir-phil);
           if (NON_BAROTROPIC_EOS)
-            cons(IEN,k,j,i) -= dtodx2*( flux[X2DIR](IDN,k,j  ,i)*(phic - phil)
-                                       +flux[X2DIR](IDN,k,j+1,i)*(phir - phic));
+            cons(fluidnum,IEN,k,j,i) -= dtodx2*( flux[X2DIR](fluidnum,IDN,k,j  ,i)*(phic - phil)
+                                       +flux[X2DIR](fluidnum,IDN,k,j+1,i)*(phir - phic));
         }
       }
+    }
     }
   }
 
   if (pmb->block_size.nx3 > 1) {
     // acceleration in 3-direction
+    for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       Real x3v    = pmb->pcoord->x3v(k);
       Real dx3v   = pmb->pcoord->dx3v(k);
@@ -80,12 +85,13 @@ void HydroSourceTerms::StaticGravity(const Real dt,const Real time, const Athena
           phic             = StaticGravPot(x1v,x2v,x3v         ,time);
           phir             = StaticGravPot(x1v,x2v,x3v+0.5*dx3v,time);     
           phil             = StaticGravPot(x1v,x2v,x3v-0.5*dx3v,time);
-          cons(IM3,k,j,i) -= dtodx3*cons(IDN,k,j,i)*(phir-phil);
+          cons(fluidnum,IM3,k,j,i) -= dtodx3*cons(fluidnum,IDN,k,j,i)*(phir-phil);
           if (NON_BAROTROPIC_EOS)
-            cons(IEN,k,j,i) -= dtodx3*( flux[X3DIR](IDN,k  ,j,i)*(phic - phil) 
-                                       +flux[X3DIR](IDN,k+1,j,i)*(phir - phic));
+            cons(fluidnum,IEN,k,j,i) -= dtodx3*( flux[X3DIR](fluidnum,IDN,k  ,j,i)*(phic - phil) 
+                                       +flux[X3DIR](fluidnum,IDN,k+1,j,i)*(phir - phic));
         }
       }
+    }
     }
   }
   return;

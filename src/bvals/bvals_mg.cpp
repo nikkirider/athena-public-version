@@ -291,7 +291,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferSameLevel(AthenaArray<Real> &sr
   sk=(nb.ox3>0)?nc:ngh;
   ek=(nb.ox3<0)?(2*ngh-1):(ngh+nc-1);
   int p=0;
-  BufferUtility::Pack4DData(src, buf, 0, nvar-1, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::Pack5DData(src, buf, 0, nvar-1, si, ei, sj, ej, sk, ek, p);
   return p;
 }
 
@@ -377,7 +377,7 @@ void MGBoundaryValues::SetMultigridBoundarySameLevel(AthenaArray<Real> &dst,
   else              sk=0,      ek=ngh-1;
 
   int p=0;
-  BufferUtility::Unpack4DData(buf, dst, 0, nvar-1, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::Unpack5DData(buf, dst, 0, nvar-1, si, ei, sj, ej, sk, ek, p);
   return;
 }
 

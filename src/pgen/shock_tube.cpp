@@ -69,7 +69,12 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
     Real xsm = (0.60588 - 0.51594/1.4903)*tlim;
     Real xrm = (0.60588 - 1.0/std::sqrt(PI*1.4903))*tlim;
     Real xfm = (1.2 - 2.3305/1.08)*tlim;
+   
+    for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     Real gm1 = pmb->peos->GetGamma() - 1.0;
+    if(fluidnum==1){
+      Real gm1  = pmb->peos->GetGamma2() - 1.0;
+    }
     for (int k=pmb->ks; k<=pmb->ke; k++) {
     for (int j=pmb->js; j<=pmb->je; j++) {
       for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -145,16 +150,16 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
           e0 = 0.95/gm1 + 0.5*((mx*mx+my*my+mz*mz)/d0 + (bx*bx+by*by+bz*bz));
         }
 
-        err[IDN] += fabs(d0 - pmb->phydro->u(IDN,k,j,i));
-        err[im1] += fabs(mx - pmb->phydro->u(im1,k,j,i));
-        err[im2] += fabs(my - pmb->phydro->u(im2,k,j,i));
-        err[im3] += fabs(mz - pmb->phydro->u(im3,k,j,i));
-        err[IEN] += fabs(e0 - pmb->phydro->u(IEN,k,j,i));
+        err[IDN] += fabs(d0 - pmb->phydro->u(fluidnum,IDN,k,j,i));
+        err[im1] += fabs(mx - pmb->phydro->u(fluidnum,im1,k,j,i));
+        err[im2] += fabs(my - pmb->phydro->u(fluidnum,im2,k,j,i));
+        err[im3] += fabs(mz - pmb->phydro->u(fluidnum,im3,k,j,i));
+        err[IEN] += fabs(e0 - pmb->phydro->u(fluidnum,IEN,k,j,i));
         err[NHYDRO + ib1] += fabs(bx - pmb->pfield->bcc(ib1,k,j,i));
         err[NHYDRO + ib2] += fabs(by - pmb->pfield->bcc(ib2,k,j,i));
         err[NHYDRO + ib3] += fabs(bz - pmb->pfield->bcc(ib3,k,j,i));
       }
-    }}
+    }}}
 
   // Errors in Sod solution
   } else {
@@ -164,6 +169,7 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
     Real xf = -0.07027*tlim;
     Real xh = -1.1832*tlim;
 
+    for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
     for (int k=pmb->ks; k<=pmb->ke; k++) {
     for (int j=pmb->js; j<=pmb->je; j++) {
       for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -194,13 +200,13 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
           m0 = 0.0;
           e0 = 2.5;
         }
-        err[IDN] += fabs(d0  - pmb->phydro->u(IDN,k,j,i));
-        err[im1] += fabs(m0  - pmb->phydro->u(im1,k,j,i));
-        err[im2] += fabs(0.0 - pmb->phydro->u(im2,k,j,i));
-        err[im3] += fabs(0.0 - pmb->phydro->u(im3,k,j,i));
-        err[IEN] += fabs(e0  - pmb->phydro->u(IEN,k,j,i));
+        err[IDN] += fabs(d0  - pmb->phydro->u(fluidnum,IDN,k,j,i));
+        err[im1] += fabs(m0  - pmb->phydro->u(fluidnum,im1,k,j,i));
+        err[im2] += fabs(0.0 - pmb->phydro->u(fluidnum,im2,k,j,i));
+        err[im3] += fabs(0.0 - pmb->phydro->u(fluidnum,im3,k,j,i));
+        err[IEN] += fabs(e0  - pmb->phydro->u(fluidnum,IEN,k,j,i));
       }
-    }}
+    }}}
   }
 
   // normalize errors by number of cells, compute RMS
@@ -258,6 +264,34 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   std::stringstream msg;
 
+//This was specifically to test InitWithShallowSlice2Index:    
+//  AthenaArray<int> atest;
+//  AthenaArray<int> atest0, atest1;
+//  atest.NewAthenaArray(2,10);
+//  atest0.NewAthenaArray(10);
+//  atest1.NewAthenaArray(10);
+
+//  for(int fluidnum=0;fluidnum<NFLUIDS;fluidnum++){
+//    for(int i=0;i<10;i++){
+//      for(int j=0;j<10;j++){
+//        atest(fluidnum,i)=(fluidnum+1)*10+i;
+//      }
+//    }
+//  }
+
+//  fprintf(stdout,"atest(f1,2)=%4i,atest(f2,2)=%4i\n",atest(0,2),atest(1,2));
+
+//  InitWithShallowSlice2Index(atest,dim,wanted_indx,nvar,fluidnum)
+//  atest0.InitWithShallowSlice2Index(atest,2,0,1,0);
+//  atest1.InitWithShallowSlice2Index(atest,2,0,1,1);
+  
+//  for(int i=0;i<10;i++){
+//    fprintf(stdout,"atest=%4i%4i atest0=%4i atest1=%4i\n",atest(0,i),atest(1,i),atest0(i),atest1(i));
+//  } 
+ 
+//  throw std::exception(); 
+
+
   // parse shock direction: {1,2,3} -> {x1,x2,x3}
   int shk_dir = pin->GetInteger("problem","shock_dir");
 
@@ -282,31 +316,46 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     throw std::runtime_error(msg.str().c_str());
   }
 
-  // Parse left state read from input file: dl,ul,vl,wl,[pl]
-  Real wl[NHYDRO+NFIELD];
-  wl[IDN] = pin->GetReal("problem","dl");
-  wl[IVX] = pin->GetReal("problem","ul");
-  wl[IVY] = pin->GetReal("problem","vl");
-  wl[IVZ] = pin->GetReal("problem","wl");
-  if (NON_BAROTROPIC_EOS) wl[IPR] = pin->GetReal("problem","pl");
-  if (MAGNETIC_FIELDS_ENABLED) {
-    wl[NHYDRO  ] = pin->GetReal("problem","bxl");
-    wl[NHYDRO+1] = pin->GetReal("problem","byl");
-    wl[NHYDRO+2] = pin->GetReal("problem","bzl");
-  }
+    AthenaArray<Real> wl0;
+    AthenaArray<Real> wr0;
 
-  // Parse right state read from input file: dr,ur,vr,wr,[pr]
-  Real wr[NHYDRO+NFIELD];
-  wr[IDN] = pin->GetReal("problem","dr");
-  wr[IVX] = pin->GetReal("problem","ur");
-  wr[IVY] = pin->GetReal("problem","vr");
-  wr[IVZ] = pin->GetReal("problem","wr");
-  if (NON_BAROTROPIC_EOS) wr[IPR] = pin->GetReal("problem","pr");
-  if (MAGNETIC_FIELDS_ENABLED) {
-    wr[NHYDRO  ] = pin->GetReal("problem","bxr");
-    wr[NHYDRO+1] = pin->GetReal("problem","byr");
-    wr[NHYDRO+2] = pin->GetReal("problem","bzr");
-  }
+  // Parse left state read from input file: dl,ul,vl,wl,[pl]
+    wl0.NewAthenaArray(NFLUIDS,NHYDRO+NFIELD);
+    wr0.NewAthenaArray(NFLUIDS,NHYDRO+NFIELD);
+
+    //Real wl[NFLUIDS][NHYDRO+NFIELD];
+    //Real wr[NFLUIDS][NHYDRO+NFIELD];
+
+    wl0(0,IDN) = pin->GetReal("problem","dl1");
+    wl0(0,IVX) = pin->GetReal("problem","ul1");
+    wl0(0,IVY) = pin->GetReal("problem","vl1");
+    wl0(0,IVZ) = pin->GetReal("problem","wl1");
+    if (NON_BAROTROPIC_EOS) wl0(0,IPR) = pin->GetReal("problem","pl1");
+
+    if(NFLUIDS==2){
+      wl0(1,IDN) = pin->GetReal("problem","dl2");
+      wl0(1,IVX) = pin->GetReal("problem","ul2");
+      wl0(1,IVY) = pin->GetReal("problem","vl2");
+      wl0(1,IVZ) = pin->GetReal("problem","wl2");
+      if (NON_BAROTROPIC_EOS) wl0(1,IPR) = pin->GetReal("problem","pl2");
+    }
+
+    wr0(0,IDN) = pin->GetReal("problem","dr1");
+    wr0(0,IVX) = pin->GetReal("problem","ur1");
+    wr0(0,IVY) = pin->GetReal("problem","vr1");
+    wr0(0,IVZ) = pin->GetReal("problem","wr1");
+    if (NON_BAROTROPIC_EOS) wr0(0,IPR) = pin->GetReal("problem","pr1");
+
+    if(NFLUIDS==2){
+      wr0(1,IDN) = pin->GetReal("problem","dr2");
+      wr0(1,IVX) = pin->GetReal("problem","ur2");
+      wr0(1,IVY) = pin->GetReal("problem","vr2");
+      wr0(1,IVZ) = pin->GetReal("problem","wr2");
+      if (NON_BAROTROPIC_EOS) wr0(1,IPR) = pin->GetReal("problem","pr2");
+    }
+
+    Real ramp=pin->GetReal("problem","ramp"); 
+
 
 // Initialize the discontinuity in the Hydro variables ---------------------------------
 
@@ -318,50 +367,100 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     for (int j=js; j<=je; ++j) {
       for (int i=is; i<=ie; ++i) {
         if (pcoord->x1v(i) < xshock) {
-          phydro->u(IDN,k,j,i) = wl[IDN];
-          phydro->u(IM1,k,j,i) = wl[IVX]*wl[IDN];
-          phydro->u(IM2,k,j,i) = wl[IVY]*wl[IDN];
-          phydro->u(IM3,k,j,i) = wl[IVZ]*wl[IDN];
-          if (NON_BAROTROPIC_EOS) phydro->u(IEN,k,j,i) =
-            wl[IPR]/(peos->GetGamma() - 1.0)
-            + 0.5*wl[IDN]*(wl[IVX]*wl[IVX] + wl[IVY]*wl[IVY] + wl[IVZ]*wl[IVZ]);
+           for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+
+             if(ramp!=0.0){
+               if(fluidnum==0){
+//                 wl0(fluidnum,IPR) = 0.5*(1.0-tanh((pcoord->x1v(i))/ramp));
+                 wl0(fluidnum,IDN) = 0.5*(1.0-tanh((pcoord->x1v(i))/ramp));
+               }else if(fluidnum==1){
+//                 wl0(fluidnum,IPR) = 0.5*(1.0+tanh((pcoord->x1v(i))/ramp));
+                 wl0(fluidnum,IDN) = 0.5*0.125*(1.0+tanh((pcoord->x1v(i))/ramp));
+               }
+             }
+
+             phydro->u(fluidnum,IDN,k,j,i) = wl0(fluidnum,IDN);
+             phydro->u(fluidnum,IM1,k,j,i) = wl0(fluidnum,IVX)*wl0(fluidnum,IDN);
+             phydro->u(fluidnum,IM2,k,j,i) = wl0(fluidnum,IVY)*wl0(fluidnum,IDN);
+             phydro->u(fluidnum,IM3,k,j,i) = wl0(fluidnum,IVZ)*wl0(fluidnum,IDN);
+          
+
+
+             if (NON_BAROTROPIC_EOS){
+                Real gam=peos->GetGamma();
+                if(fluidnum==1){
+                  gam=peos->GetGamma2();
+                }
+                phydro->u(fluidnum,IEN,k,j,i) = wl0(fluidnum,IPR)/(gam - 1.0)
+                + 0.5*wl0(fluidnum,IDN)*(wl0(fluidnum,IVX)*wl0(fluidnum,IVX) + wl0(fluidnum,IVY)*wl0(fluidnum,IVY)
+                + wl0(fluidnum,IVZ)*wl0(fluidnum,IVZ));
+             }
+
+
+      
+	     if (CLESS_ENABLED) {
+                pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
+                pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
+                pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
+                pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
+                pcless->u(IE11,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVX)*wl0(fluidnum,IVX);
+                pcless->u(IE22,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVY)*wl0(fluidnum,IVY);
+                pcless->u(IE33,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVZ)*wl0(fluidnum,IVZ);
+                pcless->u(IE12,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVX)*wl0(fluidnum,IVY);
+                pcless->u(IE13,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVX)*wl0(fluidnum,IVZ);
+                pcless->u(IE23,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVY)*wl0(fluidnum,IVZ);
+             }
+
+          }
+
+      
+        }else{
+            for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+
+             if(ramp!=0.0){
+               if(fluidnum==0){
+//                 wr0(fluidnum,IPR) = 0.5*(1.0-tanh((pcoord->x1v(i))/ramp));
+                 wr0(fluidnum,IDN) = 0.5*(1.0-tanh((pcoord->x1v(i))/ramp));
+               }else if(fluidnum==1){
+//                 wr0(fluidnum,IPR) = 0.5*(1.0+tanh((pcoord->x1v(i))/ramp));
+                 wr0(fluidnum,IDN) = 0.5*0.125*(1.0+tanh((pcoord->x1v(i))/ramp));
+               }
+             }
+
+              phydro->u(fluidnum,IDN,k,j,i) = wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM1,k,j,i) = wr0(fluidnum,IVX)*wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM2,k,j,i) = wr0(fluidnum,IVY)*wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM3,k,j,i) = wr0(fluidnum,IVZ)*wr0(fluidnum,IDN);
+           
+ 
+              if (NON_BAROTROPIC_EOS){
+                Real gam=peos->GetGamma();
+                if(fluidnum==1){
+                  gam=peos->GetGamma2();
+               }
+               phydro->u(fluidnum,IEN,k,j,i) = wr0(fluidnum,IPR)/(gam - 1.0)
+               + 0.5*wr0(fluidnum,IDN)*(wr0(fluidnum,IVX)*wr0(fluidnum,IVX) + wr0(fluidnum,IVY)*wr0(fluidnum,IVY)
+               + wr0(fluidnum,IVZ)*wr0(fluidnum,IVZ));
+	   
+               }
+
+
 				
-					if (CLESS_ENABLED) {
-						pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
-						pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
-						pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
-						pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
-						pcless->u(IE11,k,j,i) = wl[IPR] + wl[IDN]*wl[IVX]*wl[IVX];
-						pcless->u(IE22,k,j,i) = wl[IPR] + wl[IDN]*wl[IVY]*wl[IVY];
-						pcless->u(IE33,k,j,i) = wl[IPR] + wl[IDN]*wl[IVZ]*wl[IVZ];
-						pcless->u(IE12,k,j,i) = wl[IPR] + wl[IDN]*wl[IVX]*wl[IVY];
-						pcless->u(IE13,k,j,i) = wl[IPR] + wl[IDN]*wl[IVX]*wl[IVZ];
-						pcless->u(IE23,k,j,i) = wl[IPR] + wl[IDN]*wl[IVY]*wl[IVZ];
-					}
-        } else {
-          phydro->u(IDN,k,j,i) = wr[IDN];
-          phydro->u(IM1,k,j,i) = wr[IVX]*wr[IDN];
-          phydro->u(IM2,k,j,i) = wr[IVY]*wr[IDN];
-          phydro->u(IM3,k,j,i) = wr[IVZ]*wr[IDN];
-          if (NON_BAROTROPIC_EOS) phydro->u(IEN,k,j,i) =
-            wr[IPR]/(peos->GetGamma() - 1.0)
-            + 0.5*wr[IDN]*(wr[IVX]*wr[IVX] + wr[IVY]*wr[IVY] + wr[IVZ]*wr[IVZ]);
-					
-					if (CLESS_ENABLED) {
-						pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
-						pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
-						pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
-						pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
-						pcless->u(IE11,k,j,i) = wr[IPR] + wr[IDN]*wr[IVX]*wr[IVX];
-						pcless->u(IE22,k,j,i) = wr[IPR] + wr[IDN]*wr[IVY]*wr[IVY];
-						pcless->u(IE33,k,j,i) = wr[IPR] + wr[IDN]*wr[IVZ]*wr[IVZ];
-						pcless->u(IE12,k,j,i) = wr[IPR] + wr[IDN]*wr[IVX]*wr[IVY];
-						pcless->u(IE13,k,j,i) = wr[IPR] + wr[IDN]*wr[IVX]*wr[IVZ];
-						pcless->u(IE23,k,j,i) = wr[IPR] + wr[IDN]*wr[IVY]*wr[IVZ];
-					}
+               if (CLESS_ENABLED) {
+                 pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
+                 pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
+                 pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
+                 pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
+                 pcless->u(IE11,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVX)*wr0(fluidnum,IVX);
+                 pcless->u(IE22,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVY)*wr0(fluidnum,IVY);
+                 pcless->u(IE33,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVZ)*wr0(fluidnum,IVZ);
+                 pcless->u(IE12,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVX)*wr0(fluidnum,IVY);
+                 pcless->u(IE13,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVX)*wr0(fluidnum,IVZ);
+                 pcless->u(IE23,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVY)*wr0(fluidnum,IVZ);
+               }
+            }
         }
-      }
-    }}
+     }}}
     break;
 
 //--- shock in 2-direction
@@ -370,50 +469,68 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     for (int j=js; j<=je; ++j) {
       if (pcoord->x2v(j) < xshock) {
         for (int i=is; i<=ie; ++i) {
-          phydro->u(IDN,k,j,i) = wl[IDN];
-          phydro->u(IM2,k,j,i) = wl[IVX]*wl[IDN];
-          phydro->u(IM3,k,j,i) = wl[IVY]*wl[IDN];
-          phydro->u(IM1,k,j,i) = wl[IVZ]*wl[IDN];
-          if (NON_BAROTROPIC_EOS) phydro->u(IEN,k,j,i) =
-            wl[IPR]/(peos->GetGamma() - 1.0)
-            + 0.5*wl[IDN]*(wl[IVX]*wl[IVX] + wl[IVY]*wl[IVY] + wl[IVZ]*wl[IVZ]);
-					if (CLESS_ENABLED) {
-						pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
-						pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
-						pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
-						pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
-						pcless->u(IE22,k,j,i) = wl[IPR] + wl[IDN]*wl[IVX]*wl[IVX];
-						pcless->u(IE33,k,j,i) = wl[IPR] + wl[IDN]*wl[IVY]*wl[IVY];
-						pcless->u(IE11,k,j,i) = wl[IPR] + wl[IDN]*wl[IVZ]*wl[IVZ];
-						pcless->u(IE23,k,j,i) = wl[IPR] + wl[IDN]*wl[IVX]*wl[IVY];
-						pcless->u(IE12,k,j,i) = wl[IPR] + wl[IDN]*wl[IVX]*wl[IVZ];
-						pcless->u(IE13,k,j,i) = wl[IPR] + wl[IDN]*wl[IVY]*wl[IVZ];
-					}
-				}
+            for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+              phydro->u(fluidnum,IDN,k,j,i) = wl0(fluidnum,IDN);
+              phydro->u(fluidnum,IM1,k,j,i) = wl0(fluidnum,IVX)*wl0(fluidnum,IDN);
+              phydro->u(fluidnum,IM2,k,j,i) = wl0(fluidnum,IVY)*wl0(fluidnum,IDN);
+              phydro->u(fluidnum,IM3,k,j,i) = wl0(fluidnum,IVZ)*wl0(fluidnum,IDN);
+    
+              if (NON_BAROTROPIC_EOS){
+                Real gam=peos->GetGamma();
+                if(fluidnum==1){
+                  gam=peos->GetGamma2();
+                }
+                phydro->u(fluidnum,IEN,k,j,i) = wl0(fluidnum,IPR)/(gam - 1.0)
+                + 0.5*wl0(fluidnum,IDN)*(wl0(fluidnum,IVX)*wl0(fluidnum,IVX) + wl0(fluidnum,IVY)*wl0(fluidnum,IVY)
+                + wl0(fluidnum,IVZ)*wl0(fluidnum,IVZ));
+             }
+             if (CLESS_ENABLED) {
+               pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
+               pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
+               pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
+               pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
+               pcless->u(IE22,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVX)*wl0(fluidnum,IVX);
+               pcless->u(IE33,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVY)*wl0(fluidnum,IVY);
+               pcless->u(IE11,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVZ)*wl0(fluidnum,IVZ);
+               pcless->u(IE23,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVX)*wl0(fluidnum,IVY);
+               pcless->u(IE12,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVX)*wl0(fluidnum,IVZ);
+               pcless->u(IE13,k,j,i) = wl0(fluidnum,IPR) + wl0(fluidnum,IDN)*wl0(fluidnum,IVY)*wl0(fluidnum,IVZ);
+             }
+          }
+       }
 
       } else {
         for (int i=is; i<=ie; ++i) {
-          phydro->u(IDN,k,j,i) = wr[IDN];
-          phydro->u(IM2,k,j,i) = wr[IVX]*wr[IDN];
-          phydro->u(IM3,k,j,i) = wr[IVY]*wr[IDN];
-          phydro->u(IM1,k,j,i) = wr[IVZ]*wr[IDN];
-          if (NON_BAROTROPIC_EOS) phydro->u(IEN,k,j,i) =
-            wr[IPR]/(peos->GetGamma() - 1.0)
-            + 0.5*wr[IDN]*(wr[IVX]*wr[IVX] + wr[IVY]*wr[IVY] + wr[IVZ]*wr[IVZ]);
-					if (CLESS_ENABLED) {
-						pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
-						pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
-						pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
-						pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
-						pcless->u(IE22,k,j,i) = wr[IPR] + wr[IDN]*wr[IVX]*wr[IVX];
-						pcless->u(IE33,k,j,i) = wr[IPR] + wr[IDN]*wr[IVY]*wr[IVY];
-						pcless->u(IE11,k,j,i) = wr[IPR] + wr[IDN]*wr[IVZ]*wr[IVZ];
-						pcless->u(IE23,k,j,i) = wr[IPR] + wr[IDN]*wr[IVX]*wr[IVY];
-						pcless->u(IE12,k,j,i) = wr[IPR] + wr[IDN]*wr[IVX]*wr[IVZ];
-						pcless->u(IE13,k,j,i) = wr[IPR] + wr[IDN]*wr[IVY]*wr[IVZ];
-					}
-        }
-      }
+            for(int fluidnum=0;fluidnum<2;fluidnum++){
+              phydro->u(fluidnum,IDN,k,j,i) = wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM1,k,j,i) = wr0(fluidnum,IVX)*wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM2,k,j,i) = wr0(fluidnum,IVY)*wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM3,k,j,i) = wr0(fluidnum,IVZ)*wr0(fluidnum,IDN);
+            
+              if (NON_BAROTROPIC_EOS){
+                Real gam=peos->GetGamma();
+                if(fluidnum==1){
+                  gam=peos->GetGamma2();
+                }
+                phydro->u(fluidnum,IEN,k,j,i) = wr0(fluidnum,IPR)/(gam - 1.0)
+                + 0.5*wr0(fluidnum,IDN)*(wr0(fluidnum,IVX)*wr0(fluidnum,IVX) + wr0(fluidnum,IVY)*wr0(fluidnum,IVY)
+                + wr0(fluidnum,IVZ)*wr0(fluidnum,IVZ));
+              
+               }
+               if (CLESS_ENABLED) {
+                 pcless->u(IDN ,k,j,i) = phydro->u(IDN,k,j,i); 
+                 pcless->u(IM2 ,k,j,i) = phydro->u(IM2,k,j,i);
+                 pcless->u(IM3 ,k,j,i) = phydro->u(IM3,k,j,i);
+                 pcless->u(IM1 ,k,j,i) = phydro->u(IM1,k,j,i);
+                 pcless->u(IE22,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVX)*wr0(fluidnum,IVX);
+                 pcless->u(IE33,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVY)*wr0(fluidnum,IVY);
+                 pcless->u(IE11,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVZ)*wr0(fluidnum,IVZ);
+                 pcless->u(IE23,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVX)*wr0(fluidnum,IVY);
+                 pcless->u(IE12,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVX)*wr0(fluidnum,IVZ);
+                 pcless->u(IE13,k,j,i) = wr0(fluidnum,IPR) + wr0(fluidnum,IDN)*wr0(fluidnum,IVY)*wr0(fluidnum,IVZ);
+               }
+            }
+         }}
     }}
     break;
 
@@ -424,25 +541,44 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       if (pcoord->x3v(k) < xshock) {
         for (int j=js; j<=je; ++j) {
         for (int i=is; i<=ie; ++i) {
-          phydro->u(IDN,k,j,i) = wl[IDN];
-          phydro->u(IM3,k,j,i) = wl[IVX]*wl[IDN];
-          phydro->u(IM1,k,j,i) = wl[IVY]*wl[IDN];
-          phydro->u(IM2,k,j,i) = wl[IVZ]*wl[IDN];
-          if (NON_BAROTROPIC_EOS) phydro->u(IEN,k,j,i) =
-            wl[IPR]/(peos->GetGamma() - 1.0)
-            + 0.5*wl[IDN]*(wl[IVX]*wl[IVX] + wl[IVY]*wl[IVY] + wl[IVZ]*wl[IVZ]);
-        }}
+            for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+              phydro->u(fluidnum,IDN,k,j,i) = wl0(fluidnum,IDN);
+              phydro->u(fluidnum,IM3,k,j,i) = wl0(fluidnum,IVX)*wl0(fluidnum,IDN);
+              phydro->u(fluidnum,IM1,k,j,i) = wl0(fluidnum,IVY)*wl0(fluidnum,IDN);
+              phydro->u(fluidnum,IM2,k,j,i) = wl0(fluidnum,IVZ)*wl0(fluidnum,IDN);
+            
+              if (NON_BAROTROPIC_EOS){
+                Real gam=peos->GetGamma();
+                if(fluidnum==1){
+                  gam=peos->GetGamma2();
+                }
+                phydro->u(fluidnum,IEN,k,j,i) = wl0(fluidnum,IPR)/(gam - 1.0)
+                + 0.5*wl0(fluidnum,IDN)*(wl0(fluidnum,IVX)*wl0(fluidnum,IVX) + wl0(fluidnum,IVY)*wl0(fluidnum,IVY)
+                + wl0(fluidnum,IVZ)*wl0(fluidnum,IVZ));
+              }
+            
+            }
+          }}
       } else {
-        for (int j=js; j<=je; ++j) {
-        for (int i=is; i<=ie; ++i) {
-          phydro->u(IDN,k,j,i) = wr[IDN];
-          phydro->u(IM3,k,j,i) = wr[IVX]*wr[IDN];
-          phydro->u(IM1,k,j,i) = wr[IVY]*wr[IDN];
-          phydro->u(IM2,k,j,i) = wr[IVZ]*wr[IDN];
-          if (NON_BAROTROPIC_EOS) phydro->u(IEN,k,j,i) =
-            wr[IPR]/(peos->GetGamma() - 1.0)
-            + 0.5*wr[IDN]*(wr[IVX]*wr[IVX] + wr[IVY]*wr[IVY] + wr[IVZ]*wr[IVZ]);
-        }}
+          for (int j=js; j<=je; ++j) {
+          for (int i=is; i<=ie; ++i) {
+            for(int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+              phydro->u(fluidnum,IDN,k,j,i) = wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM3,k,j,i) = wr0(fluidnum,IVX)*wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM1,k,j,i) = wr0(fluidnum,IVY)*wr0(fluidnum,IDN);
+              phydro->u(fluidnum,IM2,k,j,i) = wr0(fluidnum,IVZ)*wr0(fluidnum,IDN);
+     
+              if (NON_BAROTROPIC_EOS){
+                Real gam=peos->GetGamma();
+                if(fluidnum==1){
+                  gam=peos->GetGamma2();
+                }
+                phydro->u(fluidnum,IEN,k,j,i) = wr0(fluidnum,IPR)/(gam - 1.0)
+                + 0.5*wr0(fluidnum,IDN)*(wr0(fluidnum,IVX)*wr0(fluidnum,IVX) + wr0(fluidnum,IVY)*wr0(fluidnum,IVY)
+                + wr0(fluidnum,IVZ)*wr0(fluidnum,IVZ));
+           
+              }
+            }}}
       }
     }
     break;
@@ -453,60 +589,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     throw std::runtime_error(msg.str().c_str());
   }
 
+  wl0.DeleteAthenaArray(); 
+  wr0.DeleteAthenaArray();
+
 // now set face-centered (interface) magnetic fields -----------------------------------
-
-  if (MAGNETIC_FIELDS_ENABLED) {
-    for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int i=is; i<=ie; ++i) {
-        if (shk_dir==1 && pcoord->x1v(i) < xshock) {
-          pfield->b.x1f(k,j,i) = wl[NHYDRO  ];
-          pfield->b.x2f(k,j,i) = wl[NHYDRO+1];
-          pfield->b.x3f(k,j,i) = wl[NHYDRO+2];
-        } else if (shk_dir==2 && pcoord->x2v(j) < xshock) {
-          pfield->b.x1f(k,j,i) = wl[NHYDRO+2];
-          pfield->b.x2f(k,j,i) = wl[NHYDRO  ];
-          pfield->b.x3f(k,j,i) = wl[NHYDRO+1];
-        } else if (shk_dir==3 && pcoord->x3v(k) < xshock) {
-          pfield->b.x1f(k,j,i) = wl[NHYDRO+1];
-          pfield->b.x2f(k,j,i) = wl[NHYDRO+2];
-          pfield->b.x3f(k,j,i) = wl[NHYDRO];
-        }
-
-        if (shk_dir==1 && pcoord->x1v(i) >= xshock) {
-          pfield->b.x1f(k,j,i) = wr[NHYDRO  ];
-          pfield->b.x2f(k,j,i) = wr[NHYDRO+1];
-          pfield->b.x3f(k,j,i) = wr[NHYDRO+2];
-        } else if (shk_dir==2 && pcoord->x2v(j) >= xshock) {
-          pfield->b.x1f(k,j,i) = wr[NHYDRO+2];
-          pfield->b.x2f(k,j,i) = wr[NHYDRO  ];
-          pfield->b.x3f(k,j,i) = wr[NHYDRO+1];
-        } else if (shk_dir==3 && pcoord->x3v(k) >= xshock)  {
-          pfield->b.x1f(k,j,i) = wr[NHYDRO+1];
-          pfield->b.x2f(k,j,i) = wr[NHYDRO+2];
-          pfield->b.x3f(k,j,i) = wr[NHYDRO];
-        }
-        if (NON_BAROTROPIC_EOS) {
-          phydro->u(IEN,k,j,i) += 0.5*(SQR(pfield->b.x1f(k,j,i))
-            + SQR(pfield->b.x2f(k,j,i)) + SQR(pfield->b.x3f(k,j,i)));
-        }
-      }
-    }}
-
-    // end by adding bi.x1 at ie+1, bi.x2 at je+1, and bi.x3 at ke+1
-
-    for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      pfield->b.x1f(k,j,ie+1) = pfield->b.x1f(k,j,ie);
-    }}
-    for (int k=ks; k<=ke; ++k) {
-    for (int i=is; i<=ie; ++i) {
-      pfield->b.x2f(k,je+1,i) = pfield->b.x2f(k,je,i);
-    }}
-    for (int j=js; j<=je; ++j) {
-    for (int i=is; i<=ie; ++i) {
-      pfield->b.x3f(ke+1,j,i) = pfield->b.x3f(ke,j,i);
-    }}
-  }
+//TAKE FROM OG 1-FLUID VERSION IF NEEDED
+  
   return;
 }

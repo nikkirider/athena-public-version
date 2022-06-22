@@ -86,23 +86,23 @@ private:
 
   // auxiliary functions to calculate viscous flux
   void Divv(const AthenaArray<Real> &prim, AthenaArray<Real> &divv);
-  void FaceXdx(const int k, const int j, const int il, const int iu,
+  void FaceXdx(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceXdy(const int k, const int j, const int il, const int iu,
+  void FaceXdy(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceXdz(const int k, const int j, const int il, const int iu,
+  void FaceXdz(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceYdx(const int k, const int j, const int il, const int iu,
+  void FaceYdx(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceYdy(const int k, const int j, const int il, const int iu,
+  void FaceYdy(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceYdz(const int k, const int j, const int il, const int iu,
+  void FaceYdz(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceZdx(const int k, const int j, const int il, const int iu,
+  void FaceZdx(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceZdy(const int k, const int j, const int il, const int iu,
+  void FaceZdy(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
-  void FaceZdz(const int k, const int j, const int il, const int iu,
+  void FaceZdz(const int fluidnum, const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &prim, AthenaArray<Real> &len);
 };
 #endif // HYDRO_HYDRO_DIFFUSION_HYDRO_DIFFUSION_HPP_

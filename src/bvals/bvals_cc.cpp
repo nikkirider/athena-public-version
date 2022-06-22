@@ -52,7 +52,7 @@ int BoundaryValues::LoadCellCenteredBoundaryBufferSameLevel(AthenaArray<Real> &s
   sk=(nb.ox3>0)?(pmb->ke-NGHOST+1):pmb->ks;
   ek=(nb.ox3<0)?(pmb->ks+NGHOST-1):pmb->ke;
   int p=0;
-  BufferUtility::Pack4DData(src, buf, ns, ne, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::Pack5DData(src, buf, ns, ne, si, ei, sj, ej, sk, ek, p);
   return p;
 }
 
@@ -79,7 +79,7 @@ int BoundaryValues::LoadCellCenteredBoundaryBufferToCoarser(AthenaArray<Real> &s
   int p=0;
   pmr->RestrictCellCenteredValues(src, cbuf, ns, ne,
                                   si, ei, sj, ej, sk, ek);
-  BufferUtility::Pack4DData(cbuf, buf, ns, ne,
+  BufferUtility::Pack5DData(cbuf, buf, ns, ne,
                             si, ei, sj, ej, sk, ek, p);
   return p;
 }
@@ -128,7 +128,7 @@ int BoundaryValues::LoadCellCenteredBoundaryBufferToFiner(AthenaArray<Real> &src
   }
 
   int p=0;
-  BufferUtility::Pack4DData(src, buf, ns, ne, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::Pack5DData(src, buf, ns, ne, si, ei, sj, ej, sk, ek, p);
   return p;
 }
 
@@ -216,6 +216,7 @@ void BoundaryValues::SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst,
 
   int p=0;
   if (nb.polar) {
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int n=ns; n<=ne; ++n) {
       Real sign = 1.0;
       if (flip!=NULL) sign =flip[n] ? -1.0 : 1.0;
@@ -223,12 +224,13 @@ void BoundaryValues::SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst,
         for (int j=ej; j>=sj; --j) {
 #pragma omp simd
           for (int i=si; i<=ei; ++i)
-            dst(n,k,j,i) = sign * buf[p++];
+            dst(fluidnum,n,k,j,i) = sign * buf[p++];
         }
       }
     }
+    }
   } else {
-    BufferUtility::Unpack4DData(buf, dst, ns, ne, si, ei, sj, ej, sk, ek, p);
+    BufferUtility::Unpack5DData(buf, dst, ns, ne, si, ei, sj, ej, sk, ek, p);
   }
   // 2d shearingbox in x-z plane: additional step to shift azimuthal velocity;
   if (SHEARING_BOX) {
@@ -238,26 +240,30 @@ void BoundaryValues::SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst,
       int64_t nrbx1 = pmy_mesh->nrbx1*(1L << level);
       Real qomL = qshear_*Omega_0_*x1size_;
       if ((pmb->loc.lx1==0) && (nb.ox1<0)) {
+        for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
         for (int k=sk;k<=ek;++k) {
           for (int j=sj;j<=ej;++j) {
             for (int i=si;i<=ei;++i) {
               if (NON_BAROTROPIC_EOS)
-                dst(IEN,k,j,i) += (0.5/dst(IDN,k,j,i))
-                    *(SQR(dst(IM3,k,j,i)+qomL*dst(IDN,k,j,i))
-                      -SQR(dst(IM3,k,j,i)));
-              dst(IM3,k,j,i) += qomL*dst(IDN,k,j,i);
+                dst(fluidnum,IEN,k,j,i) += (0.5/dst(fluidnum,IDN,k,j,i))
+                    *(SQR(dst(fluidnum,IM3,k,j,i)+qomL*dst(fluidnum,IDN,k,j,i))
+                      -SQR(dst(fluidnum,IM3,k,j,i)));
+              dst(fluidnum,IM3,k,j,i) += qomL*dst(fluidnum,IDN,k,j,i);
             }}}
+          }
       } // inner boundary
       if ((pmb->loc.lx1==(nrbx1-1)) && (nb.ox1>0)) {
+        for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
         for (int k=sk;k<=ek;++k) {
           for (int j=sj;j<=ej;++j) {
             for (int i=si;i<=ei;++i) {
             if (NON_BAROTROPIC_EOS)
-              dst(IEN,k,j,i) += (0.5/dst(IDN,k,j,i))
-                 *(SQR(dst(IM3,k,j,i)-qomL*dst(IDN,k,j,i))
-                 -SQR(dst(IM3,k,j,i)));
-            dst(IM3,k,j,i) -= qomL*dst(IDN,k,j,i);
+              dst(fluidnum,IEN,k,j,i) += (0.5/dst(fluidnum,IDN,k,j,i))
+                 *(SQR(dst(fluidnum,IM3,k,j,i)-qomL*dst(fluidnum,IDN,k,j,i))
+                 -SQR(dst(fluidnum,IM3,k,j,i)));
+            dst(fluidnum,IM3,k,j,i) -= qomL*dst(fluidnum,IDN,k,j,i);
           }}}
+         }
       } // outer boundary
     }
   }
@@ -310,6 +316,7 @@ void BoundaryValues::SetCellCenteredBoundaryFromCoarser(int ns, int ne,
 
   int p=0;
   if (nb.polar) {
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int n=ns; n<=ne; ++n) {
       Real sign = 1.0;
       if (flip!=NULL) sign = flip[n] ? -1.0 : 1.0;
@@ -317,12 +324,13 @@ void BoundaryValues::SetCellCenteredBoundaryFromCoarser(int ns, int ne,
         for (int j=ej; j>=sj; --j) {
 #pragma omp simd
           for (int i=si; i<=ei; ++i)
-            cbuf(n,k,j,i) = sign * buf[p++];
+            cbuf(fluidnum,n,k,j,i) = sign * buf[p++];
         }
       }
     }
+    }
   } else {
-    BufferUtility::Unpack4DData(buf, cbuf, ns, ne, si, ei, sj, ej, sk, ek, p);
+    BufferUtility::Unpack5DData(buf, cbuf, ns, ne, si, ei, sj, ej, sk, ek, p);
   }
   return;
 }
@@ -383,6 +391,7 @@ void BoundaryValues::SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst,
 
   int p=0;
   if (nb.polar) {
+    for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
     for (int n=ns; n<=ne; ++n) {
       Real sign=1.0;
       if (flip!=NULL) sign = flip[n] ? -1.0 : 1.0;
@@ -390,12 +399,13 @@ void BoundaryValues::SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst,
         for (int j=ej; j>=sj; --j) {
 #pragma omp simd
           for (int i=si; i<=ei; ++i)
-            dst(n,k,j,i) = sign * buf[p++];
+            dst(fluidnum,n,k,j,i) = sign * buf[p++];
         }
       }
     }
+    }
   } else {
-    BufferUtility::Unpack4DData(buf, dst, ns, ne, si, ei, sj, ej, sk, ek, p);
+    BufferUtility::Unpack5DData(buf, dst, ns, ne, si, ei, sj, ej, sk, ek, p);
   }
   return;
 }
@@ -546,35 +556,39 @@ void BoundaryValues::PolarSingleCellCentered(AthenaArray<Real> &dst, int ns, int
   && pmb->block_size.nx3 > 1) {
     if (block_bcs[INNER_X2]==POLAR_BNDRY) {
       int nx3_half = (pmb->ke - pmb->ks + 1) / 2;
+      for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
       for (int n=ns; n<=ne; ++n) {
         for (int j=pmb->js-NGHOST; j<=pmb->js-1; ++j) {
          for (int i=pmb->is-NGHOST; i<=pmb->ie+NGHOST; ++i) {
            for (int k=pmb->ks-NGHOST; k<=pmb->ke+NGHOST; ++k)
-             exc_(k)=dst(n,k,j,i);
+             exc_(k)=dst(fluidnum,n,k,j,i);
            for (int k=pmb->ks-NGHOST; k<=pmb->ke+NGHOST; ++k) {
              int k_shift = k;
              k_shift += (k < (nx3_half+NGHOST) ? 1 : -1) * nx3_half;
-             dst(n,k,j,i)=exc_(k_shift);
+             dst(fluidnum,n,k,j,i)=exc_(k_shift);
            }
          }
         }
+      }
       }
     }
 
     if (block_bcs[OUTER_X2]==POLAR_BNDRY) {
       int nx3_half = (pmb->ke - pmb->ks + 1) / 2;
+      for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
       for (int n=ns; n<=ne; ++n) {
         for (int j=pmb->je+1; j<=pmb->je+NGHOST; ++j) {
          for (int i=pmb->is-NGHOST; i<=pmb->ie+NGHOST; ++i) {
            for (int k=pmb->ks-NGHOST; k<=pmb->ke+NGHOST; ++k)
-             exc_(k)=dst(n,k,j,i);
+             exc_(k)=dst(fluidnum,n,k,j,i);
            for (int k=pmb->ks-NGHOST; k<=pmb->ke+NGHOST; ++k) {
              int k_shift = k;
              k_shift += (k < (nx3_half+NGHOST) ? 1 : -1) * nx3_half;
-             dst(n,k,j,i)=exc_(k_shift);
+             dst(fluidnum,n,k,j,i)=exc_(k_shift);
            }
          }
         }
+      }
       }
     }
   }

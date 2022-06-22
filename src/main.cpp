@@ -245,6 +245,7 @@ int main(int argc, char *argv[]) {
     } else {
       pmesh = new Mesh(pinput, restartfile, mesh_flag);
       ncstart=pmesh->ncycle;
+      //fprintf(stdout,"ncstart=%13.5e",ncstart);
     }
   }
   catch(std::bad_alloc& ba) {
@@ -370,6 +371,7 @@ int main(int argc, char *argv[]) {
   double omp_start_time = omp_get_wtime();
 #endif
 
+  //fprintf(stdout,"nlim=%13.5e",nlim);
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
 

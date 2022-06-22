@@ -40,19 +40,21 @@ EquationOfState::~EquationOfState() {
 void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   const AthenaArray<Real> &prim_old, const FaceField &b, AthenaArray<Real> &prim,
   AthenaArray<Real> &bcc, Coordinates *pco, int il,int iu, int jl,int ju, int kl,int ku) {
+
+  for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
-      Real& u_d  = cons(IDN,k,j,i);
-      Real& u_m1 = cons(IM1,k,j,i);
-      Real& u_m2 = cons(IM2,k,j,i);
-      Real& u_m3 = cons(IM3,k,j,i);
+      Real& u_d  = cons(fluidnum,IDN,k,j,i);
+      Real& u_m1 = cons(fluidnum,IM1,k,j,i);
+      Real& u_m2 = cons(fluidnum,IM2,k,j,i);
+      Real& u_m3 = cons(fluidnum,IM3,k,j,i);
 
-      Real& w_d  = prim(IDN,k,j,i);
-      Real& w_vx = prim(IVX,k,j,i);
-      Real& w_vy = prim(IVY,k,j,i);
-      Real& w_vz = prim(IVZ,k,j,i);
+      Real& w_d  = prim(fluidnum,IDN,k,j,i);
+      Real& w_vx = prim(fluidnum,IVX,k,j,i);
+      Real& w_vy = prim(fluidnum,IVY,k,j,i);
+      Real& w_vz = prim(fluidnum,IVZ,k,j,i);
 
       // apply density floor, without changing momentum or energy
       u_d = (u_d > density_floor_) ?  u_d : density_floor_;
@@ -63,24 +65,25 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       w_vy = u_m2*di;
       w_vz = u_m3*di;
     }
-  }}
+  }}}
 
 	// passive scalars 
+	for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
 	for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) {
 		for (int k=kl; k<=ku; ++k) {
 		for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
 			for (int i=il; i<=iu; ++i) {
-				Real& u_s = cons(n  ,k,j,i);
-				Real& u_d = cons(IDN,k,j,i);
+				Real& u_s = cons(fluidnum,n  ,k,j,i);
+				Real& u_d = cons(fluidnum,IDN,k,j,i);
 				Real   di = 1.0/u_d; 
 				
-				Real& w_s = prim(n,k,j,i);
+				Real& w_s = prim(fluidnum,n,k,j,i);
 
 				w_s = u_s*di;
 			}
 		}}
-  }
+  }}
 
 
   return;
@@ -97,42 +100,47 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
      int il, int iu, int jl, int ju, int kl, int ku) {
   Real igm1 = 1.0/(GetGamma() - 1.0);
 
+  for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
+    if(fluidnum==1){
+      igm1 = 1.0/(GetGamma2() - 1.0);
+    }
   for (int k=kl; k<=ku; ++k) {
   for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
-      Real& u_d  = cons(IDN,k,j,i);
-      Real& u_m1 = cons(IM1,k,j,i);
-      Real& u_m2 = cons(IM2,k,j,i);
-      Real& u_m3 = cons(IM3,k,j,i);
+      Real& u_d  = cons(fluidnum,IDN,k,j,i);
+      Real& u_m1 = cons(fluidnum,IM1,k,j,i);
+      Real& u_m2 = cons(fluidnum,IM2,k,j,i);
+      Real& u_m3 = cons(fluidnum,IM3,k,j,i);
 
-      const Real& w_d  = prim(IDN,k,j,i);
-      const Real& w_vx = prim(IVX,k,j,i);
-      const Real& w_vy = prim(IVY,k,j,i);
-      const Real& w_vz = prim(IVZ,k,j,i);
+      const Real& w_d  = prim(fluidnum,IDN,k,j,i);
+      const Real& w_vx = prim(fluidnum,IVX,k,j,i);
+      const Real& w_vy = prim(fluidnum,IVY,k,j,i);
+      const Real& w_vz = prim(fluidnum,IVZ,k,j,i);
 
       u_d = w_d;
       u_m1 = w_vx*w_d;
       u_m2 = w_vy*w_d;
       u_m3 = w_vz*w_d;
     }
-  }}
+  }}}
 
 	// passive scalars 
+	for (int fluidnum=0;fluidnum<(NFLUIDS);fluidnum++){
 	for (int n=(NHYDRO-NSCALARS); n<NHYDRO; ++n) { 
 		for (int k=kl; k<=ku; ++k) {
 		for (int j=jl; j<=ju; ++j) {
 #pragma omp simd 
 			for (int i=il; i<=iu; ++i) {
-				Real& u_s = cons(n,k,j,i);
+				Real& u_s = cons(fluidnum,n,k,j,i);
 
-				const Real& w_s = prim(n  ,k,j,i);
-				const Real& w_d = prim(IDN,k,j,i);
+				const Real& w_s = prim(fluidnum,n  ,k,j,i);
+				const Real& w_d = prim(fluidnum,IDN,k,j,i);
 
 				u_s = w_s*w_d; 
 			}
 		}}
-	}
+	}}
 
   return;
 }

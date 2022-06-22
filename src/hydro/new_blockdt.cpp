@@ -54,28 +54,34 @@ Real Hydro::NewBlockTimeStep(void) {
 
   AthenaArray<Real> dt1, dt2, dt3;
   dt1.InitWithShallowCopy(dt1_);
+fprintf(stdout,"dt1=%11.3e\n",dt1(2));
   dt2.InitWithShallowCopy(dt2_);
   dt3.InitWithShallowCopy(dt3_);
-  Real wi[(NWAVE+NINT)];
+  Real wi[NFLUIDS][(NWAVE+NINT)];
 	Real wicl[(NWAVECL)]; 
 
-  Real min_dt = (FLT_MAX);
+  Real min1,min2;
 
+  Real min_dt = (FLT_MAX);
+  fprintf(stdout,"FLT_MAX=%13.5e\n",FLT_MAX);
+
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       pmb->pcoord->CenterWidth1(k,j,is,ie,dt1);
       pmb->pcoord->CenterWidth2(k,j,is,ie,dt2);
       pmb->pcoord->CenterWidth3(k,j,is,ie,dt3);
+      fprintf(stdout,"yeha! dt1=%11.3e\n",dt1(2));
       if (!RELATIVISTIC_DYNAMICS) {
 #pragma ivdep
         for (int i=is; i<=ie; ++i) {
-          wi[IDN]=w(IDN,k,j,i);
-          wi[IVX]=w(IVX,k,j,i);
-          wi[IVY]=w(IVY,k,j,i);
-          wi[IVZ]=w(IVZ,k,j,i);
+          wi[fluidnum][IDN]=w(fluidnum,IDN,k,j,i);
+          wi[fluidnum][IVX]=w(fluidnum,IVX,k,j,i);
+          wi[fluidnum][IVY]=w(fluidnum,IVY,k,j,i);
+          wi[fluidnum][IVZ]=w(fluidnum,IVZ,k,j,i);
           if (NON_BAROTROPIC_EOS) {
-            wi[IPR]=w(IPR,k,j,i);
-            if (DUAL_ENERGY) wi[IGE]=w(IGE,k,j,i);
+            wi[fluidnum][IPR]=w(fluidnum,IPR,k,j,i);
+            if (DUAL_ENERGY) wi[fluidnum][IGE]=w(fluidnum,IGE,k,j,i);
           }
 					
           if (CLESS_ENABLED) { // cless + hydro
@@ -93,39 +99,92 @@ Real Hydro::NewBlockTimeStep(void) {
 
             pmb->peos->SoundSpeedsCL(wicl,&c1f,&c2f,&c3f); 
 
-            Real cs = pmb->peos->SoundSpeed(wi); 
+            Real temp1[(NWAVE+NINT)],temp2[(NWAVE+NINT)];
+            for (int idx = 0; idx < NHYDRO; idx++) {
+              temp1[idx] = w(0,idx,k,j,i);
+              if(NFLUIDS!=1){
+                temp2[idx] = w(1,idx,k,j,i);
+              }
+            }
+// when you're done with it, deallocate
+            Real cs = pmb->peos->SoundSpeed(temp1);
+            if (RIEMANN_SOLVER=="bgk2n"){
+              cs = pmb->peos->SoundSpeed2(temp1,temp2,fluidnum); 
+            }
+            //delete [] temp;
 
-            dt1(i) /= std::max( fabs(wi[IVX] + cs), fabs(wicl[IVX] + c1f) );
-            dt2(i) /= std::max( fabs(wi[IVY] + cs), fabs(wicl[IVY] + c2f) );
-            dt3(i) /= std::max( fabs(wi[IVZ] + cs), fabs(wicl[IVZ] + c3f) ); 
+            dt1(i) /= std::max( fabs(wi[fluidnum][IVX] + cs), fabs(wicl[IVX] + c1f) );
+            dt2(i) /= std::max( fabs(wi[fluidnum][IVY] + cs), fabs(wicl[IVY] + c2f) );
+            dt3(i) /= std::max( fabs(wi[fluidnum][IVZ] + cs), fabs(wicl[IVZ] + c3f) ); 
           }
           else if (MAGNETIC_FIELDS_ENABLED) { // hydro + mhd
 
             Real bx = bcc(IB1,k,j,i) + fabs(b_x1f(k,j,i)-bcc(IB1,k,j,i));
-            wi[IBY] = bcc(IB2,k,j,i);
-            wi[IBZ] = bcc(IB3,k,j,i);
-            Real cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt1(i) /= (fabs(wi[IVX]) + cf);
+            wi[fluidnum][IBY] = bcc(IB2,k,j,i);
+            wi[fluidnum][IBZ] = bcc(IB3,k,j,i);
 
-            wi[IBY] = bcc(IB3,k,j,i);
-            wi[IBZ] = bcc(IB1,k,j,i);
+            Real tempb1[(NWAVE+NINT)];
+            for (int idx = 0; idx < NHYDRO; idx++) {
+              tempb1[idx] = wi[fluidnum][idx];
+            }
+
+            Real cf = pmb->peos->FastMagnetosonicSpeed(tempb1,bx);
+            //delete [] temp;
+
+            dt1(i) /= (fabs(wi[fluidnum][IVX]) + cf);
+
+            wi[fluidnum][IBY] = bcc(IB3,k,j,i);
+            wi[fluidnum][IBZ] = bcc(IB1,k,j,i);
             bx = bcc(IB2,k,j,i) + fabs(b_x2f(k,j,i)-bcc(IB2,k,j,i));
-            cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt2(i) /= (fabs(wi[IVY]) + cf);
 
-            wi[IBY] = bcc(IB1,k,j,i);
-            wi[IBZ] = bcc(IB2,k,j,i);
+            Real tempb2[(NWAVE+NINT)];
+            for (int idx = 0; idx < NHYDRO; idx++) {
+              tempb2[idx] = wi[fluidnum][idx];
+            }
+
+            cf = pmb->peos->FastMagnetosonicSpeed(tempb2,bx);
+            //delete [] temp2;
+
+            dt2(i) /= (fabs(wi[fluidnum][IVY]) + cf);
+
+            wi[fluidnum][IBY] = bcc(IB1,k,j,i);
+            wi[fluidnum][IBZ] = bcc(IB2,k,j,i);
             bx = bcc(IB3,k,j,i) + fabs(b_x3f(k,j,i)-bcc(IB3,k,j,i));
-            cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt3(i) /= (fabs(wi[IVZ]) + cf);
+
+            Real tempb3[(NWAVE+NINT)];
+            for (int idx = 0; idx < NHYDRO; idx++) {
+              tempb3[idx] = wi[fluidnum][idx];
+            }
+
+            cf = pmb->peos->FastMagnetosonicSpeed(tempb3,bx);
+            //delete [] temp3;
+
+            dt3(i) /= (fabs(wi[fluidnum][IVZ]) + cf);
 
           } 
           else { // hydro only 
 
-            Real cs = pmb->peos->SoundSpeed(wi);
-            dt1(i) /= (fabs(wi[IVX]) + cs);
-            dt2(i) /= (fabs(wi[IVY]) + cs);
-            dt3(i) /= (fabs(wi[IVZ]) + cs);
+            Real temp1[(NWAVE+NINT)],temp2[(NWAVE+NINT)];
+            for (int idx = 0; idx < NHYDRO; idx++) {
+              temp1[idx] = w(0,idx,k,j,i);
+              temp2[idx] = w(1,idx,k,j,i);
+            }
+
+            Real cs = pmb->peos->SoundSpeed(temp1);
+            if (RIEMANN_SOLVER=="bgk2n"){
+              cs = pmb->peos->SoundSpeed2(temp1,temp2,fluidnum);
+            }
+ //delete [] temp;
+      
+           fprintf(stdout,"dt1=%11.3e,wi=%11.3e\n",dt1(i),wi[fluidnum][IVX]);
+
+            dt1(i) /= (fabs(wi[fluidnum][IVX]) + cs);
+            dt2(i) /= (fabs(wi[fluidnum][IVY]) + cs);
+            dt3(i) /= (fabs(wi[fluidnum][IVZ]) + cs);
+
+            fprintf(stdout,"temp1[1]=%13.5e,temp2[1]=%13.5e,fluidnum=%4i\n",temp1[1],temp2[1],fluidnum);
+            fprintf(stdout,"wi=%13.5e, i=%4i, j=%4i, dt1(i)=%13.5e, cs=%13.5e\n",wi[fluidnum][IVX],i,j,dt1(i),cs);
+
 
           }
         }
@@ -134,11 +193,13 @@ Real Hydro::NewBlockTimeStep(void) {
       // compute minimum of (v1 +/- C)
       for (int i=is; i<=ie; ++i) {
         Real& dt_1 = dt1(i);
+        fprintf(stdout,"fluidnum=%4i,i=%4i,j=%4i,min_dt=%13.5e,dt1(i)=%13.5e\n",fluidnum,i,j,min_dt,dt1(i));
         min_dt = std::min(min_dt,dt_1);
       }
 
       // if grid is 2D/3D, compute minimum of (v2 +/- C)
       if (pmb->block_size.nx2 > 1) {
+        fprintf(stdout,"dim check\n");
         for (int i=is; i<=ie; ++i) {
           Real& dt_2 = dt2(i);
           min_dt = std::min(min_dt,dt_2);
@@ -152,9 +213,14 @@ Real Hydro::NewBlockTimeStep(void) {
           min_dt = std::min(min_dt,dt_3);
         }
       }
-
+      
+      if(fluidnum==0){
+        min1=min_dt;
+      }else if(fluidnum==1){  
+        min2=min_dt;
+      }
     }
-  }
+  }}
 
 // calculate the timestep limited by the diffusion process
   if (phdif->hydro_diffusion_defined) {
@@ -162,6 +228,7 @@ Real Hydro::NewBlockTimeStep(void) {
     phdif->NewHydroDiffusionDt(mindt_vis, mindt_cnd);
     min_dt = std::min(min_dt,mindt_vis);
     min_dt = std::min(min_dt,mindt_cnd);
+    fprintf(stdout,"DIFFUSION, mindt_vis=%11.3e, mindt_cnd=%11.3e\n",mindt_vis,mindt_cnd);
   } // hydro diffusion
 
   if(MAGNETIC_FIELDS_ENABLED &&
@@ -172,12 +239,19 @@ Real Hydro::NewBlockTimeStep(void) {
     min_dt = std::min(min_dt,mindt_h);
   } // field diffusion
 
+  if(NFLUIDS!=1){
+    min_dt=std::min(min1,min2);
+  }
+
+  fprintf(stdout,"min_dt=%11.5e\n",min_dt);
   min_dt *= pmb->pmy_mesh->cfl_number;
 
   if (UserTimeStep_!=NULL) {
     min_dt = std::min(min_dt, UserTimeStep_(pmb));
   }
 
+
   pmb->new_block_dt=min_dt;
+  fprintf(stdout,"min_dt=%11.5e\n",min_dt);
   return min_dt;
 }

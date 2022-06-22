@@ -77,6 +77,7 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) {
     x1f(is) = block_size.x1min;
     x1f(ie+1) = block_size.x1max;
     for (int i=is-ng; i<=ie+ng; ++i) {
+      fprintf(stdout,"x1f(i+1)=%11.3e,x1f(i)=%11.3e\n",x1f(i+1),x1f(i));
       dx1f(i) = x1f(i+1) - x1f(i);
     }
 
@@ -110,6 +111,7 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) {
 
     for (int i=is-ng; i<=ie+ng; ++i) {
       dx1f(i)=dx;
+      fprintf(stdout,"dx=%11.3e\n",dx);
     }
   }
 

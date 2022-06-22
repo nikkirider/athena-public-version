@@ -12,6 +12,7 @@
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // string
+#include <typeinfo>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -33,6 +34,8 @@
 #ifdef MPI_PARALLEL
 #include <mpi.h>   // MPI_COMM_WORLD, MPI_INFO_NULL
 #endif
+
+#define DEBUG_ALL
 
 // typedefs that allow HDF5 output written in either floats or doubles
 #if H5_DOUBLE_PRECISION_ENABLED
@@ -123,7 +126,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     int n_dataset = 0;
 		// for cless variables it is easiest to just 
 		// consider them to be part of hydro
-    num_variables[n_dataset++] = NHYDRO+NCLESS;
+    num_variables[n_dataset++] = NFLUIDS*(NHYDRO+NCLESS);
     if (output_params.cartesian_vector)
       num_variables[n_dataset-1] += 3;
     if (SELF_GRAVITY_ENABLED)
@@ -169,9 +172,16 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         char sn[3];
         std::sprintf(sn,"%d", i);
         std::string vname = pod->name + sn;
+#ifdef DEBUG_ALL
+        fprintf(stdout,"n_variable=%4i,vname=%s,max_name_length=%4i\n",n_variable,vname.c_str(),max_name_length+1);
+        fprintf(stdout,"num_vars_=%6i,vname_length=%6i\n",num_vars_,vname.length());
+#endif
         std::strncpy(variable_names[n_variable++], vname.c_str(), max_name_length+1);
       }
     } else {
+#ifdef DEBUG_ALL
+      fprintf(stdout,"n_variable=%4i,vname=%s,max_name_length=%4i\n",n_variable,pod->name.c_str(),max_name_length+1);
+#endif
       std::strncpy(variable_names[n_variable++], pod->name.c_str(), max_name_length+1);
     }
     pod=pod->pnext;
@@ -183,6 +193,9 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   for (int n = 0; n < num_vars_; ++n)
     variable_names[n][max_name_length] = '\0';
 
+#ifdef DEBUG_ALL  
+  fprintf(stdout,"[HDF5: WriteOutputFile] pmb=%p, before first clearoutputdata\n",pmb);
+#endif
   ClearOutputData();
 
   // count the number of active blocks if slicing
@@ -359,6 +372,9 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         int n_dataset=0;
         int ndv=0;
         pod=pfirst_data_;
+#ifdef DEBUG_ALL
+        fprintf(stdout,"podtype=%s, pod=%p, podname=%s, nba=%4i, num_blocks_local=%4i, ndv=%4i\n", typeid(pod).name(),pod,pod->name.c_str(),nba,num_blocks_local,ndv);
+#endif
         while(pod!=NULL) {
           if (pod->name=="Bcc") {
             n_dataset++;
@@ -381,6 +397,9 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       } else {
         int ndv=0;
         pod=pfirst_data_;
+#ifdef DEBUG_ALL
+        fprintf(stdout,"podtype=%s, pod=%p, podname=%s, nba=%4i, num_blocks_local=%4i, ndv=%4i\n", typeid(pod).name(),pod,pod->name.c_str(),nba,num_blocks_local,ndv);
+#endif
         while(pod!=NULL) {
           int nv=1;
           if (pod->type=="VECTORS") nv=3;
@@ -398,11 +417,18 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         }
       }
       nba++;
+#ifdef DEBUG_ALL
+      fprintf(stdout,"[HDF5: WriteOutputFile] pmb=%p, before second clearoutputdata\n",pmb);
+#endif
       ClearOutputData();  // required when LoadOutputData() is used.
     }
     nb++;
     pmb=pmb->next;
   }
+
+#ifdef DEBUG_ALL
+  fprintf(stdout,"  OUTPUT_PARAMS VARIABLES=%s, OUTPUT_PARAM #=%4i \n",output_params.variable.c_str(),output_params.file_number);
+#endif
 
   // Define output filename
   filename = std::string(output_params.file_basename);

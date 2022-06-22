@@ -64,7 +64,7 @@ TurbulenceDriver::TurbulenceDriver(Mesh *pm, ParameterInput *pin)
   int nx3=pm->pblock->block_size.nx3+2*NGHOST;
 
   vel = new AthenaArray<Real>[3];
-  for (int nv=0; nv<3; nv++) vel[nv].NewAthenaArray(nmb,nx3,nx2,nx1);
+  for (int nv=0; nv<3; nv++) vel[nv].NewAthenaArray(NFLUIDS,nmb,nx3,nx2,nx1);
 
   InitializeFFTBlock(true);
   QuickCreatePlan();
@@ -222,21 +222,23 @@ void TurbulenceDriver::Perturb(Real dt) {
   Real m[4] = {0}, gm[4];
   AthenaArray<Real> &dv1 = vel[0], &dv2 = vel[1], &dv3 = vel[2];
 
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int igid=nbs, nb=0; igid<=nbe; igid++, nb++) {
     MeshBlock *pmb=pm->FindMeshBlock(igid);
     if (pmb != NULL) {
       for (int k=ks; k<=ke; k++) {
         for (int j=js; j<=je; j++) {
           for (int i=is; i<=ie; i++) {
-            den = pmb->phydro->u(IDN,k,j,i);
+            den = pmb->phydro->u(fluidnum,IDN,k,j,i);
             m[0] += den;
-            m[1] += den*dv1(nb,k,j,i);
-            m[2] += den*dv2(nb,k,j,i);
-            m[3] += den*dv3(nb,k,j,i);
+            m[1] += den*dv1(fluidnum,nb,k,j,i);
+            m[2] += den*dv2(fluidnum,nb,k,j,i);
+            m[3] += den*dv3(fluidnum,nb,k,j,i);
           }
         }
       }
     }
+  }
   }
 
 #ifdef MPI_PARALLEL
@@ -251,34 +253,36 @@ void TurbulenceDriver::Perturb(Real dt) {
   for (int n=0; n<4; n++) m[n]=gm[n];
 #endif // MPI_PARALLEL
 
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int nb=0; nb<nmb; nb++) {
     for (int k=ks; k<=ke; k++) {
       for (int j=js; j<=je; j++) {
         for (int i=is; i<=ie; i++) {
-          dv1(nb,k,j,i) -= m[1]/m[0];
-          dv2(nb,k,j,i) -= m[2]/m[0];
-          dv3(nb,k,j,i) -= m[3]/m[0];
+          dv1(fluidnum,nb,k,j,i) -= m[1]/m[0];
+          dv2(fluidnum,nb,k,j,i) -= m[2]/m[0];
+          dv3(fluidnum,nb,k,j,i) -= m[3]/m[0];
         }
       }
     }
   }
-
+  }
   // Calculate unscaled energy of perturbations
   m[0] = 0.0;
   m[1] = 0.0;
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int igid=nbs, nb=0;igid<=nbe;igid++, nb++) {
     MeshBlock *pmb=pm->FindMeshBlock(igid);
     if (pmb != NULL) {
       for (int k=ks; k<=ke; k++) {
         for (int j=js; j<=je; j++) {
           for (int i=is; i<=ie; i++) {
-            v1 = dv1(nb,k,j,i);
-            v2 = dv2(nb,k,j,i);
-            v3 = dv3(nb,k,j,i);
-            den = pmb->phydro->u(IDN,k,j,i);
-            M1 = pmb->phydro->u(IM1,k,j,i);
-            M2 = pmb->phydro->u(IM2,k,j,i);
-            M3 = pmb->phydro->u(IM3,k,j,i);
+            v1 = dv1(fluidnum,nb,k,j,i);
+            v2 = dv2(fluidnum,nb,k,j,i);
+            v3 = dv3(fluidnum,nb,k,j,i);
+            den = pmb->phydro->u(fluidnum,IDN,k,j,i);
+            M1 = pmb->phydro->u(fluidnum,IM1,k,j,i);
+            M2 = pmb->phydro->u(fluidnum,IM2,k,j,i);
+            M3 = pmb->phydro->u(fluidnum,IM3,k,j,i);
             m[0] += den*(SQR(v1) + SQR(v2) + SQR(v3));
             m[1] += M1*v1 + M2*v2 + M3*v3;
           }
@@ -286,7 +290,7 @@ void TurbulenceDriver::Perturb(Real dt) {
       }
     }
   }
-
+  }
 #ifdef MPI_PARALLEL
   // Sum the perturbations over all processors
   mpierr = MPI_Allreduce(m, gm, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -325,33 +329,35 @@ void TurbulenceDriver::Perturb(Real dt) {
   // Apply momentum pertubations
   m[0] = 0.0;
   m[1] = 0.0;
+  for (int fluidnum=0; fluidnum<(NFLUIDS); fluidnum++){
   for (int igid=nbs, nb=0; igid<=nbe; igid++, nb++) {
     MeshBlock *pmb=pm->FindMeshBlock(igid);
     if (pmb != NULL) {
       for (int k=ks; k<=ke; k++) {
         for (int j=js; j<=je; j++) {
           for (int i=is; i<=ie; i++) {
-            v1 = dv1(nb,k,j,i);
-            v2 = dv2(nb,k,j,i);
-            v3 = dv3(nb,k,j,i);
-            den = pmb->phydro->u(IDN,k,j,i);
-            M1 = pmb->phydro->u(IM1,k,j,i);
-            M2 = pmb->phydro->u(IM2,k,j,i);
-            M3 = pmb->phydro->u(IM3,k,j,i);
+            v1 = dv1(fluidnum,nb,k,j,i);
+            v2 = dv2(fluidnum,nb,k,j,i);
+            v3 = dv3(fluidnum,nb,k,j,i);
+            den = pmb->phydro->u(fluidnum,IDN,k,j,i);
+            M1 = pmb->phydro->u(fluidnum,IM1,k,j,i);
+            M2 = pmb->phydro->u(fluidnum,IM2,k,j,i);
+            M3 = pmb->phydro->u(fluidnum,IM3,k,j,i);
 
             if (NON_BAROTROPIC_EOS) {
-              pmb->phydro->u(IEN,k,j,i) += s*(M1*v1+M2*v2+M3*v3)
+              pmb->phydro->u(fluidnum,IEN,k,j,i) += s*(M1*v1+M2*v2+M3*v3)
                                          + 0.5*s*s*den*(SQR(v1)+SQR(v2)+SQR(v3));
             }
-            pmb->phydro->u(IM1,k,j,i) += s*den*v1;
-            pmb->phydro->u(IM2,k,j,i) += s*den*v2;
-            pmb->phydro->u(IM3,k,j,i) += s*den*v3;
+            pmb->phydro->u(fluidnum,IM1,k,j,i) += s*den*v1;
+            pmb->phydro->u(fluidnum,IM2,k,j,i) += s*den*v2;
+            pmb->phydro->u(fluidnum,IM3,k,j,i) += s*den*v3;
             m[0]                      += s*s*(SQR(v1)+SQR(v2)+SQR(v3))*dvol;
             m[1]                      += dvol;
           }
         }
       }
     }
+  }
   }
 #ifdef MPI_PARALLEL
   mpierr = MPI_Allreduce(m, gm, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
