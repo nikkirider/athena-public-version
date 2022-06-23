@@ -104,6 +104,7 @@ Expansion::Expansion(MeshBlock *pmb, ParameterInput *pin) {
   AthenaArray<Real> &v2v = vv[X2DIR]; 
   AthenaArray<Real> &v3v = vv[X3DIR]; 
 
+  // scratch arrays for rescaling
   if (MAGNETIC_FIELDS_ENABLED) {
     face_area_old_.NewAthenaArray(ncells1);
     face_area_new_.NewAthenaArray(ncells1);
@@ -268,6 +269,7 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
     for (int j = js; j<=je;++j) {
 #pragma omp simd
       for (int i = is; i<=ie;++i) {
+        oldVol = pc->GetCellVolume(k,j,i);
       	if (COORDINATE_SYSTEM == "cartesian") {
           //original version
       	  //dx1 = pc->dx1f(i)+v1f(i+1)*dt - v1f(i)*dt ;
@@ -278,23 +280,21 @@ void Expansion::ExpansionSourceTerms(const Real dt, const AthenaArray<Real> *flu
           Real dvol1 = pc->GetFace1Area(k,j,i)*(v1f(i+1)-v1f(i))*dt; 
           Real dvol2 = pc->GetFace2Area(k,j,i)*(v2f(j+1)-v2f(j))*dt; 
           Real dvol3 = pc->GetFace3Area(k,j,i)*(v3f(k+1)-v3f(k))*dt; 
-          volume     = pc->GetCellVolume(k,j,i) + dvol1 + dvol2 + dvol3;
+          newVol     = oldVol + dvol1 + dvol2 + dvol3;
       	} else if (COORDINATE_SYSTEM == "cylindrical") {
       	  dx1 = pc->coord_vol_i_(i) + dt*(v1f(i+1)*pc->x1f(i+1)-v1f(i)*pc->x1f(i))
       				    + 0.5*pow(dt,2.0)*(pow(v1f(i+1),2.0) - pow(v1f(i),2.0));
       	  dx2 = pc->dx2f(j)+v2f(j+1)*dt - v2f(j)*dt ;
       	  dx3 = pc->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
-      	  volume = dx1*dx2*dx3;
+      	  newVol = dx1*dx2*dx3;
       	} else if (COORDINATE_SYSTEM == "spherical_polar") {
       	  dx1 = pc->coord_vol_i_(i) + dt*(v1f(i+1)*pow(pc->x1f(i+1),2.0)-v1f(i)*pow(pc->x1f(i),2.0))
       				    + pow(dt,2.0)*(pow(v1f(i+1),2.0)*pc->x1f(i+1) - pow(v1f(i),2.0)*pc->x1f(i))
       				    + 1.0/3.0*pow(dt,3.0)*(pow(v1f(i+1),3.0) - pow(v1f(i),3.0));
       	  dx2 = fabs(cos(pc->x2f(j)+v2f(j)*dt) - cos(pc->x2f(j+1)+v2f(j+1)*dt));
       	  dx3 = pc->dx3f(k)+v3f(k+1)*dt - v3f(k)*dt ;
-      	  volume = dx1*dx2*dx3;
+      	  newVol = dx1*dx2*dx3;
       	}
-      	newVol = volume;
-      	oldVol = pc->GetCellVolume(k,j,i);
    
         for (int n = 0; n<(NHYDRO); ++n) {
           vol = pmb->pcoord->GetCellVolume(k,j,i);

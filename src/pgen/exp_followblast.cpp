@@ -155,6 +155,10 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
 //    ivexp      ==  1: expansion velocity via radial velocity
 //    ivexp      ==  2: expansion velocity via radius: calculate velocity via finite differences
 //
+//  For hydrodynamics, iweight = -3 and ivexp = 2 (tracking on pressure gradient position)
+//  works well, for MHD, iweight = -4 and ivexp = 2 keeps fast magnetosonic mode in box.
+//  Both work well with boost = 1.0.
+//
 //  Since the expansion velocity is calculated at the location of the shell, it needs
 //  to be rescaled by xmax/mrad, where mrad is the (weighted) radius corresponding to the 
 //  location of vrad. 
@@ -197,6 +201,7 @@ void UpdateGridData(Mesh *pm) {
           Real z = pmb->pcoord->x3v(k);
           for (int j=js; j<=je; ++j) {
             Real y = pmb->pcoord->x2v(j);
+#pragma omp simd
             for (int i=is; i<=ie; ++i) {
               Real x    = pmb->pcoord->x1v(i);
               Real vrad, rad;
@@ -219,6 +224,7 @@ void UpdateGridData(Mesh *pm) {
           Real z = pmb->pcoord->x3v(k);
           for (int j=js; j<=je; ++j) {
             Real y = pmb->pcoord->x2v(j);
+#pragma omp simd
             for (int i=is; i<=ie; ++i) {
               Real x    = pmb->pcoord->x1v(i);
               Real rad;
@@ -312,7 +318,9 @@ void UpdateGridData(Mesh *pm) {
             for (int i=is; i<=ie; ++i) {
               Real q = quant(k,j,i);
               Real r = radius(k,j,i);
-              Real w = weight(k,j,i)*pmb->pcoord->GetCellVolume(k,j,i);
+              Real v = pmb->pcoord->GetCellVolume(k,j,i);
+              Real w = weight(k,j,i);
+              w           *= v;
               q           *= w; 
               r           *= w;
               totquant    += q;
@@ -331,6 +339,7 @@ void UpdateGridData(Mesh *pm) {
               Real y = pmb->pcoord->x2v(j);
               Real ym= pmb->pcoord->x2v(j-1);
               Real yp= pmb->pcoord->x2v(j+1);
+#pragma omp simd
               for (int i=is+1; i<=ie-1; ++i) {
                 Real x      = pmb->pcoord->x1v(i);
                 Real xm     = pmb->pcoord->x1v(i-1);
@@ -354,6 +363,7 @@ void UpdateGridData(Mesh *pm) {
             Real y = pmb->pcoord->x2v(j);
             Real ym= pmb->pcoord->x2v(j-1);
             Real yp= pmb->pcoord->x2v(j+1);
+#pragma omp simd
             for (int i=is+1; i<=ie-1; ++i) {
               Real x        = pmb->pcoord->x1v(i);
               Real xm       = pmb->pcoord->x1v(i-1);
