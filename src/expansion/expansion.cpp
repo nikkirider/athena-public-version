@@ -352,21 +352,21 @@ void Expansion::RescaleField(const Real dt, FaceField &b_out) {
   AthenaArray<Real> &v3f = vf[X3DIR];
 
   if (COORDINATE_SYSTEM == "cartesian") {
-    if (pmesh->dimension==3) {
-      for (int k=ks; k<=ke; ++k) { // B1
-        for (int j=js; j<=je; ++j) {
-          pmb->pcoord->Face1Area(k,j,is,iu,areaold);  // old area at position i ("lower")
-          Real darea2 = pmb->pcoord->dx3f(k)*(v2f(j+1)-v2f(j))*dt;
-          Real darea3 = pmb->pcoord->dx2f(j)*(v3f(k+1)-v3f(k))*dt;   
-#pragma omp simd
-          for (int i=is; i<=iu; ++i) {
-            areanew           = areaold(i) + darea2 + darea3;
-            b_out.x1f(k,j,i) *= areaold(i)/areanew;
-          }
-        } 
-      }
-    }
-    if ((pmesh->dimension == 1) || (pmesh->dimension == 3)) {
+    //if (pmesh->dimension==3) {
+    //  for (int k=ks; k<=ke; ++k) { // B1
+    //    for (int j=js; j<=je; ++j) {
+    //      pmb->pcoord->Face1Area(k,j,is,iu,areaold);  // old area at position i ("lower")
+    //      Real darea2 = pmb->pcoord->dx3f(k)*(v2f(j+1)-v2f(j))*dt;
+    //      Real darea3 = pmb->pcoord->dx2f(j)*(v3f(k+1)-v3f(k))*dt;   
+//#pragma omp simd
+    //      for (int i=is; i<=iu; ++i) {
+    //        areanew           = areaold(i) + darea2 + darea3;
+    //        b_out.x1f(k,j,i) *= areaold(i)/areanew;
+    //      }
+    //    } 
+    //  }
+    //}
+    if (pmesh->dimension < 2) {
       for (int k=ks; k<=ke; ++k) { // B2
         for (int j=js; j<=ju; ++j) {
           pmb->pcoord->Face2Area(k,j,is,ie,areaold);  // old area at position i ("lower")
@@ -380,15 +380,17 @@ void Expansion::RescaleField(const Real dt, FaceField &b_out) {
         }
       }
     }
-    for (int k=ks; k<=ku; ++k) { // B3
-      for (int j=js; j<=je; ++j) {
-        pmb->pcoord->Face3Area(k,j,is,ie,areaold);  // old area at position i ("lower")
+    if (pmesh->dimension < 3) {
+      for (int k=ks; k<=ku; ++k) { // B3
+        for (int j=js; j<=je; ++j) {
+          pmb->pcoord->Face3Area(k,j,is,ie,areaold);  // old area at position i ("lower")
 #pragma omp simd 
-        for (int i=is; i<=ie; ++i) {
-          Real darea1 = pmb->pcoord->dx2f(j)*(v1f(i+1)-v1f(i))*dt;
-          Real darea2 = pmb->pcoord->dx1f(i)*(v2f(j+1)-v2f(j))*dt;
-          areanew           = areaold(i) + darea1 + darea2;
-          b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          for (int i=is; i<=ie; ++i) {
+            Real darea1 = pmb->pcoord->dx2f(j)*(v1f(i+1)-v1f(i))*dt;
+            Real darea2 = pmb->pcoord->dx1f(i)*(v2f(j+1)-v2f(j))*dt;
+            areanew           = areaold(i) + darea1 + darea2;
+            b_out.x3f(k,j,i) *= areaold(i)/areanew;
+          }
         }
       }
     }
