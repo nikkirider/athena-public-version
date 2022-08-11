@@ -112,6 +112,7 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
       // set time of last output, time between outputs
       op.next_time = pin->GetOrAddReal(op.block_name,"next_time", pm->time);
       op.dt = pin->GetReal(op.block_name,"dt");
+      op.ndumps = pin->GetOrAddInteger(op.block_name,"ndumps",0);
 
       if (op.dt > 0.0) {  // only add output if dt>0
 

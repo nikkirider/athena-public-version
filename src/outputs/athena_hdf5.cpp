@@ -773,8 +773,14 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   delete[] active_flags;
 
   // Reset parameters for next time file is written
-  output_params.file_number++;
-  output_params.next_time += output_params.dt;
+  if (output_params.ndumps == 0) { // standard branch linear in time
+    output_params.file_number++;
+    output_params.next_time += output_params.dt;
+  } else {
+    Real onepdel = pow(pm->tlim/output_params.dt,1.0/((Real)output_params.ndumps));
+    output_params.file_number++;
+    output_params.next_time = output_params.dt * pow(onepdel,output_params.file_number);
+  }
   pin->SetInteger(output_params.block_name, "file_number", output_params.file_number);
   pin->SetReal(output_params.block_name, "next_time", output_params.next_time);
 }
