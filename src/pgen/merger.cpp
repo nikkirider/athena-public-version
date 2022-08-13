@@ -5,8 +5,8 @@
 //========================================================================================
 //! \file merger.cpp
 //  \brief Kilonova ejecta setup, for static and expanding grid.
-//
-//
+//    The polar axis (for cartesian coordinates) is aligned with the y-axis.
+//    The equatorial plane is located in the x-z plane.
 
 #include <algorithm>
 #include <cmath>
@@ -52,7 +52,7 @@ static void stop_this() {
 Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> gridData);
 void UpdateGridData(Mesh *pm);
 //Global variables for GridUpdate
-int ivexp, iweight;
+int ivexp, iweight, iequat = 0;
 int maxntrack = 20;
 int ncycold=-1;
 Real vtrack0, boost;
@@ -155,12 +155,14 @@ Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> grid
 //    iweight    ==  2: first scalar
 //    iweight    ==  3: thermal pressure
 //    iweight    ==  4: magnetic pressure
-//    iweight    ==  5: vrad
+//    iweight    ==  5: temperature
 //    iweight    == -1: density gradient
 //    iweight    == -2: first scalar gradient
 //    iweight    == -3: pressure gradient
 //    iweight    == -4: magnetic pressure gradient
-//    iweight    == -5: vrad gradient
+//    iweight    == -5: temperature gradient
+//
+//    iweight    == -15 etc: weight equatorial plane (assumed to be x, or x,z)
 //  
 //    ivexp      ==  0: expansion velocity set to constant vtrack0
 //    ivexp      ==  1: expansion velocity via radial velocity
@@ -199,6 +201,14 @@ void UpdateGridData(Mesh *pm) {
     Real totweight = 0.0, totquant = 0.0, totradius = 0.0;
     while (pmb != NULL) {
       int is=pmb->is, ie=pmb->ie, js=pmb->js, je=pmb->je, ks=pmb->ks, ke=pmb->ke;
+      int il = is, iu = ie, jl = js, ju = je, kl = ks, ku = ke;
+      //if (ks==ke) {
+      //  kl = ks;
+      //  ku = ke; 
+      //} else {
+      //  kl = ks-1;
+      //  ku = ke+1;
+      //}
       if (pmb->block_size.nx3 > 1) {
         weight.NewAthenaArray(pmb->block_size.nx3+2*NGHOST,pmb->block_size.nx2+2*NGHOST,pmb->block_size.nx1+2*NGHOST);
         quant.NewAthenaArray(pmb->block_size.nx3+2*NGHOST,pmb->block_size.nx2+2*NGHOST,pmb->block_size.nx1+2*NGHOST);
@@ -209,12 +219,12 @@ void UpdateGridData(Mesh *pm) {
         radius.NewAthenaArray(1,pmb->block_size.nx2+2*NGHOST,pmb->block_size.nx1+2*NGHOST);
       }
       if (ivexp == 1) { // radial velocity
-        for (int k=ks; k<=ke; ++k) {
+        for (int k=kl; k<=ku; ++k) {
           Real z = pmb->pcoord->x3v(k);
-          for (int j=js; j<=je; ++j) {
+          for (int j=jl; j<=ju; ++j) {
             Real y = pmb->pcoord->x2v(j);
 #pragma omp simd
-            for (int i=is; i<=ie; ++i) {
+            for (int i=il; i<=iu; ++i) {
               Real x    = pmb->pcoord->x1v(i);
               Real vrad, rad;
               if (COORDINATE_SYSTEM == "cartesian") {
@@ -225,6 +235,7 @@ void UpdateGridData(Mesh *pm) {
                        / (pmb->phydro->u(IDN,k,j,i)*rad);
               } else {
                 vrad = pmb->phydro->u(IM1,k,j,i)/pmb->phydro->u(IDN,k,j,i);
+                rad  = x;
               }
               quant(k,j,i)  = vrad;
               radius(k,j,i) = rad;
@@ -232,12 +243,12 @@ void UpdateGridData(Mesh *pm) {
           }
         }
       } else if (ivexp == 2) { //radius
-        for (int k=ks; k<=ke; ++k) {
+        for (int k=kl; k<=ku; ++k) {
           Real z = pmb->pcoord->x3v(k);
-          for (int j=js; j<=je; ++j) {
+          for (int j=jl; j<=ju; ++j) {
             Real y = pmb->pcoord->x2v(j);
 #pragma omp simd
-            for (int i=is; i<=ie; ++i) {
+            for (int i=il; i<=iu; ++i) {
               Real x    = pmb->pcoord->x1v(i);
               Real rad;
               if (COORDINATE_SYSTEM == "cartesian") {
@@ -253,47 +264,47 @@ void UpdateGridData(Mesh *pm) {
       }
 
       if (fabs(iweight) == 0) { // no weight
-        for (int k=ks; k<=ke; ++k) {
-          for (int j=js; j<=je; ++j) {
+        for (int k=kl; k<=ku; ++k) {
+          for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-            for (int i=is; i<=ie; ++i) {
+            for (int i=il; i<=iu; ++i) {
               weight(k,j,i) = 1.0;
             }
           }
         }
       } else if (fabs(iweight) == 1) { // density
-        for (int k=ks; k<=ke; ++k) {
-          for (int j=js; j<=je; ++j) {
+        for (int k=kl; k<=ku; ++k) {
+          for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-            for (int i=is; i<=ie; ++i) {
+            for (int i=il; i<=iu; ++i) {
               weight(k,j,i) = pmb->phydro->u(IDN,k,j,i);
             }
           }
         }
       } else if (fabs(iweight) == 2) { // first scalar
-         for (int k=ks; k<=ke; ++k) {
-          for (int j=js; j<=je; ++j) {
+        for (int k=kl; k<=ku; ++k) {
+          for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-            for (int i=is; i<=ie; ++i) {
+            for (int i=il; i<=iu; ++i) {
               weight(k,j,i) = pmb->phydro->u(NHYDRO,k,j,i);
             }
           }
         }
-      } else if (fabs(iweight) == 3) { // thermal pressure
+      } else if (fabs(iweight) == 3) { // thermal pressure: needed for 3 and 5
         if (DUAL_ENERGY) {
-          for (int k=ks; k<=ke; ++k) {
-            for (int j=js; j<=je; ++j) {
+          for (int k=kl; k<=ku; ++k) {
+            for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-              for (int i=is; i<=ie; ++i) {
+              for (int i=il; i<=iu; ++i) {
                 weight(k,j,i) = pmb->phydro->u(IIE,k,j,i);
               }
             }
           }
         } else {
-          for (int k=ks; k<=ke; ++k) {
-            for (int j=js; j<=je; ++j) {
+          for (int k=kl; k<=ku; ++k) {
+            for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-              for (int i=is; i<=ie; ++i) {
+              for (int i=il; i<=iu; ++i) {
                 Real ekin = 0.5*( SQR(pmb->phydro->u(IM1,k,j,i))
                                  +SQR(pmb->phydro->u(IM2,k,j,i))
                                  +SQR(pmb->phydro->u(IM3,k,j,i)))
@@ -311,10 +322,10 @@ void UpdateGridData(Mesh *pm) {
         }
       } else if (fabs(iweight) == 4) { // magnetic pressure
         if (MAGNETIC_FIELDS_ENABLED) {
-          for (int k=ks; k<=ke; ++k) {
-            for (int j=js; j<=je; ++j) {
+          for (int k=kl; k<=ku; ++k) {
+            for (int j=jl; j<=ju; ++j) {
 #pragma omp simd
-              for (int i=is; i<=ie; ++i) {
+              for (int i=il; i<=iu; ++i) {
                 weight(k,j,i) = SQR(pmb->pfield->bcc(IB1,k,j,i))
                                +SQR(pmb->pfield->bcc(IB2,k,j,i))
                                +SQR(pmb->pfield->bcc(IB3,k,j,i));
@@ -322,6 +333,62 @@ void UpdateGridData(Mesh *pm) {
             }
           }
         }
+      } else if (fabs(iweight) == 5) { // temperature
+        if (DUAL_ENERGY) {
+          for (int k=kl; k<=ku; ++k) {
+            for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+              for (int i=il; i<=iu; ++i) {
+                weight(k,j,i) = pmb->phydro->u(IIE,k,j,i)
+                               /pmb->phydro->u(IDN,k,j,i);
+              }
+            }
+          }
+        } else {
+          for (int k=kl; k<=ku; ++k) {
+            for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+              for (int i=il; i<=iu; ++i) {
+                Real ekin = 0.5*( SQR(pmb->phydro->u(IM1,k,j,i))
+                                 +SQR(pmb->phydro->u(IM2,k,j,i))
+                                 +SQR(pmb->phydro->u(IM3,k,j,i)))
+                               / pmb->phydro->u(IDN,k,j,i);
+                Real emag = 0.0;
+                if (MAGNETIC_FIELDS_ENABLED) {
+                  emag = 0.5*( SQR(pmb->pfield->bcc(IB1,k,j,i))
+                              +SQR(pmb->pfield->bcc(IB2,k,j,i))
+                              +SQR(pmb->pfield->bcc(IB3,k,j,i)));
+                }
+                weight(k,j,i) = (pmb->phydro->u(IEN,k,j,i)-ekin-emag)
+                               /pmb->phydro->u(IDN,k,j,i);
+              }
+            }
+          }
+        }
+      }
+
+      // modify weight by angular dependence (here focusing on polar ejecta
+      // since they are faster. Change angular dependence as needed
+      if (iequat == 1) { 
+        for (int k=kl; k<=ku; ++k) {
+          Real z = pmb->pcoord->x3v(k);
+          for (int j=jl; j<=ju; ++j) {
+            Real y = pmb->pcoord->x2v(j);
+#pragma omp simd
+            for (int i=il; i<=iu; ++i) {
+              Real x    = pmb->pcoord->x1v(i);
+              Real rad, cthe2;
+              if (COORDINATE_SYSTEM == "cartesian") {
+                rad   = std::sqrt(SQR(x)+SQR(y)+SQR(z));
+                cthe2 = SQR(SQR(y/rad)); // cosine of polar angle
+              } else { // this assumes spherical_polar
+                rad   = x;
+                cthe2 = SQR(SQR(std::cos(y)));
+              }
+              weight(k,j,i) *= cthe2;
+            }
+          }
+        } 
       }
 
       if (iweight > 0) { // straight weights
@@ -342,6 +409,7 @@ void UpdateGridData(Mesh *pm) {
           }
         }
       } else { // if (iweight > 0): gradients
+        // Calculate the gradient of the quantity, and use gradient as weight.
         if (pmb->block_size.nx3 > 1) { // 3D
           for (int k=ks+1; k<=ke-1; ++k) {
             Real z = pmb->pcoord->x3v(k);
@@ -359,9 +427,10 @@ void UpdateGridData(Mesh *pm) {
                 Real gx     = (weight(k  ,j  ,i+1)-weight(k  ,j  ,i-1))/(xp-xm);
                 Real gy     = (weight(k  ,j+1,i  )-weight(k  ,j-1,i  ))/(yp-ym);
                 Real gz     = (weight(k+1,j  ,i  )-weight(k-1,j  ,i  ))/(zp-zm);
-                Real q      = quant(k,j,i);
                 Real r      = radius(k,j,i);
-                Real w      = std::fabs((gx*x+gy*y+gz*z)/r);
+                Real g      = (gx*x+gy*y+gz*z)/r;
+                Real q      = quant(k,j,i);
+                Real w      = g > 0.0 ? 0.0 : -g;
                 q          *= w;
                 r          *= w;
                 totquant   += q;
@@ -382,9 +451,10 @@ void UpdateGridData(Mesh *pm) {
               Real xp       = pmb->pcoord->x1v(i+1);
               Real gx       = (weight(ks ,j  ,i+1)-weight(ks ,j  ,i-1))/(xp-xm);
               Real gy       = (weight(ks ,j+1,i  )-weight(ks ,j-1,i  ))/(yp-ym);
-              Real q        = quant(ks,j,i);
               Real r        = radius(ks,j,i);
-              Real w        = std::fabs((gx*x+gy*y)/r);
+              Real g        = (gx*x+gy*y)/r;
+              Real q        = quant(ks,j,i);
+              Real w        = g > 0.0 ? 0.0 : -g;
               q            *= w;
               r            *= w;
               totquant     += q;
@@ -394,6 +464,7 @@ void UpdateGridData(Mesh *pm) {
           }
         }
       } // if (iweight > 0)
+
       weight.DeleteAthenaArray();
       quant.DeleteAthenaArray();
       radius.DeleteAthenaArray();
@@ -444,8 +515,8 @@ void UpdateGridData(Mesh *pm) {
       if (ntr > 0) vtrack /= ntr;
     }
     vtrack = (vtrack <= 0.0) ? 0.0 : vtrack; // enforce expansion
-    //if (Globals::my_rank == 0)
-    //  fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totgrdr=%13.5e mrad=%13.5e xmax =%13.5e\n", vtrack,totgrdr,mrad,pm->GridData(3));
+    if (Globals::my_rank == 0)
+      fprintf(stdout,"[UpdateGrid] vtrack=%13.5e totradius=%13.5e totquant=%13.5e totweight=%13.5e xmax =%13.5e\n", vtrack,totradius,totquant,totweight,pm->GridData(3));
   } // if (ivexp == 0)
 
   vtrack *= boost;
@@ -559,6 +630,12 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     ivexp      = pin->GetInteger("problem","ivexp"); // see UpdateGridData
     iweight    = pin->GetInteger("problem","iweight"); // see UpdateGridData
     boost      = pin->GetOrAddReal("problem","boost",1.0); // enhancement of vtrack
+
+    // add angular weight scheme
+    if (fabs(iweight) > 10) {
+      iweight += (iweight > 0 ? -10 : 10);
+      iequat   = 1;
+    }
 
     if (ivexp == 0) {
       vtrack0 = pin->GetReal("problem","vtrack0"); // constant tracking velocity for test purposes
@@ -1277,8 +1354,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real gamma = peos->GetGamma(); //Look into all gamma uses and see if we can have two?
   Real gm1 = gamma - 1.0;
   Real pi = 4.0*atan(1.0);
-
-  fprintf(stdout,"IDN=%2i IVX=%2i IVY=%2i IVZ=%2i IPR=%2i IBY=%2i IBZ=%2i NHYDRO-SCALARS=%2i NHYDRO=%2i NWAVE=%2i\n",IDN,IVX,IVY,IVZ,IPR,IBY,IBZ,NHYDRO-NSCALARS,NHYDRO,NWAVE);
+ 
+  if (Globals::my_rank==0) {
+    fprintf(stdout,"IDN=%2i IVX=%2i IVY=%2i IVZ=%2i IPR=%2i IBY=%2i IBZ=%2i NHYDRO-SCALARS=%2i NHYDRO=%2i NWAVE=%2i\n",IDN,IVX,IVY,IVZ,IPR,IBY,IBZ,NHYDRO-NSCALARS,NHYDRO,NWAVE);
+    fprintf(stdout,"[ProblemGenerator]: iweight = %2i iequat = %2i\n",iweight,iequat);
+  }
 
   // get coordinates of center of blast, and convert to Cartesian if necessary
   Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);
@@ -1367,16 +1447,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           }
         }
 
-        if(rad>rout){
-          phydro->u(IS0,k,j,i) = 1.0; //ambient medium
-          phydro->u(IS1,k,j,i) = 0.0; //radial ejecta scalars
-          phydro->u(IS2,k,j,i) = 0.0; //polar ejecta scalars
-        }else if(rad<rout){
-          phydro->u(IS0,k,j,i) = 0.0; //ambient medium
-          phydro->u(IS1,k,j,i) = ejr; //radial ejecta scalars
-          phydro->u(IS2,k,j,i) = ejp; //polar ejecta scalars
+        // make these smooth transitions. Also make sure to set densities, not colors here.
+        phydro->u(IS0,k,j,i) = da*0.5*(1.0+std::tanh((rad-rout)/dr)); 
+        phydro->u(IS1,k,j,i) = ejr*drat_r*da*0.5*(1.0-std::tanh((rad-rout)/dr));
+        phydro->u(IS2,k,j,i) = ejp*drat_b*da*0.5*(1.0-std::tanh((rad-rout)/dr));
 
-        }
+        //if(rad>rout){
+        //  //phydro->u(IS0,k,j,i) = 1.0; //ambient medium
+        //  phydro->u(IS1,k,j,i) = 0.0; //radial ejecta scalars
+        //  phydro->u(IS2,k,j,i) = 0.0; //polar ejecta scalars
+        //}else if(rad<rout){
+        //  //phydro->u(IS0,k,j,i) = 0.0; //ambient medium
+        //  phydro->u(IS1,k,j,i) = ejr; //radial ejecta scalars
+        //  phydro->u(IS2,k,j,i) = ejp; //polar ejecta scalars
+        //}
 
 //        for (int n=NHYDRO-NSCALARS; n<NHYDRO; ++n) {
 //          phydro->u(n,k,j,i) = den*0.25*(1.0+std::tanh((rad-1.0*rout)/(0.01*rout)))
