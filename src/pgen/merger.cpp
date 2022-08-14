@@ -52,7 +52,7 @@ static void stop_this() {
 Real WallVel(Real xf, int i, Real time, Real dt, int dir, AthenaArray<Real> gridData);
 void UpdateGridData(Mesh *pm);
 //Global variables for GridUpdate
-int ivexp, iweight, iequat = 0;
+int ivexp, iweight, iequat = 0, nx1;
 int maxntrack = 20;
 int ncycold=-1;
 Real vtrack0, boost;
@@ -63,19 +63,23 @@ Real ambDens;
 Real ambVel;
 Real ambPres;
 Real b0, bz0, angle;
-void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+void OuterX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+     FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
+void OuterX1_UniformMediumSpherical(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OuterX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OuterX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
-void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+void InnerX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void InnerX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void InnerX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
+
+Real PowerGridX1(Real x, RegionSize rs);
 
 void ShockDetector(AthenaArray<Real> data, AthenaArray<Real> grid, int outArr[], Real eps);
 
@@ -380,10 +384,10 @@ void UpdateGridData(Mesh *pm) {
               Real rad, cthe2;
               if (COORDINATE_SYSTEM == "cartesian") {
                 rad   = std::sqrt(SQR(x)+SQR(y)+SQR(z));
-                cthe2 = SQR(SQR(y/rad)); // cosine of polar angle
+                cthe2 = SQR(SQR(SQR(y/rad))); // cosine of polar angle
               } else { // this assumes spherical_polar
                 rad   = x;
-                cthe2 = SQR(SQR(std::cos(y)));
+                cthe2 = SQR(SQR(SQR(std::cos(y))));
               }
               weight(k,j,i) *= cthe2;
             }
@@ -588,6 +592,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   //   for an expanding grid).
   //========================================================================================
 
+  Real x1rat;
+
   if (EXPANDING_ENABLED) {
     EnrollGridDiffEq(WallVel);
       
@@ -595,7 +601,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
       SetGridData(12);
 
       if (mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
-        EnrollUserBoundaryFunction(OUTER_X1,OuterX1_UniformMedium);
+        EnrollUserBoundaryFunction(OUTER_X1,OuterX1_UniformMediumCartesian);
       }
       if (mesh_bcs[OUTER_X2] == GetBoundaryFlag("user")) {
         EnrollUserBoundaryFunction(OUTER_X2,OuterX2_UniformMedium);
@@ -605,7 +611,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
       }
 
       if (mesh_bcs[INNER_X1] == GetBoundaryFlag("user")) {
-        EnrollUserBoundaryFunction(INNER_X1,InnerX1_UniformMedium);
+        EnrollUserBoundaryFunction(INNER_X1,InnerX1_UniformMediumCartesian);
       }      
       if (mesh_bcs[INNER_X2] == GetBoundaryFlag("user")) {
         EnrollUserBoundaryFunction(INNER_X2,InnerX2_UniformMedium);
@@ -617,8 +623,12 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     } else {
       SetGridData(4);
       if (mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
-        EnrollUserBoundaryFunction(OUTER_X1,OuterX1_UniformMedium);
+        EnrollUserBoundaryFunction(OUTER_X1,OuterX1_UniformMediumSpherical);
       }
+      Real x1rat = pin->GetOrAddReal("mesh","x1rat",1.0);
+      nx1        = pin->GetInteger("mesh","nx1");
+      if (x1rat < 0.0)
+        EnrollUserMeshGenerator(X1DIR,PowerGridX1);
     }
     EnrollCalcGridData(UpdateGridData);
     ttrack.NewAthenaArray(maxntrack); // for position tracking
@@ -672,14 +682,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 }
 
 //========================================================================================
-//! \fn void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, 
+//! \fn void OuterX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, 
 //                                 AthenaArray<Real> &prim,FaceField &b, Real time,
 //                                 Real dt, int is, int ie, int js, int je,
 //                                 int ks, int ke, int ngh) {
 //  \brief Function for outer boundary being a uniform medium with density, velocity,
 //   and pressure given by the global variables listed at the beginning of the file.
 //========================================================================================
-void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+void OuterX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   
   for (int k=ks; k<=ke; ++k) {
@@ -701,83 +711,100 @@ void OuterX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
   if (MAGNETIC_FIELDS_ENABLED) {
     Real theta, phi;
     for (int k=ks; k<=ke; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=js; j<=je; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x1f(k,j,ie+i+1) = b0 * std::cos(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(j);
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x1f(k,j,ie+i+1) = b0 * (   std::cos(angle) * std::cos(phi)
-                                       + std::sin(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-          theta = pco->x2v(j);
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x1f(k,j,ie+i+1) = b0 * std::abs(std::sin(theta))
-                                   * (   std::cos(angle) * std::cos(phi)
-                                       + std::sin(angle) * std::sin(phi));
-          }
+        for (int i=1; i<=ngh; ++i) {
+          b.x1f(k,j,ie+i+1) = b0 * std::cos(angle);
         }
       }
     }
     for (int k=ks; k<=ke; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=js; j<=je+1; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x2f(k,j,ie+i) = b0 * std::sin(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(j);
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x2f(k,j,ie+i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") 
-          theta = pco->x2v(j);
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x2f(k,j,ie+i) = b0 * std::cos(theta)
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-            if (std::sin(theta) < 0.0)
-              b.x2f(k,j,ie+i) *= -1.0;
-          }
+        for (int i=1; i<=ngh; ++i) {
+          b.x2f(k,j,ie+i) = b0 * std::sin(angle);
         }
       }
     }
     for (int k=ks; k<=ke+1; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=js; j<=je; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian" || COORDINATE_SYSTEM == "cylindrical") {
 #pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x3f(k,j,ie+i) = bz0;
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-#pragma omp simd
-          for (int i=1; i<=ngh; ++i) {
-            b.x3f(k,j,ie+i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
+        for (int i=1; i<=ngh; ++i) {
+          b.x3f(k,j,ie+i) = bz0;
         }
       }
     }
   }
-
   return;
+}
 
+//========================================================================================
+//! \fn void OuterX1_UniformMediumSpherical(MeshBlock *pmb, Coordinates *pco, 
+//                                 AthenaArray<Real> &prim,FaceField &b, Real time,
+//                                 Real dt, int is, int ie, int js, int je,
+//                                 int ks, int ke, int ngh) {
+//  \brief Function for outer boundary being a uniform medium with density, velocity,
+//   and pressure given by the global variables listed at the beginning of the file.
+//========================================================================================
+void OuterX1_UniformMediumSpherical(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+     FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
+
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+#pragma omp simd
+      for (int i=1; i<=ngh; ++i) {
+        prim(IDN,k,j,ie+i) = ambDens;
+        prim(IPR,k,j,ie+i) = ambPres;
+        prim(IVX,k,j,ie+i) = 0.0;
+        prim(IVY,k,j,ie+i) = 0.0;
+        prim(IVZ,k,j,ie+i) = 0.0;
+        prim(IS0,k,j,ie+i) = 1.0;
+        prim(IS1,k,j,ie+i) = 0.0;
+        prim(IS2,k,j,ie+i) = 0.0;
+      }
+    }
+  }
+  if (MAGNETIC_FIELDS_ENABLED) {
+    Real theta, phi;
+    for (int k=ks; k<=ke; ++k) {
+      phi = pco->x3v(k);
+      for (int j=js; j<=je; ++j) {
+        theta = pco->x2v(j);
+#pragma omp simd
+        for (int i=1; i<=ngh; ++i) {
+          b.x1f(k,j,ie+i+1) = b0 * std::abs(std::sin(theta))
+                                 * (   std::cos(angle) * std::cos(phi)
+                                     + std::sin(angle) * std::sin(phi));
+        }
+      }
+    }
+
+    for (int k=ks; k<=ke; ++k) {
+      phi = pco->x3v(k);
+      for (int j=js; j<=je+1; ++j) {
+        theta = pco->x2v(j);
+#pragma omp simd
+        for (int i=1; i<=ngh; ++i) {
+          b.x2f(k,j,ie+i) = b0 * std::cos(theta)
+                               * (   std::cos(angle) * std::cos(phi)
+                                   + std::sin(angle) * std::sin(phi));
+          if (std::sin(theta) < 0.0)
+            b.x2f(k,j,ie+i) *= -1.0;
+        }
+      }
+    }
+    for (int k=ks; k<=ke+1; ++k) {
+      phi = pco->x3v(k);
+      for (int j=js; j<=je; ++j) {
+#pragma omp simd
+        for (int i=1; i<=ngh; ++i) {
+          b.x3f(k,j,ie+i) = b0 * (   std::sin(angle) * std::cos(phi)
+                                   - std::cos(angle) * std::sin(phi));
+        }
+      }
+    }
+  }
+  return;
 }
 
 
@@ -808,80 +835,28 @@ void OuterX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
     }
   }
 
-
   if (MAGNETIC_FIELDS_ENABLED) {
-    Real theta, phi;
     for (int k=ks; k<=ke; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=1; j<=ngh; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(k,je+j,i) = b0 * std::cos(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(je+j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(k,je+j,i) = b0 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-          theta = pco->x2v(je+j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(k,je+j,i) = b0 * std::abs(std::sin(theta))
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie+1; ++i) {
+          b.x1f(k,je+j,i) = b0 * std::cos(angle);
         }
       }
     }
     for (int k=ks; k<=ke; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=1; j<=ngh; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(k,je+j+1,i) = b0 * std::sin(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(je+j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(k,je+j+1,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                       - std::cos(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") 
-          theta = pco->x2v(je+j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(k,je+j+1,i) = b0 * std::cos(theta)
-                                   * (   std::cos(angle) * std::cos(phi)
-                                       + std::sin(angle) * std::sin(phi));
-            if (std::sin(theta) < 0.0)
-              b.x2f(k,je+j+1,i) *= -1.0;
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x2f(k,je+j+1,i) = b0 * std::sin(angle);
         }
       }
     }
     for (int k=ks; k<=ke+1; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=1; j<=ngh; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian" || COORDINATE_SYSTEM == "cylindrical") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(k,je+j,i) = bz0;
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(k,je+j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x3f(k,je+j,i) = bz0;
         }
       }
     }
@@ -919,78 +894,27 @@ void OuterX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
   }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-    Real theta, phi;
     for (int k=1; k<=ngh; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(ke+k);
       for (int j=js; j<=je; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(ke+k,j,i) = b0 * std::cos(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(ke+k,j,i) = b0 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-          theta = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(ke+k,j,i) = b0 * std::abs(std::sin(theta))
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie+1; ++i) {
+          b.x1f(ke+k,j,i) = b0 * std::cos(angle);
         }
       }
     }
     for (int k=1; k<=ngh; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(ke+k);
       for (int j=js; j<=je+1; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(ke+k,j,i) = b0 * std::sin(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(ke+k,j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") 
-          theta = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(ke+k,j,i) = b0 * std::cos(theta)
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-            if (std::sin(theta) < 0.0)
-              b.x2f(ke+k,j,i) *= -1.0;
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x2f(ke+k,j,i) = b0 * std::sin(angle);
         }
       }
     }
     for (int k=1; k<=ngh; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(ke+k);
       for (int j=js; j<=je; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian" || COORDINATE_SYSTEM == "cylindrical") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(ke+k+1,j,i) = bz0;
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(ke+k+1,j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                       - std::cos(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x3f(ke+k+1,j,i) = bz0;
         }
       }
     }
@@ -1000,7 +924,7 @@ void OuterX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
 
 }
 //========================================================================================
-//! \fn void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, 
+//! \fn void InnerX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, 
 //                                 AthenaArray<Real> &prim,FaceField &b, Real time,
 //                                 Real dt, int is, int ie, int js, int je,
 //                                 int ks, int ke, int ngh) {
@@ -1008,7 +932,7 @@ void OuterX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
 //   and pressure given by the global variables listed at the beginning of the file.
 //========================================================================================
 
-void InnerX1_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
+void InnerX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
      FaceField &b, Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   
   for (int k=ks; k<=ke; ++k) {
@@ -1136,78 +1060,27 @@ void InnerX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
   }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-    Real theta, phi;
     for (int k=ks; k<=ke; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=1; j<=ngh; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(k,js-j,i) = b0 * std::cos(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(js-j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(k,js-j,i) = b0 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-          theta = pco->x2v(js-j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(k,js-j,i) = b0 * std::abs(std::sin(theta))
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie+1; ++i) {
+          b.x1f(k,js-j,i) = b0 * std::cos(angle);
         }
       }
     }
     for (int k=ks; k<=ke; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=1; j<=ngh; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(k,js-j,i) = b0 * std::sin(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(js-j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(k,js-j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") 
-          theta = pco->x2v(js-j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(k,js-j,i) = b0 * std::cos(theta)
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-            if (std::sin(theta) < 0.0)
-              b.x2f(k,js-j,i) *= -1.0;
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x2f(k,js-j,i) = b0 * std::sin(angle);
         }
       }
     }
     for (int k=ks; k<=ke+1; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(k);
       for (int j=1; j<=ngh; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian" || COORDINATE_SYSTEM == "cylindrical") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(k,js-j,i) = bz0;
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(k,js-j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x3f(k,js-j,i) = bz0;
         }
       }
     }
@@ -1246,78 +1119,27 @@ void InnerX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
   }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-    Real theta, phi;
     for (int k=1; k<=ngh; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(ks-k);
       for (int j=js; j<=je; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(ks-k,j,i) = b0 * std::cos(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(ks-k,j,i) = b0 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-          theta = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie+1; ++i) {
-            b.x1f(ks-k,j,i) = b0 * std::abs(std::sin(theta))
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie+1; ++i) {
+          b.x1f(ks-k,j,i) = b0 * std::cos(angle);
         }
       }
     }
     for (int k=1; k<=ngh; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(ks-k);
       for (int j=js; j<=je+1; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(ks-k,j,i) = b0 * std::sin(angle);
-          }
-        } else if (COORDINATE_SYSTEM == "cylindrical") {
-          phi = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(ks-k,j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") 
-          theta = pco->x2v(j);
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x2f(ks-k,j,i) = b0 * std::cos(theta)
-                                 * (   std::cos(angle) * std::cos(phi)
-                                     + std::sin(angle) * std::sin(phi));
-            if (std::sin(theta) < 0.0)
-              b.x2f(ks-k,j,i) *= -1.0;
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x2f(ks-k,j,i) = b0 * std::sin(angle);
         }
       }
     }
     for (int k=1; k<=ngh; ++k) {
-      if (COORDINATE_SYSTEM == "spherical_polar")
-        phi = pco->x3v(ks-k);
       for (int j=js; j<=je; ++j) {
-        if (COORDINATE_SYSTEM == "cartesian" || COORDINATE_SYSTEM == "cylindrical") {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(ks-k,j,i) = bz0;
-          }
-        } else { //if (COORDINATE_SYSTEM == "spherical_polar") {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            b.x3f(ks-k,j,i) = b0 * (   std::sin(angle) * std::cos(phi)
-                                     - std::cos(angle) * std::sin(phi));
-          }
+        for (int i=is; i<=ie; ++i) {
+          b.x3f(ks-k,j,i) = bz0;
         }
       }
     }
@@ -1326,6 +1148,17 @@ void InnerX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
   return;
 
 }
+
+//========================================================================================
+//! \fn Real PowerGridX1(Real x, RegionSize rs)
+//  \brief Generates grid following r_i = r_0*(1+delta)**i
+//========================================================================================
+Real PowerGridX1(Real x, RegionSize rs) {
+  Real delta = pow((rs.x1max/rs.x1min),1.0/((Real)nx1))-1.0;
+  Real r     = rs.x1min*pow((1.0+delta),x*((Real)nx1));
+  return r;
+}
+
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Should be used to set initial conditions.
@@ -1360,29 +1193,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     fprintf(stdout,"[ProblemGenerator]: iweight = %2i iequat = %2i\n",iweight,iequat);
   }
 
-  // get coordinates of center of blast, and convert to Cartesian if necessary
-  Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);
-  Real x2_0   = pin->GetOrAddReal("problem","x2_0",0.0);
-  Real x3_0   = pin->GetOrAddReal("problem","x3_0",0.0);
-  Real x0,y0,z0;
-  if (COORDINATE_SYSTEM == "cartesian") {
-    x0 = x1_0;
-    y0 = x2_0;
-    z0 = x3_0;
-  } else if (COORDINATE_SYSTEM == "cylindrical") {
-    x0 = x1_0*std::cos(x2_0);
-    y0 = x1_0*std::sin(x2_0);
-    z0 = x3_0;
-  } else if (COORDINATE_SYSTEM == "spherical_polar") {
-    x0 = x1_0*std::sin(x2_0)*std::cos(x3_0);
-    y0 = x1_0*std::sin(x2_0)*std::sin(x3_0);
-    z0 = x1_0*std::cos(x2_0);
-  } else {
-    // Only check legality of COORDINATE_SYSTEM once in this function
-    std::cout << "### FATAL ERROR in blast.cpp ProblemGenerator" << std::endl
-        << "Unrecognized COORDINATE_SYSTEM= " << COORDINATE_SYSTEM << std::endl;
-  }
-
   // setup uniform ambient medium with spherical over-pressured region
   for (int k=ks; k<=ke; k++) {
     for (int j=js; j<=je; j++) {
@@ -1393,21 +1203,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           y   = pcoord->x2v(j);
           z   = pcoord->x3v(k);
           r   = std::sqrt(SQR(x)+SQR(y)+SQR(z));
-          rad = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
+          rad = std::sqrt(SQR(x) + SQR(y) + SQR(z));
           thet   = std::acos(y/rad); //2D!!!
-          //thet   = thet*(180.0/pi);
         } else if (COORDINATE_SYSTEM == "cylindrical") {
           x   = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
           y   = pcoord->x1v(i)*std::sin(pcoord->x2v(j));
           z   = pcoord->x3v(k);
-          rad = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
-         // thet   = std::acos(z/rad);
+          rad = std::sqrt(SQR(x) + SQR(y) + SQR(z));
+          thet= std::acos(z/rad);
         } else { // if (COORDINATE_SYSTEM == "spherical_polar")
-          x   = pcoord->x1v(i)*std::sin(pcoord->x2v(j))*std::cos(pcoord->x3v(k));
-          y   = pcoord->x1v(i)*std::sin(pcoord->x2v(j))*std::sin(pcoord->x3v(k));
-          z   = pcoord->x1v(i)*std::cos(pcoord->x2v(j));
-          rad = std::sqrt(SQR(x - x0) + SQR(y - y0) + SQR(z - z0));
-         // thet   = pcoord->x2v(j);
+          rad = pcoord->x1v(i);
+          thet= pcoord->x2v(j);
         }
         Real den = da;
         Real v1  = 0.0;
@@ -1451,21 +1257,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         phydro->u(IS0,k,j,i) = da*0.5*(1.0+std::tanh((rad-rout)/dr)); 
         phydro->u(IS1,k,j,i) = ejr*drat_r*da*0.5*(1.0-std::tanh((rad-rout)/dr));
         phydro->u(IS2,k,j,i) = ejp*drat_b*da*0.5*(1.0-std::tanh((rad-rout)/dr));
-
-        //if(rad>rout){
-        //  //phydro->u(IS0,k,j,i) = 1.0; //ambient medium
-        //  phydro->u(IS1,k,j,i) = 0.0; //radial ejecta scalars
-        //  phydro->u(IS2,k,j,i) = 0.0; //polar ejecta scalars
-        //}else if(rad<rout){
-        //  //phydro->u(IS0,k,j,i) = 0.0; //ambient medium
-        //  phydro->u(IS1,k,j,i) = ejr; //radial ejecta scalars
-        //  phydro->u(IS2,k,j,i) = ejp; //polar ejecta scalars
-        //}
-
-//        for (int n=NHYDRO-NSCALARS; n<NHYDRO; ++n) {
-//          phydro->u(n,k,j,i) = den*0.25*(1.0+std::tanh((rad-1.0*rout)/(0.01*rout)))
-//                                       *(1.0-std::tanh((rad-1.2*rout)/(0.01*rout)));
-//        }
 
       //fprintf(stdout,"dens=%13.5e, energy=%13.5e\n",phydro->u(IDN,k,j,i),phydro->u(IEN,k,j,i));
       //fprintf(stdout,"thet=%13.5e, rad=%13.5e, amb=%13.3e, rej=%13.3e, pej=%13.3e\n",thet,rad,phydro->u(IS0,k,j,i),phydro->u(IS1,k,j,i),phydro->u(IS2,k,j,i));
