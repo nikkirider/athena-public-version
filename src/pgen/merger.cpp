@@ -55,7 +55,7 @@ void UpdateGridData(Mesh *pm);
 int ivexp, iweight, iequat = 0, nx1;
 int maxntrack = 20;
 int ncycold=-1;
-Real vtrack0, boost;
+Real vtrack0, boost, strack;
 AthenaArray<Real> ttrack,rtrack;
 
 //Global Variables for OuterX1
@@ -384,10 +384,10 @@ void UpdateGridData(Mesh *pm) {
               Real rad, cthe2;
               if (COORDINATE_SYSTEM == "cartesian") {
                 rad   = std::sqrt(SQR(x)+SQR(y)+SQR(z));
-                cthe2 = SQR(SQR(SQR(y/rad))); // cosine of polar angle
+                cthe2 = std::pow(SQR(y/rad),strack); // cosine of polar angle
               } else { // this assumes spherical_polar
                 rad   = x;
-                cthe2 = SQR(SQR(SQR(std::cos(y))));
+                cthe2 = std::pow(SQR(std::cos(y)),strack);
               }
               weight(k,j,i) *= cthe2;
             }
@@ -640,6 +640,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     ivexp      = pin->GetInteger("problem","ivexp"); // see UpdateGridData
     iweight    = pin->GetInteger("problem","iweight"); // see UpdateGridData
     boost      = pin->GetOrAddReal("problem","boost",1.0); // enhancement of vtrack
+    strack     = pin->GetOrAddReal("problem","strack",1.0); // focuses tracking to polar angle by cos(theta)**(2*strack)
 
     // add angular weight scheme
     if (fabs(iweight) > 10) {
@@ -1169,6 +1170,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // that sets the initial conditions for the problem of interest.
   Real rout = pin->GetReal("problem","radius");
   Real dr  =  pin->GetReal("problem","ramp"); //do we want identical ramps?
+  Real dthet= pin->GetReal("problem","dthet"); // transition in theta to prevent spikes in temperature (used to be 0.02)
   Real pa   = pin->GetReal("problem","pamb");
   Real da   = pin->GetReal("problem","damb");
   Real prat_r = pin->GetReal("problem","prat1"); //red
@@ -1221,8 +1223,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         //fprintf(stdout,"i=%4i,j=%4i,k=%4i,x=%13.4e,y=%13.4e,z=%13.4e,thet=%13.4e\n",i,j,k,x,y,z,thet);
 
         // azimuthal tanh profiles for radial and polar ejecta
-        Real ejr = 0.25*(1.0-std::tanh((thet-(3.0*pi/4.0))/0.02))*(1.0+std::tanh((thet-(pi/4.0))/0.02));
-        Real ejp = 0.5*std::abs((1.0-std::tanh((thet-(3.0*pi/4.0))/0.02))-(1.0+std::tanh((thet-(pi/4.0))/0.02)));
+        Real ejr = 0.25*(1.0-std::tanh((thet-(3.0*pi/4.0))/dthet))*(1.0+std::tanh((thet-(pi/4.0))/dthet));
+        Real ejp = 0.5*std::abs((1.0-std::tanh((thet-(3.0*pi/4.0))/dthet))-(1.0+std::tanh((thet-(pi/4.0))/dthet)));
         Real densprof = ejr*drat_r + ejp*drat_b;
         Real velprof = vSh_b*ejp + vSh_r*ejr;
  

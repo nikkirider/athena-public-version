@@ -5,7 +5,7 @@
 
 python3 configure.py\
                          --prob merger \
-                         --coord spherical_polar \
+                         --coord cartesian \
                          --eos adiabatic \
                          --flux hllc \
                          --cxx icc \
