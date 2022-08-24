@@ -565,7 +565,7 @@ void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<
     for (int j=pmb->js; j<=pmb->je; ++j) {
       for (int i=pmb->is; i<=pmb->ie; ++i) {
         Real dens  = prim(IDN,k,j,i);
-        Real temp0 = prim(IGE,k,j,i)*g1; // This should have gam-1, bc it's the specific internal energy
+        Real temp0 = prim(IGE,k,j,i)/dens; 
         if (temp0 <= 0.0) {
           std::stringstream msg;
           msg << "### FATAL ERROR in coolcloud.cpp: HeatCool: temp0 <=0 for DUAL_ENERGY" << std::endl

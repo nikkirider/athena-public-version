@@ -304,11 +304,7 @@ class CoolingFunction {
 //! \fn void heatcool(...)
 //  \brief Heating and cooling for user-defined cooling function
 //  Implicit solution of ODE for temperature change (see RootFunc)
-//  Sets global variable dtcool to allow for adjustment of timestep if required 
 //  (See HeatCoolTimeStep).
-//  The current timestep at which change is applied is dt. This cannot be changed. Hence
-//  any safety factor for dtcool needs to be aggressively applied for next timestep.
-//  The only other remedy would be to implement a "traceback" as in Proteus and Athena. 
 //========================================================================================
 void HeatCool(MeshBlock *pmb, const Real time, const Real dt, const AthenaArray<Real> &prim,
               const AthenaArray<Real> &bcc, AthenaArray<Real> &cons)
