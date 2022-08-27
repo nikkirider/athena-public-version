@@ -66,6 +66,7 @@ void InflowBoundary(MeshBlock *pmb, Coordinates *pcoord, AthenaArray<Real> &prim
                     FaceField &bb, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 Real gravpot_darkhalo(const Real x1, const Real x2, const Real x3, const Real time);
+Real gravpot_darkhalo2(const Real x1, const Real x2, const Real x3, const Real time);
 static void stop_this();
 
 //====================================================================================
@@ -351,6 +352,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
    
   if (ipot == 1) {
     EnrollStaticGravPotFunction(gravpot_darkhalo);
+  } else if (ipot == 2) {
+    EnrollStaticGravPotFunction(gravpot_darkhalo2);
   }
 
   if (grav_acc != 0.0) {
@@ -766,5 +769,38 @@ static Real gravpot_darkhalo(const Real x1, const Real x2, const Real x3, const 
   Real Phi = (-4*M_PI*rho_s*std::pow(rs,3)*log(1+r/rs)/r);//*0.5*(1.0-std::tanh((r-r200)/(0.1*r200)));
   return Phi;
 }
+
+//----------------------------------------------------------------------------------------
+//! \fn static gravpot_darkhalo2
+//  \brief two spherically symmetric potentials with different mass, centered around 0.
+//   Second mass has 10% of first one. Separated by ~1kpc.
+//  ISM units
+//----------------------------------------------------------------------------------------
+static Real gravpot_darkhalo2(const Real x1, const Real x2, const Real x3, const Real time){
+  Real M200 = 9e9; //solar mass
+  const Real h = 0.673;
+  Real logc200 = (0.905 - 0.101*log10(M200/(1e12/h)));
+  Real c200 = std::pow(10,logc200);
+  Real delta_c = (200.0/3)*std::pow(c200,3)/(log(1+c200)-c200/(1+c200));
+  const Real rho_crit = (1e-29)/(1.677e-24); // 10^29 g/cm^3 --> ISM units
+  Real rho_s = rho_crit*delta_c; //  ISM density unit
+  Real r200 = std::pow((M200/16.84)/(200.0*rho_crit*(4*M_PI/3)), 1.0/3); // ISM length unit
+  Real rs = r200/c200; // ISM length unit
+  Real r = std::sqrt(SQR(x1)+SQR(x2)+SQR(x3+567.0));
+  Real Phi = (-4*M_PI*rho_s*std::pow(rs,3)*log(1+r/rs)/r);//*0.5*(1.0-std::tanh((r-r200)/(0.1*r200)));
+
+  M200 = 1e9; //solar mass
+  logc200 = (0.905 - 0.101*log10(M200/(1e12/h)));
+  c200 = std::pow(10,logc200);
+  delta_c = (200.0/3)*std::pow(c200,3)/(log(1+c200)-c200/(1+c200));
+  rho_s = rho_crit*delta_c; //  ISM density unit
+  r200 = std::pow((M200/16.84)/(200.0*rho_crit*(4*M_PI/3)), 1.0/3); // ISM length unit
+  rs = r200/c200; // ISM length unit
+  r = std::sqrt(SQR(x1)+SQR(x2)+SQR(x3-567.0));
+  Phi += (-4*M_PI*rho_s*std::pow(rs,3)*log(1+r/rs)/r);
+  return Phi;
+}
+
+
 
 
