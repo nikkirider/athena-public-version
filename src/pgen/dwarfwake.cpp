@@ -44,7 +44,8 @@
 
 
 // Cooling variables. These need to be set in InitUserMeshData (restarts!!)
-Real n0, T0, gm1, v0, grav_acc, dtcool = HUGE_NUMBER;
+int ipot;
+Real n0, T0, gm1, v0, grav_acc, dtcool = HUGE_NUMBER, mpot, potrat;
 const Real coolsafe = 0.05;
 
 // Ahead declaration of class CoolingFunction
@@ -337,7 +338,7 @@ class CoolingFunction {
 //========================================================================================
 void Mesh::InitUserMeshData(ParameterInput *pin) {
 
-  int icool, ipot;
+  int icool;
 
   icool    = pin->GetInteger("problem","icool"); // 0: none , 1: Slyz
   ipot     = pin->GetInteger("problem","ipot"); // 0: none, 1: static dwarf potential
@@ -390,6 +391,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   z0       = pin->GetOrAddReal("problem","z0",0.0); // z-center of cloud
   x1min    = pin->GetReal("mesh","x1min"); 
   x1max    = pin->GetReal("mesh","x1max"); 
+  ipot     = pin->GetInteger("problem","ipot");
+  mpot     = pin->GetOrAddReal("problem","mpot",1e10);
+  if (ipot == 2) {
+    potrat = pin->GetReal("problem","potrat"); 
+  }
 
   // cooling function
   if (icool != 0) 
@@ -756,7 +762,7 @@ void ProjectPressureOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> 
 //  ISM units
 //----------------------------------------------------------------------------------------
 static Real gravpot_darkhalo(const Real x1, const Real x2, const Real x3, const Real time){
-  Real M200 = 1e10; //solar mass
+  Real M200 = mpot; //solar mass
   const Real h = 0.673; 
   Real logc200 = (0.905 - 0.101*log10(M200/(1e12/h))); 
   Real c200 = std::pow(10,logc200);
@@ -777,7 +783,7 @@ static Real gravpot_darkhalo(const Real x1, const Real x2, const Real x3, const 
 //  ISM units
 //----------------------------------------------------------------------------------------
 static Real gravpot_darkhalo2(const Real x1, const Real x2, const Real x3, const Real time){
-  Real M200 = 9e9; //solar mass
+  Real M200 = (1.0-potrat)*mpot; //solar mass
   const Real h = 0.673;
   Real logc200 = (0.905 - 0.101*log10(M200/(1e12/h)));
   Real c200 = std::pow(10,logc200);
@@ -789,7 +795,7 @@ static Real gravpot_darkhalo2(const Real x1, const Real x2, const Real x3, const
   Real r = std::sqrt(SQR(x1)+SQR(x2)+SQR(x3+567.0));
   Real Phi = (-4*M_PI*rho_s*std::pow(rs,3)*log(1+r/rs)/r);//*0.5*(1.0-std::tanh((r-r200)/(0.1*r200)));
 
-  M200 = 1e9; //solar mass
+  M200 = potrat*mpot; //solar mass
   logc200 = (0.905 - 0.101*log10(M200/(1e12/h)));
   c200 = std::pow(10,logc200);
   delta_c = (200.0/3)*std::pow(c200,3)/(log(1+c200)-c200/(1+c200));

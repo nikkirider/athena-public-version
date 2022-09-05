@@ -699,6 +699,7 @@ void OuterX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, AthenaArra
       for (int i=1; i<=ngh; ++i) {
         prim(IDN,k,j,ie+i) = ambDens;
         prim(IPR,k,j,ie+i) = ambPres;  
+        if (DUAL_ENERGY) prim(IGE,k,j,ie+i) = ambPres;
         prim(IVX,k,j,ie+i) = 0.0;
         prim(IVY,k,j,ie+i) = 0.0;
         prim(IVZ,k,j,ie+i) = 0.0;
@@ -826,6 +827,7 @@ void OuterX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int j=1; j<=ngh; ++j) {
         prim(IDN,k,je+j,i) = ambDens;
         prim(IPR,k,je+j,i) = ambPres;  
+        if (DUAL_ENERGY) prim(IGE,k,je+j,i) = ambPres;
         prim(IVX,k,je+j,i) = 0.0;
         prim(IVY,k,je+j,i) = 0.0;
         prim(IVZ,k,je+j,i) = 0.0;
@@ -884,6 +886,7 @@ void OuterX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int k=1; k<=ngh; ++k) {
         prim(IDN,ke+k,j,i) = ambDens;
         prim(IPR,ke+k,j,i) = ambPres;  
+        if (DUAL_ENERGY) prim(IGE,ke+k,j,i) = ambPres;
         prim(IVX,ke+k,j,i) = 0.0;
         prim(IVY,ke+k,j,i) = 0.0;
         prim(IVZ,ke+k,j,i) = 0.0;
@@ -942,6 +945,7 @@ void InnerX1_UniformMediumCartesian(MeshBlock *pmb, Coordinates *pco, AthenaArra
       for (int i=1; i<=ngh; ++i) {
         prim(IDN,k,j,is-i) = ambDens;
         prim(IPR,k,j,is-i) = ambPres;  
+        if (DUAL_ENERGY) prim(IGE,k,j,is-i) = ambPres;
         prim(IVX,k,j,is-i) = 0.0;
         prim(IVY,k,j,is-i) = 0.0;
         prim(IVZ,k,j,is-i) = 0.0;
@@ -1050,6 +1054,7 @@ void InnerX2_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int i=is; i<=ie; ++i) {
         prim(IDN,k,js-j,i) = ambDens;
         prim(IPR,k,js-j,i) = ambPres;  
+        if (DUAL_ENERGY) prim(IGE,k,js-j,i) = ambPres;
         prim(IVX,k,js-j,i) = 0.0;
         prim(IVY,k,js-j,i) = 0.0;
         prim(IVZ,k,js-j,i) = 0.0;
@@ -1109,6 +1114,7 @@ void InnerX3_UniformMedium(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &
       for (int i=is; i<=ie; ++i) {
         prim(IDN,ks-k,j,i) = ambDens;
         prim(IPR,ks-k,j,i) = ambPres;  
+        if (DUAL_ENERGY) prim(IGE,ks-k,j,i) = ambPres;
         prim(IVX,ks-k,j,i) = 0.0;
         prim(IVY,ks-k,j,i) = 0.0;
         prim(IVZ,ks-k,j,i) = 0.0;
